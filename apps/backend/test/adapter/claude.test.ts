@@ -13,7 +13,9 @@ function fakeQuery(messages: unknown[], block = false) {
         o: { signal: AbortSignal; toolUseID: string; suggestions?: unknown[]; title?: string },
       ) => Promise<unknown>)
     | undefined
-  const fn = ((arg: { options?: { canUseTool?: typeof canUseTool } }) => {
+  let capturedOptions: Record<string, unknown> | undefined
+  const fn = ((arg: { options?: Record<string, unknown> & { canUseTool?: typeof canUseTool } }) => {
+    capturedOptions = arg.options
     canUseTool = arg.options?.canUseTool
     return {
       async *[Symbol.asyncIterator]() {
@@ -26,7 +28,7 @@ function fakeQuery(messages: unknown[], block = false) {
       close: async () => {},
     }
   }) as unknown as ConstructorParameters<typeof ClaudeAdapter>[0]
-  return { fn, calls, getCanUseTool: () => canUseTool! }
+  return { fn, calls, getCanUseTool: () => canUseTool!, getOptions: () => capturedOptions! }
 }
 
 async function collect(events: AsyncIterable<AdapterEvent>): Promise<AdapterEvent[]> {
@@ -83,6 +85,16 @@ describe('ClaudeAdapter mapping', () => {
     const session = new ClaudeAdapter(fn).start({ cwd: '/repo' })
     await session.interrupt()
     expect(calls.interrupted).toBe(true)
+  })
+
+  it('runs in isolation so trux owns permissions (default mode, no filesystem settings)', () => {
+    const { fn, getOptions } = fakeQuery([])
+    new ClaudeAdapter(fn).start({ cwd: '/repo' })
+    const options = getOptions()
+    // settingSources [] keeps the user's global ~/.claude allow-list from
+    // bypassing canUseTool; default mode means mutations route through it.
+    expect(options.settingSources).toEqual([])
+    expect(options.permissionMode).toBe('default')
   })
 
   it('emits an approval_request and resolves allow with the input passed through', async () => {

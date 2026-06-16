@@ -39,6 +39,15 @@ export function Transcript({ items, approvalDecisions, onRespond }: Props): Reac
                 key={j}
                 data-testid="tool-image"
                 className="tool-image"
+                // Screenshots fit the pane; tiny images stay locatable with a border.
+                style={{
+                  display: 'block',
+                  maxWidth: '100%',
+                  maxHeight: '70vh',
+                  minWidth: '64px',
+                  border: '1px solid #ccc',
+                  imageRendering: 'pixelated',
+                }}
                 src={`data:${img.media_type};base64,${img.data}`}
                 alt="tool output"
               />

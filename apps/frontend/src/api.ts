@@ -1,4 +1,5 @@
 import type {
+  AgentsResponse,
   Conversation,
   ConversationDetail,
   CreateConversationRequest,
@@ -18,6 +19,7 @@ async function json<T>(res: Response): Promise<T> {
 
 export const api = {
   listWorkspaces: () => fetch('/workspaces', { headers: authHeaders() }).then(json<Workspace[]>),
+  listAgents: () => fetch('/agents', { headers: authHeaders() }).then(json<AgentsResponse>),
   listConversations: () =>
     fetch('/conversations', { headers: authHeaders() }).then(json<Conversation[]>),
   getConversation: (id: string) =>

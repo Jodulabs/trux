@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ApprovalRequestEvent } from '@trux/protocol'
 import { Composer } from '../src/components/Composer'
 import { Transcript } from '../src/components/Transcript'
 import { ApprovalCard } from '../src/components/ApprovalCard'
 import { ConversationView } from '../src/components/ConversationView'
+import { NewConversationDialog } from '../src/components/NewConversationDialog'
+import { api } from '../src/api'
 import { useStore, type TranscriptItem } from '../src/store'
 
 afterEach(cleanup)
@@ -90,5 +92,25 @@ describe('ConversationView preview', () => {
     fireEvent.click(screen.getByTestId('open-preview'))
     expect(open).toHaveBeenCalledWith('http://localhost:5173', '_blank')
     vi.unstubAllGlobals()
+  })
+})
+
+describe('NewConversationDialog', () => {
+  it('renders fetched agents and creates with the selected one', async () => {
+    vi.spyOn(api, 'listWorkspaces').mockResolvedValue([
+      { root: '/repo', worktrees: [{ path: '/repo', branch: 'main' }] },
+    ])
+    vi.spyOn(api, 'listAgents').mockResolvedValue({ agents: ['claude', 'opencode'] })
+    const created = vi.spyOn(api, 'createConversation').mockResolvedValue({
+      id: 'c1', agent: 'opencode', cwd: '/repo', title: null, status: 'idle',
+      native_session_id: null, archived: false, created_at: 1, updated_at: 1,
+    })
+    const onCreated = vi.fn()
+    render(<NewConversationDialog onCreated={onCreated} />)
+    const agentSelect = await screen.findByTestId('agent-select')
+    fireEvent.change(agentSelect, { target: { value: 'opencode' } })
+    fireEvent.click(screen.getByTestId('create'))
+    await waitFor(() => expect(created).toHaveBeenCalledWith({ agent: 'opencode', cwd: '/repo' }))
+    vi.restoreAllMocks()
   })
 })

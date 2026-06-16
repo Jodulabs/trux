@@ -11,6 +11,8 @@ export interface Config {
   authRequired: boolean
 }
 
+// Only an explicit '1'/'true' is true. Note this is fail-OPEN for TRUX_AUTH: a typo or unset
+// value yields authRequired=false (auth off) — fine locally, but remote deploy must verify it's on.
 function bool(value: string | undefined): boolean {
   return value === '1' || value === 'true'
 }

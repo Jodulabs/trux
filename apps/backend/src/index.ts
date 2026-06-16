@@ -1,6 +1,9 @@
 import 'dotenv/config'
 import { loadConfig } from './config'
 import { openDb } from './db'
+import { SqliteRegistry } from './registry'
+import { ClaudeAdapter } from './adapter/claude'
+import { ConversationManager } from './manager'
 import { buildServer } from './server'
 
 async function main(): Promise<void> {
@@ -9,7 +12,9 @@ async function main(): Promise<void> {
     throw new Error(`invalid TRUX_PORT: ${process.env.TRUX_PORT}`)
   }
   const db = openDb(config.dbPath)
-  const app = await buildServer(config, db)
+  const registry = new SqliteRegistry(db)
+  const manager = new ConversationManager(registry, new ClaudeAdapter())
+  const app = await buildServer(config, db, registry, manager)
   await app.listen({ host: config.host, port: config.port })
   console.log(`trux backend listening on http://${config.host}:${config.port} (db: ${config.dbPath})`)
 }

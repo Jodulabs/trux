@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type {
+  AgentsResponse,
   Conversation,
   PortDetectedEvent,
   ServerEvent,
@@ -38,5 +39,12 @@ describe('phase 3 events', () => {
   it('builds a port_detected event', () => {
     const ev: PortDetectedEvent = { type: 'port_detected', port: 5173 }
     expect(ev.port).toBe(5173)
+  })
+})
+
+describe('agents response', () => {
+  it('lists agent names', () => {
+    const r: AgentsResponse = { agents: ['claude', 'opencode'] }
+    expect(r.agents).toContain('claude')
   })
 })

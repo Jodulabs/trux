@@ -39,3 +39,7 @@ export interface ConversationDetail {
   conversation: Conversation
   transcript: StoredEvent[]
 }
+
+export interface AgentsResponse {
+  agents: AgentName[]
+}

@@ -186,6 +186,10 @@ export class ClaudeAdapter implements AgentAdapter {
         options: {
           cwd,
           permissionMode: 'default',
+          // SDK isolation: don't load ~/.claude or repo .claude settings, so the
+          // user's global allow-list (e.g. Write(*)) can't bypass canUseTool —
+          // trux is the sole permission authority. (Trade-off: no CLAUDE.md auto-load.)
+          settingSources: [],
           includePartialMessages: true,
           resume,
           canUseTool: canUseTool as never,

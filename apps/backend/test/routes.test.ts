@@ -65,7 +65,7 @@ let db: TruxDatabase
 async function start(adapter: AgentAdapter = new FakeAdapter()): Promise<{ port: number; registry: SqliteRegistry }> {
   db = openDb(':memory:')
   const registry = new SqliteRegistry(db)
-  const manager = new ConversationManager(registry, adapter)
+  const manager = new ConversationManager(registry, new Map([['claude', adapter]]))
   app = await buildServer(baseConfig, db, registry, manager)
   await app.listen({ host: '127.0.0.1', port: 0 })
   return { port: (app.server.address() as AddressInfo).port, registry }
@@ -106,6 +106,12 @@ describe('REST', () => {
       body: JSON.stringify({ agent: 'codex', cwd: '/repo' }),
     })
     expect(res.status).toBe(400)
+  })
+
+  it('lists available agents', async () => {
+    const { port } = await start()
+    const res = await (await fetch(`http://127.0.0.1:${port}/agents`)).json()
+    expect(res).toEqual({ agents: ['claude'] })
   })
 })
 

@@ -13,7 +13,7 @@ async function main(): Promise<void> {
   }
   const db = openDb(config.dbPath)
   const registry = new SqliteRegistry(db)
-  const manager = new ConversationManager(registry, new ClaudeAdapter())
+  const manager = new ConversationManager(registry, new Map([['claude', new ClaudeAdapter()]]))
   const app = await buildServer(config, db, registry, manager)
   await app.listen({ host: config.host, port: config.port })
   console.log(`trux backend listening on http://${config.host}:${config.port} (db: ${config.dbPath})`)

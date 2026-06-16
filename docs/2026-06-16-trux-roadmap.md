@@ -26,7 +26,7 @@ off as they land.*
 - [x] Chat UI: compose box, send `user_message`, render streaming text + tool calls; conversation list
 - [x] Run Claude in a **permissive tool mode** for now (approvals are Phase 2)
 - [x] Minimal bearer auth (first-message WS) — fine to keep local for now
-- **Done when:** locally, you prompt Claude in a real repo, watch it work, and it survives reload. *(implementation complete + 43 tests + REST/WS smoke verified 2026-06-16; awaiting live Claude OAuth run to tick this line)*
+- **Done when:** locally, you prompt Claude in a real repo, watch it work, and it survives reload. ✓ 2026-06-16 *(verified live: prompted Claude in the trux repo, watched the streaming response render; reload-persistence covered by integration tests)*
 
 ## Phase 2 — Control: approvals + interrupt
 *Makes it safe to drive real work.*

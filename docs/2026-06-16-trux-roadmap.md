@@ -42,8 +42,8 @@ off as they land.*
 - [x] Render image `tool_result`s (agent Playwright screenshots show inline — Mode B)
 - [x] Per-conversation **port registry** (agent announces / trux detects the dev-server port)
 - [x] "Open preview" → `localhost:<port>` in a new tab (Mode A, local)
-- **Done when:** you ask Claude for a UI change, see its screenshot inline *and* click through to the live app. *(implementation complete + 67 tests, verified 2026-06-16; awaiting live Claude run to tick this line)*
-- **⭐ Milestone: trux is genuinely useful at the desk (Claude-only v1 = Phases 0–3).**
+- **Done when:** you ask Claude for a UI change, see its screenshot inline *and* click through to the live app. ✓ 2026-06-16 *(verified live: trux detected the dev-server port and Open preview opened it; an image tool_result rendered inline)*
+- **⭐ Milestone: trux is genuinely useful at the desk (Claude-only v1 = Phases 0–3). ✓ 2026-06-16**
 
 ## Phase 4 — More agents
 *The multiplexer becomes real.*

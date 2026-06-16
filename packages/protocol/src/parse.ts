@@ -26,6 +26,7 @@ export function parseClientMessage(raw: string): ClientMessage | null {
         type: 'approval_response',
         request_id: d.request_id,
         decision: d.decision as ApprovalDecision,
+        // Absent or non-string note normalizes to null — always present after parsing.
         note: typeof d.note === 'string' ? d.note : null,
       }
     case 'interrupt':

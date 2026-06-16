@@ -31,10 +31,10 @@ off as they land.*
 ## Phase 2 — Control: approvals + interrupt
 *Makes it safe to drive real work.*
 
-- [ ] `canUseTool` → `approval_request`; approval cards in UI (Allow / Deny / Always) → `approval_response`
-- [ ] Interrupt a running turn (button → `interrupt` → SDK interrupt)
-- [ ] Status states surfaced (idle / thinking / awaiting_approval / error)
-- **Done when:** Claude asks permission, you answer from the UI, and you can cancel a runaway turn.
+- [x] `canUseTool` → `approval_request`; approval cards in UI (Allow / Deny / Always) → `approval_response`
+- [x] Interrupt a running turn (button → `interrupt` → SDK interrupt)
+- [x] Status states surfaced (idle / thinking / awaiting_approval / error)
+- **Done when:** Claude asks permission, you answer from the UI, and you can cancel a runaway turn. *(implementation complete + 53 tests incl. WS approval round-trip, verified 2026-06-16; awaiting live Claude run to tick this line)*
 
 ## Phase 3 — Local dev loop: preview + verification  ⭐
 *Closes the full loop at the desk.*

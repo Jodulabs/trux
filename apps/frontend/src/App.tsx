@@ -1,25 +1,38 @@
-import { useEffect, useState } from 'react'
-import { connectTrux } from './truxClient'
-
-type ConnState = { state: 'connecting' } | { state: 'connected'; protocol: number }
+import { useEffect } from 'react'
+import { useStore } from './store'
+import { Sidebar } from './components/Sidebar'
+import { ConversationView } from './components/ConversationView'
 
 export function App(): React.ReactElement {
-  const [conn, setConn] = useState<ConnState>({ state: 'connecting' })
+  const conversations = useStore((s) => s.conversations)
+  const currentId = useStore((s) => s.currentId)
+  const loadConversations = useStore((s) => s.loadConversations)
+  const selectConversation = useStore((s) => s.selectConversation)
 
   useEffect(() => {
-    const client = connectTrux({
-      url: `ws://${location.host}/conversations/dev/stream`,
-      onReady: (hello) => setConn({ state: 'connected', protocol: hello.protocol_version }),
-    })
-    return () => client.close()
-  }, [])
+    void loadConversations()
+  }, [loadConversations])
+
+  const onCreated = async (id: string): Promise<void> => {
+    await loadConversations()
+    await selectConversation(id)
+  }
 
   return (
-    <main>
-      <h1>Trux</h1>
-      <p data-testid="status">
-        {conn.state === 'connected' ? `Connected — NCP v${conn.protocol}` : 'Connecting…'}
-      </p>
-    </main>
+    <div className="app">
+      <Sidebar
+        conversations={conversations}
+        currentId={currentId}
+        onSelect={(id) => void selectConversation(id)}
+        onCreated={(id) => void onCreated(id)}
+      />
+      <main>
+        {currentId ? (
+          <ConversationView key={currentId} id={currentId} />
+        ) : (
+          <p data-testid="empty">Select or create a conversation.</p>
+        )}
+      </main>
+    </div>
   )
 }

@@ -1,22 +1,20 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { App } from '../src/App'
-
-// A no-op WebSocket so App mounts without a real network connection.
-class NoopWebSocket {
-  constructor(public url: string) {}
-  addEventListener(): void {}
-  send(): void {}
-  close(): void {}
-}
 
 afterEach(cleanup)
 
 describe('App', () => {
-  it('renders the connecting state on mount', () => {
-    vi.stubGlobal('WebSocket', NoopWebSocket)
+  it('shows the empty state when no conversation is selected', async () => {
+    // Fresh Response per call: App mounts both the conversation list and the
+    // workspace picker, so a single shared Response body would be read twice.
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify([]), { headers: { 'content-type': 'application/json' } }),
+      ),
+    )
     render(<App />)
-    expect(screen.getByTestId('status')).toHaveTextContent('Connecting…')
-    vi.unstubAllGlobals()
+    await waitFor(() => expect(screen.getByTestId('empty')).toBeInTheDocument())
+    vi.restoreAllMocks()
   })
 })

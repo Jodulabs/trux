@@ -56,12 +56,13 @@ off as they land.*
 ## Phase 5 — Remote: deploy + phone  ⭐
 *Unchain from the desk.*
 
-- [ ] Harden config (TLS / auth required modes); systemd `dev`-user unit; `enable-linger`
-- [ ] Tailscale access; real bearer auth
-- [ ] Remote preview via **Tailscale serve** + port registry
-- [ ] PWA install; mobile-responsive polish; mobile compose / approve ergonomics
-- **Done when:** you drive a real conversation from your phone over Tailscale, approve tools, preview the app.
-- **⭐ Milestone: the genesis — dev from your pocket.**
+- [x] Harden config (`assertConfig` startup guard; `TRUX_AUTH=1` requires `TRUX_SECRET`; `TokenGate` UI on 401)
+- [x] Tailscale access; real bearer auth (`TRUX_TAILSCALE_HOST`; `GET /config`; wss: fix)
+- [x] Remote preview via `TRUX_TAILSCALE_HOST` + port registry (Tailscale URL when configured)
+- [x] PWA install (`manifest.json`, `sw.js`, icons, Apple meta tags); mobile-responsive polish (100dvh, sticky composer, safe-area, 44px touch targets, auto-resize textarea)
+- [x] systemd user unit + `enable-linger` + `deploy/setup.sh` one-shot installer
+- **Done when:** you drive a real conversation from your phone over Tailscale, approve tools, preview the app. *(impl complete 2026-06-16; awaiting live Tailscale run)*
+- **⭐ Milestone: the genesis — dev from your pocket. (pending live verification)**
 
 ## Phase 6 — Continuity & polish
 - [ ] Adopt/resume sessions started at the desk (`~/.claude/projects/`; `session.list` for codex/opencode)

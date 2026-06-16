@@ -62,7 +62,7 @@ export function ConversationView({ id }: { id: string }): React.ReactElement {
       <Transcript items={transcript} approvalDecisions={approvalDecisions} onRespond={onRespond} />
       <Composer
         busy={busy}
-        onSend={(text) => client.current?.sendUserMessage(text)}
+        onSend={(text, attachments) => client.current?.sendUserMessage(text, attachments)}
         onInterrupt={() => client.current?.interrupt()}
       />
     </section>

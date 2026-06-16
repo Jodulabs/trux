@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { AgentName, ApprovalDecision, ServerEvent } from '@trux/protocol'
+import type { AgentName, ApprovalDecision, ImageAttachment, ServerEvent } from '@trux/protocol'
 import type { AdapterEvent, AgentAdapter, AgentSession } from './adapter/types'
 import { detectPort } from './ports'
 import type { SqliteRegistry } from './registry'
@@ -68,7 +68,7 @@ export class ConversationManager {
     return [...this.adapters.keys()]
   }
 
-  async handleUserMessage(convId: string, text: string): Promise<void> {
+  async handleUserMessage(convId: string, text: string, attachments?: ImageAttachment[]): Promise<void> {
     const live = this.ensureSession(convId)
     if (!live) {
       this.emit(convId, {
@@ -80,10 +80,15 @@ export class ConversationManager {
     }
     const turnId = `t_${randomUUID().slice(0, 8)}`
     live.currentTurnId = turnId
-    this.emit(convId, { type: 'user_text', turn_id: turnId, text })
+    this.emit(convId, {
+      type: 'user_text',
+      turn_id: turnId,
+      text,
+      ...(attachments && attachments.length > 0 ? { attachments } : {}),
+    })
     this.emit(convId, { type: 'turn_started', turn_id: turnId })
     this.emit(convId, { type: 'status', state: 'thinking' })
-    live.session.send(text)
+    live.session.send(text, attachments)
   }
 
   async interrupt(convId: string): Promise<void> {

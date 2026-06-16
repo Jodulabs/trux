@@ -78,6 +78,7 @@ export interface UserTextEvent {
   type: 'user_text'
   turn_id: string
   text: string
+  attachments?: ImageAttachment[]
 }
 // The detected dev-server port for a conversation (Mode A "Open preview").
 export interface PortDetectedEvent {

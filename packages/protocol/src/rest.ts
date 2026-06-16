@@ -33,6 +33,12 @@ export interface CreateConversationRequest {
   agent: AgentName
   cwd: string
   title?: string
+  native_session_id?: string
+}
+
+export interface DiscoveredSession {
+  sessionId: string
+  updatedAt: number
 }
 
 export interface ConversationDetail {

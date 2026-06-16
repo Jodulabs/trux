@@ -10,6 +10,7 @@ import { ConversationManager } from '../src/manager'
 import type { AdapterEvent, AgentAdapter, AgentSession } from '../src/adapter/types'
 import { PushQueue } from '../src/adapter/queue'
 import type { Config } from '../src/config'
+import { cwdToClaudeFolder } from '../src/routes'
 
 const baseConfig: Config = {
   host: '127.0.0.1', port: 0, dbPath: ':memory:', secret: 'test-secret',
@@ -76,6 +77,13 @@ afterEach(async () => {
   db?.close()
 })
 
+describe('cwdToClaudeFolder', () => {
+  it('converts absolute paths by replacing slashes with hyphens', () => {
+    expect(cwdToClaudeFolder('/home/gp/foo')).toBe('-home-gp-foo')
+    expect(cwdToClaudeFolder('/home/gp/dreamLand/jodulabs/trux')).toBe('-home-gp-dreamLand-jodulabs-trux')
+  })
+})
+
 describe('REST', () => {
   it('creates, lists, and fetches a conversation with its transcript', async () => {
     const { port } = await start()
@@ -96,6 +104,51 @@ describe('REST', () => {
     ).json()) as ConversationDetail
     expect(detail.conversation.id).toBe(created.id)
     expect(detail.transcript).toEqual([])
+  })
+
+  it('creates a conversation with a pre-supplied native_session_id', async () => {
+    const { port, registry } = await start()
+    const created = (await (
+      await fetch(`http://127.0.0.1:${port}/conversations`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ agent: 'claude', cwd: '/repo', native_session_id: 'sess-xyz' }),
+      })
+    ).json()) as Conversation
+    expect(created.native_session_id).toBe('sess-xyz')
+    expect(registry.getConversation(created.id)?.native_session_id).toBe('sess-xyz')
+  })
+
+  it('renames a conversation via PATCH', async () => {
+    const { port, registry } = await start()
+    const conv = registry.createConversation({ agent: 'claude', cwd: '/repo' })
+    const patched = (await (
+      await fetch(`http://127.0.0.1:${port}/conversations/${conv.id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ title: 'My renamed convo' }),
+      })
+    ).json()) as Conversation
+    expect(patched.title).toBe('My renamed convo')
+    expect(registry.getConversation(conv.id)?.title).toBe('My renamed convo')
+  })
+
+  it('returns 400 for /sessions/discover with missing params', async () => {
+    const { port } = await start()
+    const res = await fetch(`http://127.0.0.1:${port}/sessions/discover?agent=claude`)
+    expect(res.status).toBe(400)
+  })
+
+  it('/sessions/discover for unknown agent returns 400', async () => {
+    const { port } = await start()
+    const res = await fetch(`http://127.0.0.1:${port}/sessions/discover?agent=unknown&cwd=/repo`)
+    expect(res.status).toBe(400)
+  })
+
+  it('/sessions/discover for claude returns [] when cwd has no project folder', async () => {
+    const { port } = await start()
+    const res = await (await fetch(`http://127.0.0.1:${port}/sessions/discover?agent=claude&cwd=/nonexistent/path`)).json()
+    expect(res).toEqual([])
   })
 
   it('rejects a non-claude agent with 400', async () => {

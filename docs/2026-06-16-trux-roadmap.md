@@ -48,7 +48,7 @@ off as they land.*
 ## Phase 4 — More agents
 *The multiplexer becomes real.*
 
-- [ ] Codex adapter (`codex exec --json`; policy/sandbox approvals; degrade gracefully)
+- [x] Codex adapter (`codex exec --json`; `workspace-write` sandbox; multi-turn via `exec resume`) *(impl complete + 68 backend tests 2026-06-16; awaiting live run)*
 - [x] opencode adapter (`@opencode-ai/sdk`; full permission request/respond) *(impl complete + 82 tests 2026-06-16; awaiting live run)*
 - [x] Agent picker on new-conversation (`claude` / `codex` / `opencode`)
 - **Done when:** you drive a conversation with any of the three through the same UI. *(claude ✓ live; opencode pending live; codex = 4c)*

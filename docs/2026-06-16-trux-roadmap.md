@@ -34,7 +34,7 @@ off as they land.*
 - [x] `canUseTool` → `approval_request`; approval cards in UI (Allow / Deny / Always) → `approval_response`
 - [x] Interrupt a running turn (button → `interrupt` → SDK interrupt)
 - [x] Status states surfaced (idle / thinking / awaiting_approval / error)
-- **Done when:** Claude asks permission, you answer from the UI, and you can cancel a runaway turn. *(implementation complete + 53 tests incl. WS approval round-trip, verified 2026-06-16; awaiting live Claude run to tick this line)*
+- **Done when:** Claude asks permission, you answer from the UI, and you can cancel a runaway turn. ✓ 2026-06-16 *(verified live: Deny blocked a Bash write and Claude recovered, Allow executed it and created the file; required settingSources:[] so trux owns permissions)*
 
 ## Phase 3 — Local dev loop: preview + verification  ⭐
 *Closes the full loop at the desk.*

@@ -1,5 +1,7 @@
 import { create } from 'zustand'
 import type {
+  ApprovalDecision,
+  ApprovalRequestEvent,
   Conversation,
   ServerEvent,
   TextEvent,
@@ -9,7 +11,12 @@ import type {
 } from '@trux/protocol'
 import { api } from './api'
 
-export type TranscriptItem = UserTextEvent | TextEvent | ToolCallEvent | ToolResultEvent
+export type TranscriptItem =
+  | UserTextEvent
+  | TextEvent
+  | ToolCallEvent
+  | ToolResultEvent
+  | ApprovalRequestEvent
 
 // Pure reducer: fold a streamed NCP event into the rendered transcript. text_delta
 // accumulates into the open text item; the final `text` replaces it.
@@ -35,6 +42,8 @@ export function foldEvent(items: TranscriptItem[], event: ServerEvent): Transcri
       return [...items, event]
     case 'tool_result':
       return [...items, event]
+    case 'approval_request':
+      return [...items, event]
     default:
       return items
   }
@@ -45,9 +54,11 @@ interface TruxState {
   currentId: string | null
   transcript: TranscriptItem[]
   status: string
+  approvalDecisions: Record<string, ApprovalDecision>
   loadConversations: () => Promise<void>
   selectConversation: (id: string) => Promise<void>
   applyEvent: (event: ServerEvent) => void
+  recordApproval: (requestId: string, decision: ApprovalDecision) => void
 }
 
 export const useStore = create<TruxState>((set, get) => ({
@@ -55,6 +66,7 @@ export const useStore = create<TruxState>((set, get) => ({
   currentId: null,
   transcript: [],
   status: 'idle',
+  approvalDecisions: {},
   async loadConversations() {
     set({ conversations: await api.listConversations() })
   },
@@ -63,6 +75,7 @@ export const useStore = create<TruxState>((set, get) => ({
     set({
       currentId: id,
       status: detail.conversation.status,
+      approvalDecisions: {},
       transcript: detail.transcript.map((s) => s.event).reduce(foldEvent, [] as TranscriptItem[]),
     })
   },
@@ -72,5 +85,8 @@ export const useStore = create<TruxState>((set, get) => ({
       return
     }
     set({ transcript: foldEvent(get().transcript, event) })
+  },
+  recordApproval(requestId, decision) {
+    set({ approvalDecisions: { ...get().approvalDecisions, [requestId]: decision } })
   },
 }))

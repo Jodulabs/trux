@@ -77,6 +77,18 @@ Tunnel deferred to Later — no public door needed on Tailscale.)*
 - [x] **QR pairing** — box/desktop shows a QR encoding the Tailscale URL (`https://<host>.<tailnet>.ts.net`) + bearer token; scan on the phone → paired, no manual token entry *(borrowed from CCPocket)* *(impl complete + 8 tests 2026-06-17; awaiting live phone scan)*
 - **Done when:** scan a QR at the desk and the phone is connected over Tailscale with no typed token. *(code path done; pending live phone verification)*
 
+## Phase 6.6 — Solidify the desktop-Claude-from-phone path
+*Make one workflow actually work end to end, and testable. (Live walk-through found Phase 5/6.5 were
+never run for real — see [spec](../docs/superpowers/specs/2026-06-17-phase-6.6-mobile-path-design.md)
+and [RUNBOOK](./RUNBOOK.md).)*
+
+- [x] Fix static serving — dist path was off by one `../` (`GET /` 404'd; phone got nothing); + startup log so it can't fail silently
+- [x] Fix SPA fallback 500 on deep-link/reload (`decorateReply: false` broke `reply.sendFile`)
+- [x] `pnpm start` auto-loads `~/.trux/.env`; `pnpm build`/`pnpm start` root scripts
+- [x] Startup pairing QR (terminal) + local URL banner
+- [x] RUNBOOK: start on the dev box, connect the phone, troubleshoot
+- **Done when:** from your phone over Tailscale you start a Claude conversation, approve a tool, and Open preview. *(plumbing verified locally; pending live phone + Claude run)*
+
 ## Phase 7 — Provisioner (the bigger, decoupled work)
 *Runtime never depends on this; it can land anytime.*
 

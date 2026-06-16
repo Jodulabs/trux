@@ -31,6 +31,9 @@ CREATE TABLE IF NOT EXISTS events (
 
 CREATE INDEX IF NOT EXISTS idx_events_conversation
   ON events (conversation_id, seq);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS fts_events
+  USING fts5(conversation_id UNINDEXED, text, tokenize='unicode61');
 `
 
 export function openDb(path: string): TruxDatabase {

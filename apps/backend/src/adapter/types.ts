@@ -12,7 +12,7 @@ export type AdapterEvent =
   | { type: 'error'; message: string; recoverable: boolean }
 
 export interface AgentSession {
-  send(text: string): void
+  send(text: string, attachments?: ImageAttachment[]): void
   events(): AsyncIterable<AdapterEvent>
   interrupt(): Promise<void>
   close(): Promise<void>

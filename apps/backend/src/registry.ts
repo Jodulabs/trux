@@ -35,6 +35,14 @@ function toConversation(row: ConversationRow): Conversation {
   }
 }
 
+// Extract searchable text from an event for FTS indexing.
+function ftsText(event: ServerEvent): string | null {
+  if (event.type === 'user_text') return event.text
+  if (event.type === 'text') return event.text
+  if (event.type === 'tool_result') return event.output
+  return null
+}
+
 // Owns the conversations + events tables: lifecycle, status mirror, and the
 // append-only transcript with per-conversation seq allocation.
 export class SqliteRegistry {
@@ -111,6 +119,13 @@ export class SqliteRegistry {
         'INSERT INTO events (conversation_id, seq, type, payload, created_at) VALUES (?, ?, ?, ?, ?)',
       )
       .run(convId, next, event.type, JSON.stringify(event), Date.now())
+    // Index searchable event types into FTS5.
+    const text = ftsText(event)
+    if (text) {
+      this.db
+        .prepare('INSERT INTO fts_events (conversation_id, text) VALUES (?, ?)')
+        .run(convId, text)
+    }
     return { seq: next, event }
   }
 
@@ -120,5 +135,29 @@ export class SqliteRegistry {
         .prepare('SELECT seq, payload FROM events WHERE conversation_id = ? ORDER BY seq')
         .all(convId) as { seq: number; payload: string }[]
     ).map((r) => ({ seq: r.seq, event: JSON.parse(r.payload) as ServerEvent }))
+  }
+
+  searchConversations(q: string): Array<{ conversation: Conversation; snippet: string }> {
+    // snippet() is an FTS5 auxiliary function — cannot be used with GROUP BY.
+    // Fetch up to 100 raw matches, then deduplicate by conversation_id in JS.
+    const rows = this.db
+      .prepare(
+        `SELECT f.conversation_id,
+                snippet(fts_events, 1, '<b>', '</b>', '…', 8) AS snippet
+         FROM fts_events f
+         WHERE f.text MATCH ?
+         LIMIT 100`,
+      )
+      .all(`"${q.replace(/"/g, '""')}"`) as Array<{ conversation_id: string; snippet: string }>
+    const seen = new Set<string>()
+    const results: Array<{ conversation: Conversation; snippet: string }> = []
+    for (const r of rows) {
+      if (seen.has(r.conversation_id)) continue
+      seen.add(r.conversation_id)
+      const conversation = this.getConversation(r.conversation_id)
+      if (conversation) results.push({ conversation, snippet: r.snippet })
+      if (results.length >= 20) break
+    }
+    return results
   }
 }

@@ -86,6 +86,12 @@ export function registerRoutes(
 
   app.get('/conversations', async () => registry.listConversations())
 
+  app.get('/conversations/search', async (req, reply) => {
+    const { q } = req.query as { q?: string }
+    if (!q || q.trim().length === 0) return reply.code(400).send({ error: 'q is required' })
+    return registry.searchConversations(q.trim())
+  })
+
   app.post('/conversations', async (req, reply) => {
     const body = req.body as CreateConversationRequest
     if (!body || typeof body.cwd !== 'string' || body.cwd.length === 0) {

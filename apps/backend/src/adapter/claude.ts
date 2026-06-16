@@ -4,7 +4,11 @@ import type { AgentAdapter, AgentSession, AdapterEvent } from './types'
 import { PushQueue } from './queue'
 
 type QueryFn = typeof realQuery
-type SdkUserMessage = { type: 'user'; message: { role: 'user'; content: string }; parent_tool_use_id: null }
+type SdkUserMessage = {
+  type: 'user'
+  message: { role: 'user'; content: string | Array<{ type: string; [k: string]: unknown }> }
+  parent_tool_use_id: null
+}
 type PermissionResult =
   | { behavior: 'allow'; updatedInput?: Record<string, unknown>; updatedPermissions?: unknown[] }
   | { behavior: 'deny'; message: string }
@@ -154,8 +158,19 @@ class ClaudeSession implements AgentSession {
     }
   }
 
-  send(text: string): void {
-    this.inbox.push({ type: 'user', message: { role: 'user', content: text }, parent_tool_use_id: null })
+  send(text: string, attachments?: ImageAttachment[]): void {
+    if (attachments && attachments.length > 0) {
+      const content: Array<{ type: string; [k: string]: unknown }> = [
+        { type: 'text', text },
+        ...attachments.map((a) => ({
+          type: 'image',
+          source: { type: 'base64', media_type: a.media_type, data: a.data },
+        })),
+      ]
+      this.inbox.push({ type: 'user', message: { role: 'user', content }, parent_tool_use_id: null })
+    } else {
+      this.inbox.push({ type: 'user', message: { role: 'user', content: text }, parent_tool_use_id: null })
+    }
   }
 
   events(): AsyncIterable<AdapterEvent> {

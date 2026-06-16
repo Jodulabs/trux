@@ -3,6 +3,7 @@ import type {
   Conversation,
   ConversationDetail,
   CreateConversationRequest,
+  DiscoveredSession,
   Workspace,
 } from '@trux/protocol'
 
@@ -32,4 +33,8 @@ export const api = {
     }).then(json<Conversation>),
   getRemoteConfig: () =>
     fetch('/config').then(json<{ tailscaleHost: string | null }>),
+  discoverSessions: (agent: string, cwd: string) =>
+    fetch(`/sessions/discover?agent=${encodeURIComponent(agent)}&cwd=${encodeURIComponent(cwd)}`, {
+      headers: authHeaders(),
+    }).then(json<DiscoveredSession[]>),
 }

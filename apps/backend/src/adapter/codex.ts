@@ -38,7 +38,7 @@ class CodexSession implements AgentSession {
     this.mapState = { threadId: resume }
   }
 
-  send(text: string): void {
+  send(text: string, _attachments?: unknown): void {
     const args = this.mapState.threadId
       ? ['exec', 'resume', '--json', this.mapState.threadId, text]
       : ['exec', '--json', '-C', this.cwd, '-s', 'workspace-write', text]

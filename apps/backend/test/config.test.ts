@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { loadConfig } from '../src/config'
+import { loadConfig, assertConfig } from '../src/config'
 
-const KEYS = ['TRUX_HOST', 'TRUX_PORT', 'TRUX_DB_PATH', 'TRUX_SECRET', 'TRUX_AUTH', 'TRUX_WORKSPACES']
+const KEYS = ['TRUX_HOST', 'TRUX_PORT', 'TRUX_DB_PATH', 'TRUX_SECRET', 'TRUX_AUTH', 'TRUX_WORKSPACES', 'TRUX_TAILSCALE_HOST']
 
 describe('loadConfig', () => {
   let saved: Record<string, string | undefined>
@@ -43,6 +43,34 @@ describe('loadConfig', () => {
       secret: 's3cret',
       authRequired: true,
       workspaceRoots: ['/a', '/b'],
+      tailscaleHost: null,
     })
+  })
+
+  it('reads TRUX_TAILSCALE_HOST', () => {
+    process.env.TRUX_TAILSCALE_HOST = 'mybox.ts.net'
+    expect(loadConfig().tailscaleHost).toBe('mybox.ts.net')
+  })
+})
+
+describe('assertConfig', () => {
+  it('throws when authRequired is true and secret is null', () => {
+    expect(() => assertConfig({ host: '127.0.0.1', port: 4317, dbPath: '', secret: null, authRequired: true, workspaceRoots: [], tailscaleHost: null }))
+      .toThrow('TRUX_AUTH=1 requires TRUX_SECRET')
+  })
+
+  it('throws when authRequired is true and secret is empty string', () => {
+    expect(() => assertConfig({ host: '127.0.0.1', port: 4317, dbPath: '', secret: '', authRequired: true, workspaceRoots: [], tailscaleHost: null }))
+      .toThrow('TRUX_AUTH=1 requires TRUX_SECRET')
+  })
+
+  it('does not throw when auth is off', () => {
+    expect(() => assertConfig({ host: '127.0.0.1', port: 4317, dbPath: '', secret: null, authRequired: false, workspaceRoots: [], tailscaleHost: null }))
+      .not.toThrow()
+  })
+
+  it('does not throw when auth is on and secret is set', () => {
+    expect(() => assertConfig({ host: '127.0.0.1', port: 4317, dbPath: '', secret: 'abc', authRequired: true, workspaceRoots: [], tailscaleHost: null }))
+      .not.toThrow()
   })
 })

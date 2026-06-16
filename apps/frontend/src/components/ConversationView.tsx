@@ -19,11 +19,13 @@ export function ConversationView({ id }: { id: string }): React.ReactElement {
   const approvalDecisions = useStore((s) => s.approvalDecisions)
   const recordApproval = useStore((s) => s.recordApproval)
   const previewPort = useStore((s) => s.previewPort)
+  const tailscaleHost = useStore((s) => s.tailscaleHost)
   const client = useRef<TruxClient | null>(null)
 
   useEffect(() => {
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
     const c = connectTrux({
-      url: `ws://${location.host}/conversations/${id}/stream`,
+      url: `${proto}//${location.host}/conversations/${id}/stream`,
       token: localStorage.getItem('trux_token') ?? '',
       onEvent: (event) => applyEvent(event),
     })
@@ -38,14 +40,20 @@ export function ConversationView({ id }: { id: string }): React.ReactElement {
 
   const busy = status === 'thinking' || status === 'awaiting_approval'
 
+  const previewUrl = previewPort !== null
+    ? tailscaleHost
+      ? `https://${tailscaleHost}:${previewPort}`
+      : `http://localhost:${previewPort}`
+    : null
+
   return (
     <section className="conversation">
       <div className="conversation-bar">
         <div data-testid="status-line" className={`status ${status}`}>{STATUS_LABEL[status] ?? status}</div>
-        {previewPort !== null ? (
+        {previewUrl !== null ? (
           <button
             data-testid="open-preview"
-            onClick={() => window.open(`http://localhost:${previewPort}`, '_blank')}
+            onClick={() => window.open(previewUrl, '_blank')}
           >
             Open preview :{previewPort}
           </button>

@@ -56,7 +56,9 @@ interface TruxState {
   status: string
   approvalDecisions: Record<string, ApprovalDecision>
   previewPort: number | null
+  tailscaleHost: string | null
   loadConversations: () => Promise<void>
+  loadRemoteConfig: () => Promise<void>
   selectConversation: (id: string) => Promise<void>
   applyEvent: (event: ServerEvent) => void
   recordApproval: (requestId: string, decision: ApprovalDecision) => void
@@ -69,8 +71,13 @@ export const useStore = create<TruxState>((set, get) => ({
   status: 'idle',
   approvalDecisions: {},
   previewPort: null,
+  tailscaleHost: null,
   async loadConversations() {
     set({ conversations: await api.listConversations() })
+  },
+  async loadRemoteConfig() {
+    const cfg = await api.getRemoteConfig()
+    set({ tailscaleHost: cfg.tailscaleHost })
   },
   async selectConversation(id) {
     const detail = await api.getConversation(id)

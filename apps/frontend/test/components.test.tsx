@@ -4,7 +4,8 @@ import type { ApprovalRequestEvent } from '@trux/protocol'
 import { Composer } from '../src/components/Composer'
 import { Transcript } from '../src/components/Transcript'
 import { ApprovalCard } from '../src/components/ApprovalCard'
-import type { TranscriptItem } from '../src/store'
+import { ConversationView } from '../src/components/ConversationView'
+import { useStore, type TranscriptItem } from '../src/store'
 
 afterEach(cleanup)
 
@@ -39,6 +40,18 @@ describe('Transcript', () => {
     expect(screen.getByText('hi back')).toBeInTheDocument()
     expect(screen.getByText(/Bash/)).toBeInTheDocument()
   })
+
+  it('renders an inline image for a tool_result with images', () => {
+    const items: TranscriptItem[] = [
+      {
+        type: 'tool_result', turn_id: 't1', tool_id: 'x', status: 'ok', output: 'shot',
+        images: [{ kind: 'image', media_type: 'image/png', data: 'AAAA' }],
+      },
+    ]
+    render(<Transcript items={items} approvalDecisions={{}} onRespond={() => {}} />)
+    const img = screen.getByTestId('tool-image') as HTMLImageElement
+    expect(img.src).toContain('data:image/png;base64,AAAA')
+  })
 })
 
 describe('ApprovalCard', () => {
@@ -57,5 +70,25 @@ describe('ApprovalCard', () => {
     render(<ApprovalCard event={event} decision="deny" onRespond={() => {}} />)
     expect(screen.getByTestId('approval-decided')).toHaveTextContent('deny')
     expect(screen.queryByTestId('approve-allow')).toBeNull()
+  })
+})
+
+class NoopWS {
+  constructor(public url: string) {}
+  addEventListener(): void {}
+  send(): void {}
+  close(): void {}
+}
+
+describe('ConversationView preview', () => {
+  it('shows Open preview when a port is known and opens it', () => {
+    vi.stubGlobal('WebSocket', NoopWS)
+    const open = vi.fn()
+    vi.stubGlobal('open', open)
+    useStore.setState({ previewPort: 5173, transcript: [], status: 'idle', approvalDecisions: {} })
+    render(<ConversationView id="c1" />)
+    fireEvent.click(screen.getByTestId('open-preview'))
+    expect(open).toHaveBeenCalledWith('http://localhost:5173', '_blank')
+    vi.unstubAllGlobals()
   })
 })

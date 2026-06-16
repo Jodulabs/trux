@@ -33,7 +33,16 @@ export function Transcript({ items, approvalDecisions, onRespond }: Props): Reac
         return (
           <details key={i} className={`tool ${item.status}`}>
             <summary>← {item.status}</summary>
-            <pre>{item.output}</pre>
+            {item.output ? <pre>{item.output}</pre> : null}
+            {item.images?.map((img, j) => (
+              <img
+                key={j}
+                data-testid="tool-image"
+                className="tool-image"
+                src={`data:${img.media_type};base64,${img.data}`}
+                alt="tool output"
+              />
+            ))}
           </details>
         )
       })}

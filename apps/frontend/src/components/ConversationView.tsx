@@ -18,6 +18,7 @@ export function ConversationView({ id }: { id: string }): React.ReactElement {
   const applyEvent = useStore((s) => s.applyEvent)
   const approvalDecisions = useStore((s) => s.approvalDecisions)
   const recordApproval = useStore((s) => s.recordApproval)
+  const previewPort = useStore((s) => s.previewPort)
   const client = useRef<TruxClient | null>(null)
 
   useEffect(() => {
@@ -39,7 +40,17 @@ export function ConversationView({ id }: { id: string }): React.ReactElement {
 
   return (
     <section className="conversation">
-      <div data-testid="status-line" className={`status ${status}`}>{STATUS_LABEL[status] ?? status}</div>
+      <div className="conversation-bar">
+        <div data-testid="status-line" className={`status ${status}`}>{STATUS_LABEL[status] ?? status}</div>
+        {previewPort !== null ? (
+          <button
+            data-testid="open-preview"
+            onClick={() => window.open(`http://localhost:${previewPort}`, '_blank')}
+          >
+            Open preview :{previewPort}
+          </button>
+        ) : null}
+      </div>
       <Transcript items={transcript} approvalDecisions={approvalDecisions} onRespond={onRespond} />
       <Composer
         busy={busy}

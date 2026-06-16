@@ -55,3 +55,10 @@ describe('recordApproval', () => {
     expect(useStore.getState().approvalDecisions['tu_1']).toBe('allow')
   })
 })
+
+describe('previewPort', () => {
+  it('sets previewPort from a port_detected event', () => {
+    useStore.getState().applyEvent({ type: 'port_detected', port: 5173 })
+    expect(useStore.getState().previewPort).toBe(5173)
+  })
+})

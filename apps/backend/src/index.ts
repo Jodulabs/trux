@@ -1,9 +1,12 @@
 import 'dotenv/config'
+import type { AgentName } from '@trux/protocol'
 import { loadConfig } from './config'
 import { openDb } from './db'
 import { SqliteRegistry } from './registry'
 import { ClaudeAdapter } from './adapter/claude'
+import { OpencodeAdapter } from './adapter/opencode'
 import { ConversationManager } from './manager'
+import type { AgentAdapter } from './adapter/types'
 import { buildServer } from './server'
 
 async function main(): Promise<void> {
@@ -13,7 +16,11 @@ async function main(): Promise<void> {
   }
   const db = openDb(config.dbPath)
   const registry = new SqliteRegistry(db)
-  const manager = new ConversationManager(registry, new Map([['claude', new ClaudeAdapter()]]))
+  const adapters = new Map<AgentName, AgentAdapter>([
+    ['claude', new ClaudeAdapter()],
+    ['opencode', new OpencodeAdapter()],
+  ])
+  const manager = new ConversationManager(registry, adapters)
   const app = await buildServer(config, db, registry, manager)
   await app.listen({ host: config.host, port: config.port })
   console.log(`trux backend listening on http://${config.host}:${config.port} (db: ${config.dbPath})`)

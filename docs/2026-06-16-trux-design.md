@@ -51,7 +51,9 @@ programmatic interface.
 - a clone of the Claude/Codex *consumer chat apps* (those are for casual chat, not dev);
 - a token-proxy that launders one subscription into another tool (ToS-violating — see
   [Subscription & legitimacy](#subscription--legitimacy-constraints));
-- a relay / SaaS (no third party in the path);
+- a **hosted / multi-tenant SaaS control plane** — a self-managed tunnel or CDN (Tailscale,
+  Cloudflare Tunnel) in front of *your own* box is fine; the line is **your box, your creds, no
+  central backend you don't run** (sovereignty is a dial, not a switch — see [Auth & security](#auth--security));
 - multi-user (single developer);
 - an editor (you prompt; the agent edits files).
 
@@ -274,8 +276,8 @@ Codex SDK lands.
 for the WebSocket, **`better-sqlite3`** for the registry. Full-stack TypeScript: the same language
 as the frontend and as two of the three agent SDKs (`@anthropic-ai/claude-agent-sdk`,
 `@opencode-ai/sdk`), with the **NCP types shared** via a `@trux/protocol` package imported by both
-ends. Runs as the isolated `dev` OS user, behind the box's existing TLS / reverse proxy at a path
-or subdomain.
+ends. Runs as the isolated `dev` OS user, behind Tailscale, a Cloudflare Tunnel, or the box's
+existing TLS / reverse proxy at a path or subdomain.
 
 ### REST endpoints
 - `GET    /workspaces` → configured code roots + their git worktrees (candidates for `cwd`).
@@ -307,6 +309,17 @@ repos. The auth boundary *is* an RCE boundary — treat it as non-negotiable fro
   REST: `Authorization: Bearer …`. WS: token as the **first message** (no secret in URLs/logs;
   simpler than a ticket dance for a single user).
 - **TLS only**, via the box's existing edge.
+- **Prefer no-open-port transports.** A public listener makes the bearer the *single* wall on an
+  RCE surface — one token leak (a logged header, a screenshot, XSS) *or* one pre-auth bug in the
+  exposed stack (proxy / `ws` / TLS / Node) = remote shell. **Tailscale** (no public surface at all)
+  and **Cloudflare Tunnel** (outbound-only, no inbound port) keep defense-in-depth — two walls. A
+  naked **reverse proxy + bearer** is the simplest but opens a *public RCE door* (one wall);
+  defensible for a careful solo user, but understand it removes the safety net.
+- **Sovereignty is a dial, set by model locality.** A tunnel/CDN that terminates TLS (e.g.
+  Cloudflare) *can* read traffic in transit — but with a **cloud** model the content already goes to
+  the vendor every turn, so the marginal exposure ≈ nil; with a **local** model the tunnel would be
+  the first outside party, so layer app-level E2E to keep payloads opaque. Set the dial by where the
+  model runs, not by purity.
 - **Runs as the `dev` user**, never prod — a breach is contained to the dev sandbox, with no prod
   creds / service accounts in reach.
 - **Each subscription under its own official login**; no token proxying (ToS).
@@ -327,9 +340,19 @@ The **same artifact** everywhere; only *host* and *access* differ.
 | Placement | Host | Reached via | Mode |
 |---|---|---|---|
 | **Local** | your laptop | `localhost` in the browser | at the desk — zero network surface, nothing leaves the machine |
-| **Existing remote** | your current dev box (`dev` user) | Tailscale (recommended) or reverse proxy + bearer | away / phone |
+| **Existing remote** | your current dev box (`dev` user) | Tailscale · Cloudflare Tunnel · reverse proxy + bearer (see [transport trade-offs](#auth--security)) | away / phone |
 | **Provisioned cloud** | a VM the provisioner stands up in your GCP/AWS | same as remote | reproducible / on-demand |
 
+- **Remote transport — three options, most→least private** (pick by who's on the far end):
+  **Tailscale** — no public surface, but needs the Tailscale client on each device (a one-time
+  install; QR-join + MagicDNS make it ~one scan); **Cloudflare Tunnel** — outbound-only (no inbound
+  port), reachable from a *bare browser* with nothing installed, CF terminates TLS; **reverse proxy +
+  bearer** — simplest, but a public RCE door (one wall). The privacy/security reasoning is in
+  [Auth & security](#auth--security).
+- **Windows = the Linux artifact under Docker** (Docker Desktop / WSL2), not a native port — the
+  unix ops posture (`0600`, `dev` user, paths) and the agent CLIs all run on real Linux inside the
+  container. The same image is the **preinstalled / new-machine** runtime; generate the bearer secret
+  on **first boot**, never bake it in.
 - **Config-driven (12-factor):** bind host, port, TLS on/off, auth on/off, db path, secret — all
   from env. Local binds `127.0.0.1`, TLS off, auth optional. Remote requires TLS + bearer.
 - **One process** serves the API + the built frontend (same origin → same-origin WS, no CORS).
@@ -366,6 +389,7 @@ Open the running dev server in a browser and click around — the human visual c
 |---|---|
 | **Local** | trivial — the browser hits `localhost:<port>` directly; no new code |
 | **Remote / cloud** | **Tailscale serve** (first): map the dev port to a private HTTPS tailnet URL — HMR websockets work, nothing leaves your infra |
+| **Remote / cloud** | **Cloudflare Tunnel**: outbound-only, no inbound port; reaches the dev port from a *bare browser* (CF terminates TLS — fine for a cloud model; layer app-E2E for a local one) |
 | **Remote / cloud** | **Integrated preview proxy** (Phase 2): `https://<conversation>.preview.<host>/ → localhost:<port>`, **subdomain-per-conversation** so the app sees itself at root `/` (no broken asset URLs); proxies HTTP **and** HMR websockets |
 
 ### Supporting design
@@ -462,7 +486,8 @@ against the same contract.
 
 - Not a terminal / tmux / pty relay.
 - Not a token-proxy across subscriptions.
-- Not a relay / SaaS — direct to your own box only.
+- Not a **hosted / multi-tenant SaaS** — a self-managed tunnel/CDN (Tailscale, Cloudflare Tunnel) in
+  front of *your own* box is fine; the invariant is your box, your creds, no central backend you don't run.
 - Not multi-user, not a fleet manager — 1–3 concurrent conversations.
 - Not an editor — you prompt; the agent edits.
 

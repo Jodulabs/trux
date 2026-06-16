@@ -65,9 +65,17 @@ off as they land.*
 - **⭐ Milestone: the genesis — dev from your pocket. (pending live verification)**
 
 ## Phase 6 — Continuity & polish
-- [ ] Adopt/resume sessions started at the desk (`~/.claude/projects/`; `session.list` for codex/opencode)
-- [ ] Image attachments (user → agent); saved prompt snippets; conversation search / archive / rename
-- **Done when:** start a conversation at the desk, continue it on the phone.
+- [x] Adopt/resume sessions started at the desk (`~/.claude/projects/`; `session.list` for codex/opencode)
+- [x] Image attachments (user → agent); saved prompt snippets; conversation search / archive / rename
+- **Done when:** start a conversation at the desk, continue it on the phone. ✓ 2026-06-17
+
+## Phase 6.5 — QR pairing
+*Persona settled (2026-06-17): build for me, over Tailscale. The remaining phone friction is typing
+the bearer token — QR removes it. (mDNS dropped: redundant with Tailscale MagicDNS; Cloudflare
+Tunnel deferred to Later — no public door needed on Tailscale.)*
+
+- [x] **QR pairing** — box/desktop shows a QR encoding the Tailscale URL (`https://<host>.<tailnet>.ts.net`) + bearer token; scan on the phone → paired, no manual token entry *(borrowed from CCPocket)* *(impl complete + 8 tests 2026-06-17; awaiting live phone scan)*
+- **Done when:** scan a QR at the desk and the phone is connected over Tailscale with no typed token. *(code path done; pending live phone verification)*
 
 ## Phase 7 — Provisioner (the bigger, decoupled work)
 *Runtime never depends on this; it can land anytime.*
@@ -80,6 +88,9 @@ off as they land.*
 ## Later (deferred)
 - [ ] Integrated preview proxy — subdomain-per-conversation, HMR-websocket-aware
 - [ ] Embedded split-view (chat + live app)
-- [ ] Native mobile app + push notifications (agent needs you)
+- [ ] Native mobile app + push notifications (agent needs you) — one transport option is **embedded tsnet** (the app *is* its own tailnet node → no separate Tailscale install, still no server in path); vs. the relay path if even one install is a dealbreaker
 - [ ] Voice input; cost / usage dashboards
 - [ ] Worktree creation from the UI; multi-root workspaces
+- [ ] **Cloudflare Tunnel** (+ E2E relay) — bare-browser / no-install remote access for *non-coder* users; not needed while it's just-me on Tailscale *(deferred — revisit when handing trux to someone who can't install Tailscale)*
+- [ ] **Docker image** — Windows runtime (Docker Desktop/WSL2) + preinstalled / new-machine package; bearer secret on **first boot**, never baked *(deferred — Windows not an immediate concern)*
+- [ ] **Local-model lane** (via opencode) — no-OAuth plug-and-play; the one case where tunnel privacy bites → layer app-E2E *(deferred — not an immediate concern)*

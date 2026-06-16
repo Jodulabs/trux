@@ -23,6 +23,9 @@ importers:
       '@fastify/websocket':
         specifier: ^11.2.0
         version: 11.2.0
+      '@opencode-ai/sdk':
+        specifier: ^1.17.7
+        version: 1.17.7
       '@trux/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
@@ -382,6 +385,9 @@ packages:
     peerDependencies:
       '@emnapi/core': ^1.7.1
       '@emnapi/runtime': ^1.7.1
+
+  '@opencode-ai/sdk@1.17.7':
+    resolution: {integrity: sha512-7q7StGM+N0OwUgRsmDc8Gyz3hMIH1XGig+qZ4lzWUpmSgFEjLx8U7R14GXY7KiMJVdbVf6FeaYloRz2Rcsma4A==}
 
   '@oxc-project/types@0.133.0':
     resolution: {integrity: sha512-KzkdCd6Uxqnf6l3HOw1xfatAlUURA0g14cvBYFyJ5SaNOQbOUvBr9PKArcPcrNIeRsBdgcUzOGrhKveVpvOIGA==}
@@ -1824,6 +1830,10 @@ snapshots:
       '@emnapi/runtime': 1.10.0
       '@tybys/wasm-util': 0.10.2
     optional: true
+
+  '@opencode-ai/sdk@1.17.7':
+    dependencies:
+      cross-spawn: 7.0.6
 
   '@oxc-project/types@0.133.0': {}
 

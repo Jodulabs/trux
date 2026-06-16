@@ -7,6 +7,8 @@
   "engines": { "node": ">=22" },
   "scripts": {
     "dev": "pnpm --parallel -r dev",
+    "build": "pnpm --filter @trux/frontend build",
+    "start": "pnpm --filter @trux/backend start",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck"
   },

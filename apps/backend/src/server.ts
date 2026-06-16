@@ -35,11 +35,16 @@ export async function buildServer(
   registerStream(app, config, registry, manager)
 
   // Serve the built frontend in production. Only registers when dist/ exists so
-  // dev mode (Vite proxy) is unaffected.
-  const distDir = join(dirname(fileURLToPath(import.meta.url)), '../../../frontend/dist')
+  // dev mode (Vite proxy) is unaffected. Path is relative to apps/backend/src (or
+  // apps/backend/dist if compiled) → apps/frontend/dist either way.
+  const distDir = join(dirname(fileURLToPath(import.meta.url)), '../../frontend/dist')
   if (existsSync(distDir)) {
-    await app.register(fastifyStatic, { root: distDir, prefix: '/', decorateReply: false })
+    // decorateReply must stay on: the SPA fallback below calls reply.sendFile.
+    await app.register(fastifyStatic, { root: distDir, prefix: '/' })
     app.setNotFoundHandler((_req, reply) => reply.sendFile('index.html'))
+    console.log(`trux: serving frontend from ${distDir}`)
+  } else {
+    console.log(`trux: no frontend build at ${distDir} (dev mode, or run: pnpm --filter frontend build)`)
   }
 
   return app

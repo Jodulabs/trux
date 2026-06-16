@@ -12,11 +12,11 @@ off as they land.*
 ## Phase 0 — Skeleton & protocol
 *The spine everything hangs on.*
 
-- [ ] pnpm monorepo: `packages/protocol`, `apps/backend`, `apps/frontend`
-- [ ] `@trux/protocol` — the NCP types (events both directions), shared by backend + frontend
-- [ ] Backend skeleton: Node + Fastify/Hono, `ws` wired, `better-sqlite3` init, config from env
-- [ ] Frontend skeleton: React + Vite, opens the WebSocket
-- **Done when:** frontend connects to backend, a hello NCP message round-trips, runs locally.
+- [x] pnpm monorepo: `packages/protocol`, `apps/backend`, `apps/frontend`
+- [x] `@trux/protocol` — the NCP types (events both directions), shared by backend + frontend
+- [x] Backend skeleton: Node + Fastify/Hono, `ws` wired, `better-sqlite3` init, config from env
+- [x] Frontend skeleton: React + Vite, opens the WebSocket
+- **Done when:** frontend connects to backend, a hello NCP message round-trips, runs locally. ✓ 2026-06-16
 
 ## Phase 1 — Claude chat, end-to-end
 *The first usable thing.*

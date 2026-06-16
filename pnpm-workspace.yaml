@@ -2,6 +2,13 @@ packages:
   - "packages/*"
   - "apps/*"
 
+allowBuilds:
+  better-sqlite3: true
+  esbuild: true
+
+minimumReleaseAgeExclude:
+  - better-sqlite3@12.11.1
+
 # pnpm 11 blocks lifecycle build scripts by default; better-sqlite3 (native) and esbuild need them.
 onlyBuiltDependencies:
   - better-sqlite3

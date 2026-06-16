@@ -8,6 +8,7 @@ allowBuilds:
 
 minimumReleaseAgeExclude:
   - better-sqlite3@12.11.1
+  - happy-dom@20.10.4
 
 # pnpm 11 blocks lifecycle build scripts by default; better-sqlite3 (native) and esbuild need them.
 onlyBuiltDependencies:

@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import type { Conversation } from '@trux/protocol'
 import { NewConversationDialog } from './NewConversationDialog'
+import { PairModal } from './PairModal'
 
 interface Props {
   conversations: Conversation[]
@@ -13,6 +15,7 @@ const DOT: Record<string, string> = {
 }
 
 export function Sidebar({ conversations, currentId, onSelect, onCreated }: Props): React.ReactElement {
+  const [pairing, setPairing] = useState(false)
   return (
     <aside className="sidebar">
       <NewConversationDialog onCreated={onCreated} />
@@ -28,6 +31,10 @@ export function Sidebar({ conversations, currentId, onSelect, onCreated }: Props
           </li>
         ))}
       </ul>
+      <button className="pair-button" data-testid="pair-open" onClick={() => setPairing(true)}>
+        📱 Pair phone
+      </button>
+      {pairing && <PairModal onClose={() => setPairing(false)} />}
     </aside>
   )
 }

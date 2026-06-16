@@ -225,3 +225,62 @@ main {
 .status.thinking { color: #7eb8f7; }
 .status.awaiting_approval { color: #f0a500; }
 .status.error { color: #f07070; }
+
+/* ── Pair phone (QR) ────────────────────────────────────────── */
+.pair-button {
+  margin: 0.75rem;
+  padding: 0.5rem;
+  background: #1e1e1e;
+  color: #e0e0e0;
+  border: 1px solid #333;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.pair-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.pair-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: 360px;
+  padding: 1.5rem;
+  background: #161616;
+  border: 1px solid #2a2a2a;
+  border-radius: 10px;
+  text-align: center;
+}
+
+/* White backing so the camera scans the QR reliably against the dark theme. */
+.pair-qr {
+  background: #fff;
+  padding: 12px;
+  border-radius: 8px;
+}
+
+.pair-card .hint {
+  font-size: 0.8rem;
+  color: #888;
+}
+
+.pair-card button {
+  min-height: 44px;
+  padding: 0 2rem;
+  background: #2d6cdf;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  cursor: pointer;
+}

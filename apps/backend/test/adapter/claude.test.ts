@@ -80,6 +80,26 @@ describe('ClaudeAdapter mapping', () => {
     expect(events).toEqual([{ type: 'tool_result', tool_id: 'tu_9', status: 'error', output: 'boom' }])
   })
 
+  it('splits an image content block out of a tool_result into images[]', async () => {
+    const messages = [
+      { type: 'user', message: { content: [
+        { type: 'tool_result', tool_use_id: 'tu_5', is_error: false, content: [
+          { type: 'text', text: 'screenshot saved' },
+          { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'BASE64DATA' } },
+        ] },
+      ] } },
+    ]
+    const { fn } = fakeQuery(messages)
+    const session = new ClaudeAdapter(fn).start({ cwd: '/repo' })
+    const events = await collect(session.events())
+    expect(events).toEqual([
+      {
+        type: 'tool_result', tool_id: 'tu_5', status: 'ok', output: 'screenshot saved',
+        images: [{ kind: 'image', media_type: 'image/png', data: 'BASE64DATA' }],
+      },
+    ])
+  })
+
   it('forwards interrupt to the underlying query', async () => {
     const { fn, calls } = fakeQuery([])
     const session = new ClaudeAdapter(fn).start({ cwd: '/repo' })

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { ApprovalDecision, ServerEvent } from '@trux/protocol'
 import type { AdapterEvent, AgentAdapter, AgentSession } from './adapter/types'
+import { detectPort } from './ports'
 import type { SqliteRegistry } from './registry'
 
 type Listener = (event: ServerEvent) => void
@@ -8,6 +9,7 @@ type Listener = (event: ServerEvent) => void
 interface LiveSession {
   session: AgentSession
   currentTurnId: string | null
+  lastPort: number | null
 }
 
 // Stamp an adapter event (no turn_id) into a wire ServerEvent for the open turn.
@@ -20,7 +22,14 @@ function stampTurn(e: AdapterEvent, turnId: string): ServerEvent {
     case 'tool_call':
       return { type: 'tool_call', turn_id: turnId, tool_id: e.tool_id, name: e.name, input: e.input }
     case 'tool_result':
-      return { type: 'tool_result', turn_id: turnId, tool_id: e.tool_id, status: e.status, output: e.output }
+      return {
+        type: 'tool_result',
+        turn_id: turnId,
+        tool_id: e.tool_id,
+        status: e.status,
+        output: e.output,
+        ...(e.images ? { images: e.images } : {}),
+      }
     case 'approval_request':
       return {
         type: 'approval_request',
@@ -90,7 +99,7 @@ export class ConversationManager {
       cwd: conv.cwd,
       resume: conv.native_session_id ?? undefined,
     })
-    const live: LiveSession = { session, currentTurnId: null }
+    const live: LiveSession = { session, currentTurnId: null, lastPort: null }
     this.live.set(convId, live)
     void this.pump(convId, live)
     return live
@@ -103,6 +112,13 @@ export class ConversationManager {
         this.emit(convId, wire)
         if (wire.type === 'approval_request') {
           this.emit(convId, { type: 'status', state: 'awaiting_approval' })
+        }
+        if (wire.type === 'tool_result' || wire.type === 'text') {
+          const port = detectPort(wire.type === 'tool_result' ? wire.output : wire.text)
+          if (port !== null && port !== live.lastPort) {
+            live.lastPort = port
+            this.emit(convId, { type: 'port_detected', port })
+          }
         }
         if (wire.type === 'turn_complete') {
           const sid = live.session.nativeSessionId()

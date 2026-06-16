@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import type { Conversation, ServerEvent, StoredEvent, Workspace } from '../src/index'
+import type {
+  Conversation,
+  PortDetectedEvent,
+  ServerEvent,
+  StoredEvent,
+  ToolResultEvent,
+  Workspace,
+} from '../src/index'
 
 describe('rest dtos', () => {
   it('builds a Conversation and Workspace', () => {
@@ -16,5 +23,20 @@ describe('rest dtos', () => {
     const stored: StoredEvent = { seq: 0, event: { type: 'user_text', turn_id: 't1', text: 'hi' } }
     const event: ServerEvent = stored.event
     expect(event.type).toBe('user_text')
+  })
+})
+
+describe('phase 3 events', () => {
+  it('allows images on a tool_result', () => {
+    const ev: ToolResultEvent = {
+      type: 'tool_result', turn_id: 't1', tool_id: 'x', status: 'ok', output: 'shot',
+      images: [{ kind: 'image', media_type: 'image/png', data: 'AAAA' }],
+    }
+    expect(ev.images?.[0]?.media_type).toBe('image/png')
+  })
+
+  it('builds a port_detected event', () => {
+    const ev: PortDetectedEvent = { type: 'port_detected', port: 5173 }
+    expect(ev.port).toBe(5173)
   })
 })

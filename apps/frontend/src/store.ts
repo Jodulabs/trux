@@ -55,6 +55,7 @@ interface TruxState {
   transcript: TranscriptItem[]
   status: string
   approvalDecisions: Record<string, ApprovalDecision>
+  previewPort: number | null
   loadConversations: () => Promise<void>
   selectConversation: (id: string) => Promise<void>
   applyEvent: (event: ServerEvent) => void
@@ -67,21 +68,33 @@ export const useStore = create<TruxState>((set, get) => ({
   transcript: [],
   status: 'idle',
   approvalDecisions: {},
+  previewPort: null,
   async loadConversations() {
     set({ conversations: await api.listConversations() })
   },
   async selectConversation(id) {
     const detail = await api.getConversation(id)
+    const events = detail.transcript.map((s) => s.event)
+    // Last port_detected in the transcript wins (recovers the preview after reload).
+    const lastPort = events.reduce<number | null>(
+      (p, e) => (e.type === 'port_detected' ? e.port : p),
+      null,
+    )
     set({
       currentId: id,
       status: detail.conversation.status,
       approvalDecisions: {},
-      transcript: detail.transcript.map((s) => s.event).reduce(foldEvent, [] as TranscriptItem[]),
+      previewPort: lastPort,
+      transcript: events.reduce(foldEvent, [] as TranscriptItem[]),
     })
   },
   applyEvent(event) {
     if (event.type === 'status') {
       set({ status: event.state })
+      return
+    }
+    if (event.type === 'port_detected') {
+      set({ previewPort: event.port })
       return
     }
     set({ transcript: foldEvent(get().transcript, event) })

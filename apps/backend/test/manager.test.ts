@@ -127,4 +127,42 @@ describe('ConversationManager', () => {
     expect(adapter.last.respondedWith).toEqual(['called'])
     expect(seen.at(-1)).toEqual({ type: 'status', state: 'thinking' })
   })
+
+  it('passes tool_result images through and emits port_detected from output', async () => {
+    const conv = registry.createConversation({ agent: 'claude', cwd: '/repo' })
+    const adapter = new FakeAdapter([
+      {
+        type: 'tool_result', tool_id: 'tu_1', status: 'ok',
+        output: 'Local: http://localhost:5173/',
+        images: [{ kind: 'image', media_type: 'image/png', data: 'AAAA' }],
+      },
+      { type: 'turn_complete', cost: 0 },
+    ])
+    const manager = new ConversationManager(registry, adapter)
+    const seen: ServerEvent[] = []
+    manager.attach(conv.id, (e) => seen.push(e))
+    await manager.handleUserMessage(conv.id, 'go')
+    await settle()
+
+    const toolResult = seen.find((e) => e.type === 'tool_result') as Extract<ServerEvent, { type: 'tool_result' }>
+    expect(toolResult.images?.[0]?.data).toBe('AAAA')
+    const port = seen.find((e) => e.type === 'port_detected') as Extract<ServerEvent, { type: 'port_detected' }>
+    expect(port.port).toBe(5173)
+    expect(registry.loadTranscript(conv.id).some((s) => s.event.type === 'port_detected')).toBe(true)
+  })
+
+  it('emits port_detected only once for a repeated port', async () => {
+    const conv = registry.createConversation({ agent: 'claude', cwd: '/repo' })
+    const adapter = new FakeAdapter([
+      { type: 'tool_result', tool_id: 'a', status: 'ok', output: 'localhost:5173' },
+      { type: 'tool_result', tool_id: 'b', status: 'ok', output: 'still localhost:5173' },
+      { type: 'turn_complete', cost: 0 },
+    ])
+    const manager = new ConversationManager(registry, adapter)
+    const seen: ServerEvent[] = []
+    manager.attach(conv.id, (e) => seen.push(e))
+    await manager.handleUserMessage(conv.id, 'go')
+    await settle()
+    expect(seen.filter((e) => e.type === 'port_detected')).toHaveLength(1)
+  })
 })

@@ -71,9 +71,17 @@ export interface ErrorEvent {
   message: string
   recoverable: boolean
 }
+// The persisted echo of a user's prompt, so the transcript renders user turns
+// on reload. Emitted by the manager when a user_message arrives (additive, like hello).
+export interface UserTextEvent {
+  type: 'user_text'
+  turn_id: string
+  text: string
+}
 
 export type ServerEvent =
   | HelloEvent
+  | UserTextEvent
   | TurnStartedEvent
   | TextDeltaEvent
   | TextEvent

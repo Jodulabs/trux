@@ -13,6 +13,7 @@ const baseConfig: Config = {
   dbPath: ':memory:',
   secret: 'test-secret',
   authRequired: true,
+  workspaceRoots: [],
 }
 
 let app: FastifyInstance

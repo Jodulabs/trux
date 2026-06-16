@@ -30,6 +30,31 @@ class FakeAdapter implements AgentAdapter {
       interrupt: async () => {},
       close: async () => {},
       nativeSessionId: () => 'sess_x',
+      respondApproval: () => {},
+    }
+  }
+}
+
+// A fake whose turn parks on an approval_request and resumes once answered.
+class ApprovalFakeAdapter implements AgentAdapter {
+  readonly name = 'claude' as const
+  start(): AgentSession {
+    const outbox = new PushQueue<AdapterEvent>()
+    let answered: (() => void) | null = null
+    return {
+      send: () => {
+        outbox.push({ type: 'approval_request', request_id: 'tu_1', tool: 'Bash', input: { command: 'ls' } })
+        void new Promise<void>((r) => (answered = r)).then(() => {
+          outbox.push({ type: 'tool_result', tool_id: 'tu_1', status: 'ok', output: 'done' })
+          outbox.push({ type: 'turn_complete', cost: 0 })
+          outbox.end()
+        })
+      },
+      events: () => outbox.iterable(),
+      interrupt: async () => {},
+      close: async () => {},
+      nativeSessionId: () => 'sess_x',
+      respondApproval: () => answered?.(),
     }
   }
 }
@@ -37,10 +62,10 @@ class FakeAdapter implements AgentAdapter {
 let app: FastifyInstance
 let db: TruxDatabase
 
-async function start(): Promise<{ port: number; registry: SqliteRegistry }> {
+async function start(adapter: AgentAdapter = new FakeAdapter()): Promise<{ port: number; registry: SqliteRegistry }> {
   db = openDb(':memory:')
   const registry = new SqliteRegistry(db)
-  const manager = new ConversationManager(registry, new FakeAdapter())
+  const manager = new ConversationManager(registry, adapter)
   app = await buildServer(baseConfig, db, registry, manager)
   await app.listen({ host: '127.0.0.1', port: 0 })
   return { port: (app.server.address() as AddressInfo).port, registry }
@@ -129,5 +154,35 @@ describe('WS turn engine', () => {
       ws.on('error', reject)
     })
     expect(events[0]).toEqual({ type: 'error', message: 'unknown conversation', recoverable: false })
+  })
+
+  it('round-trips an approval: request → response → completion', async () => {
+    const { port, registry } = await start(new ApprovalFakeAdapter())
+    const conv = registry.createConversation({ agent: 'claude', cwd: '/repo' })
+    const events = await new Promise<ServerEvent[]>((resolve, reject) => {
+      const out: ServerEvent[] = []
+      const ws = new WebSocket(`ws://127.0.0.1:${port}/conversations/${conv.id}/stream`)
+      ws.on('open', () => ws.send(JSON.stringify({ type: 'auth', token: '' })))
+      ws.on('message', (raw) => {
+        const event = JSON.parse(raw.toString()) as ServerEvent
+        out.push(event)
+        if (event.type === 'hello') ws.send(JSON.stringify({ type: 'user_message', text: 'go' }))
+        if (event.type === 'approval_request') {
+          ws.send(JSON.stringify({ type: 'approval_response', request_id: 'tu_1', decision: 'allow', note: null }))
+        }
+        if (event.type === 'status' && event.state === 'idle') {
+          ws.close()
+          resolve(out)
+        }
+      })
+      ws.on('error', reject)
+    })
+    expect(events.map((e) => e.type)).toEqual([
+      'hello', 'user_text', 'turn_started', 'status', 'approval_request', 'status', 'status', 'tool_result', 'turn_complete', 'status',
+    ])
+    const states = events
+      .filter((e): e is Extract<ServerEvent, { type: 'status' }> => e.type === 'status')
+      .map((e) => e.state)
+    expect(states).toEqual(['thinking', 'awaiting_approval', 'thinking', 'idle'])
   })
 })

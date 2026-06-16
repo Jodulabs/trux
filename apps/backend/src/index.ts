@@ -4,6 +4,7 @@ import { loadConfig } from './config'
 import { openDb } from './db'
 import { SqliteRegistry } from './registry'
 import { ClaudeAdapter } from './adapter/claude'
+import { CodexAdapter } from './adapter/codex'
 import { OpencodeAdapter } from './adapter/opencode'
 import { ConversationManager } from './manager'
 import type { AgentAdapter } from './adapter/types'
@@ -18,6 +19,7 @@ async function main(): Promise<void> {
   const registry = new SqliteRegistry(db)
   const adapters = new Map<AgentName, AgentAdapter>([
     ['claude', new ClaudeAdapter()],
+    ['codex', new CodexAdapter()],
     ['opencode', new OpencodeAdapter()],
   ])
   const manager = new ConversationManager(registry, adapters)

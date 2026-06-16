@@ -85,7 +85,14 @@ Expected: prints `11.7.0`.
 packages:
   - "packages/*"
   - "apps/*"
+
+# pnpm 11 blocks lifecycle build scripts by default; better-sqlite3 (native) and esbuild need them.
+onlyBuiltDependencies:
+  - better-sqlite3
+  - esbuild
 ```
+
+Note: in pnpm 10+/11 `onlyBuiltDependencies` lives in `pnpm-workspace.yaml`, **not** in `package.json` (the `pnpm.*` field in `package.json` is ignored with a warning).
 
 - [ ] **Step 3: Create root `package.json`**
 
@@ -105,14 +112,11 @@ packages:
   "devDependencies": {
     "typescript": "^6.0.3",
     "vitest": "^4.1.9"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": ["better-sqlite3", "esbuild"]
   }
 }
 ```
 
-Note: `onlyBuiltDependencies` is required — pnpm 11 blocks lifecycle build scripts by default, and `better-sqlite3` (native) and `esbuild` need them.
+Note: `onlyBuiltDependencies` is configured in `pnpm-workspace.yaml` (Step 2), not here — pnpm 11 ignores the `pnpm.*` field in `package.json`.
 
 - [ ] **Step 4: Create `tsconfig.base.json`**
 

@@ -21,12 +21,12 @@ off as they land.*
 ## Phase 1 — Claude chat, end-to-end
 *The first usable thing.*
 
-- [ ] Claude adapter — `@anthropic-ai/claude-agent-sdk` `query()` streaming-input → NCP (`text`, `tool_call`, `tool_result`, `result`)
-- [ ] ConversationRegistry (sqlite); create a conversation bound to a `cwd`; persist transcript
-- [ ] Chat UI: compose box, send `user_message`, render streaming text + tool calls; conversation list
-- [ ] Run Claude in a **permissive tool mode** for now (approvals are Phase 2)
-- [ ] Minimal bearer auth (first-message WS) — fine to keep local for now
-- **Done when:** locally, you prompt Claude in a real repo, watch it work, and it survives reload.
+- [x] Claude adapter — `@anthropic-ai/claude-agent-sdk` `query()` streaming-input → NCP (`text`, `tool_call`, `tool_result`, `result`)
+- [x] ConversationRegistry (sqlite); create a conversation bound to a `cwd`; persist transcript
+- [x] Chat UI: compose box, send `user_message`, render streaming text + tool calls; conversation list
+- [x] Run Claude in a **permissive tool mode** for now (approvals are Phase 2)
+- [x] Minimal bearer auth (first-message WS) — fine to keep local for now
+- **Done when:** locally, you prompt Claude in a real repo, watch it work, and it survives reload. *(implementation complete + 43 tests + REST/WS smoke verified 2026-06-16; awaiting live Claude OAuth run to tick this line)*
 
 ## Phase 2 — Control: approvals + interrupt
 *Makes it safe to drive real work.*

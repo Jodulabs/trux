@@ -1,0 +1,31 @@
+import type {
+  Conversation,
+  ConversationDetail,
+  CreateConversationRequest,
+  Workspace,
+} from '@trux/protocol'
+
+// Optional bearer for remote; empty/absent locally (authRequired off).
+function authHeaders(): Record<string, string> {
+  const token = localStorage.getItem('trux_token')
+  return token ? { authorization: `Bearer ${token}` } : {}
+}
+
+async function json<T>(res: Response): Promise<T> {
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+  return (await res.json()) as T
+}
+
+export const api = {
+  listWorkspaces: () => fetch('/workspaces', { headers: authHeaders() }).then(json<Workspace[]>),
+  listConversations: () =>
+    fetch('/conversations', { headers: authHeaders() }).then(json<Conversation[]>),
+  getConversation: (id: string) =>
+    fetch(`/conversations/${id}`, { headers: authHeaders() }).then(json<ConversationDetail>),
+  createConversation: (body: CreateConversationRequest) =>
+    fetch('/conversations', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...authHeaders() },
+      body: JSON.stringify(body),
+    }).then(json<Conversation>),
+}

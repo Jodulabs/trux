@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import type { ConversationDetail, CreateConversationRequest } from '@trux/protocol'
+import type { AgentName, ConversationDetail, CreateConversationRequest } from '@trux/protocol'
 import type { Config } from './config'
 import type { SqliteRegistry } from './registry'
 import { listWorkspaces } from './workspaces'
@@ -9,6 +9,7 @@ export function registerRoutes(
   app: FastifyInstance,
   config: Config,
   registry: SqliteRegistry,
+  agents: AgentName[],
 ): void {
   // Bearer gate for REST (no-op locally when authRequired is false). Scoped to
   // this plugin so it never runs for /health or the WS upgrade (registered elsewhere).
@@ -22,14 +23,19 @@ export function registerRoutes(
 
   app.get('/workspaces', async () => listWorkspaces(config.workspaceRoots))
 
+  app.get('/agents', async () => ({ agents }))
+
   app.get('/conversations', async () => registry.listConversations())
 
   app.post('/conversations', async (req, reply) => {
     const body = req.body as CreateConversationRequest
-    if (!body || body.agent !== 'claude' || typeof body.cwd !== 'string' || body.cwd.length === 0) {
-      return reply.code(400).send({ error: 'agent must be "claude" and cwd is required' })
+    if (!body || typeof body.cwd !== 'string' || body.cwd.length === 0) {
+      return reply.code(400).send({ error: 'cwd is required' })
     }
-    return registry.createConversation({ agent: 'claude', cwd: body.cwd, title: body.title })
+    if (!agents.includes(body.agent)) {
+      return reply.code(400).send({ error: `unknown agent: ${body.agent}` })
+    }
+    return registry.createConversation({ agent: body.agent, cwd: body.cwd, title: body.title })
   })
 
   app.get('/conversations/:id', async (req, reply) => {

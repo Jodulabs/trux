@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { ApprovalDecision, ServerEvent } from '@trux/protocol'
+import type { AgentName, ApprovalDecision, ServerEvent } from '@trux/protocol'
 import type { AdapterEvent, AgentAdapter, AgentSession } from './adapter/types'
 import { detectPort } from './ports'
 import type { SqliteRegistry } from './registry'
@@ -54,7 +54,7 @@ export class ConversationManager {
 
   constructor(
     private readonly registry: SqliteRegistry,
-    private readonly adapter: AgentAdapter,
+    private readonly adapters: Map<AgentName, AgentAdapter>,
   ) {}
 
   attach(convId: string, listener: Listener): () => void {
@@ -64,8 +64,20 @@ export class ConversationManager {
     return () => set.delete(listener)
   }
 
+  availableAgents(): AgentName[] {
+    return [...this.adapters.keys()]
+  }
+
   async handleUserMessage(convId: string, text: string): Promise<void> {
     const live = this.ensureSession(convId)
+    if (!live) {
+      this.emit(convId, {
+        type: 'error',
+        message: "no adapter for this conversation's agent",
+        recoverable: false,
+      })
+      return
+    }
     const turnId = `t_${randomUUID().slice(0, 8)}`
     live.currentTurnId = turnId
     this.emit(convId, { type: 'user_text', turn_id: turnId, text })
@@ -90,12 +102,14 @@ export class ConversationManager {
     this.emit(convId, { type: 'status', state: 'thinking' })
   }
 
-  private ensureSession(convId: string): LiveSession {
+  private ensureSession(convId: string): LiveSession | null {
     const existing = this.live.get(convId)
     if (existing) return existing
     const conv = this.registry.getConversation(convId)
     if (!conv) throw new Error(`unknown conversation ${convId}`)
-    const session = this.adapter.start({
+    const adapter = this.adapters.get(conv.agent)
+    if (!adapter) return null
+    const session = adapter.start({
       cwd: conv.cwd,
       resume: conv.native_session_id ?? undefined,
     })

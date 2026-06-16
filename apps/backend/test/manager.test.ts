@@ -60,7 +60,7 @@ describe('ConversationManager', () => {
       { type: 'text', text: 'Hi there' },
       { type: 'turn_complete', usage: { input: 1, output: 2 }, cost: 0 },
     ])
-    const manager = new ConversationManager(registry, adapter)
+    const manager = new ConversationManager(registry, new Map([['claude', adapter]]))
     const seen: ServerEvent[] = []
     manager.attach(conv.id, (e) => seen.push(e))
 
@@ -83,7 +83,7 @@ describe('ConversationManager', () => {
       { type: 'text', text: 'Hi' },
       { type: 'turn_complete', cost: 0 },
     ])
-    const manager = new ConversationManager(registry, adapter)
+    const manager = new ConversationManager(registry, new Map([['claude', adapter]]))
     manager.attach(conv.id, () => {})
     await manager.handleUserMessage(conv.id, 'hello')
     await settle()
@@ -99,7 +99,7 @@ describe('ConversationManager', () => {
   it('forwards interrupt to the live session', async () => {
     const conv = registry.createConversation({ agent: 'claude', cwd: '/repo' })
     const adapter = new FakeAdapter([{ type: 'turn_complete', cost: 0 }])
-    const manager = new ConversationManager(registry, adapter)
+    const manager = new ConversationManager(registry, new Map([['claude', adapter]]))
     manager.attach(conv.id, () => {})
     await manager.handleUserMessage(conv.id, 'hello')
     await manager.interrupt(conv.id)
@@ -111,7 +111,7 @@ describe('ConversationManager', () => {
     const adapter = new FakeAdapter([
       { type: 'approval_request', request_id: 'tu_1', tool: 'Bash', input: { command: 'ls' } },
     ])
-    const manager = new ConversationManager(registry, adapter)
+    const manager = new ConversationManager(registry, new Map([['claude', adapter]]))
     const seen: ServerEvent[] = []
     manager.attach(conv.id, (e) => seen.push(e))
     await manager.handleUserMessage(conv.id, 'go')
@@ -138,7 +138,7 @@ describe('ConversationManager', () => {
       },
       { type: 'turn_complete', cost: 0 },
     ])
-    const manager = new ConversationManager(registry, adapter)
+    const manager = new ConversationManager(registry, new Map([['claude', adapter]]))
     const seen: ServerEvent[] = []
     manager.attach(conv.id, (e) => seen.push(e))
     await manager.handleUserMessage(conv.id, 'go')
@@ -158,11 +158,25 @@ describe('ConversationManager', () => {
       { type: 'tool_result', tool_id: 'b', status: 'ok', output: 'still localhost:5173' },
       { type: 'turn_complete', cost: 0 },
     ])
-    const manager = new ConversationManager(registry, adapter)
+    const manager = new ConversationManager(registry, new Map([['claude', adapter]]))
     const seen: ServerEvent[] = []
     manager.attach(conv.id, (e) => seen.push(e))
     await manager.handleUserMessage(conv.id, 'go')
     await settle()
     expect(seen.filter((e) => e.type === 'port_detected')).toHaveLength(1)
+  })
+
+  it('emits an error for a conversation whose agent has no adapter', async () => {
+    const conv = registry.createConversation({ agent: 'codex', cwd: '/repo' })
+    const adapter = new FakeAdapter([{ type: 'turn_complete', cost: 0 }])
+    const manager = new ConversationManager(registry, new Map([['claude', adapter]]))
+    const seen: ServerEvent[] = []
+    manager.attach(conv.id, (e) => seen.push(e))
+    await manager.handleUserMessage(conv.id, 'go')
+    await settle()
+    expect(seen).toEqual([
+      { type: 'error', message: "no adapter for this conversation's agent", recoverable: false },
+    ])
+    expect(manager.availableAgents()).toEqual(['claude'])
   })
 })

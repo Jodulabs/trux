@@ -48,7 +48,7 @@ export class SqliteRegistry {
       cwd: input.cwd,
       title: input.title ?? null,
       status: 'idle',
-      native_session_id: null,
+      native_session_id: input.native_session_id ?? null,
       archived: 0,
       created_at: now,
       updated_at: now,
@@ -94,6 +94,12 @@ export class SqliteRegistry {
     this.db
       .prepare('UPDATE conversations SET archived = 1, updated_at = ? WHERE id = ?')
       .run(Date.now(), id)
+  }
+
+  renameConversation(id: string, title: string): void {
+    this.db
+      .prepare('UPDATE conversations SET title = ?, updated_at = ? WHERE id = ?')
+      .run(title, Date.now(), id)
   }
 
   appendEvent(convId: string, event: ServerEvent): StoredEvent {

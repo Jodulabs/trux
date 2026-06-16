@@ -1,6 +1,6 @@
 import 'dotenv/config'
 import type { AgentName } from '@trux/protocol'
-import { loadConfig } from './config'
+import { loadConfig, assertConfig } from './config'
 import { openDb } from './db'
 import { SqliteRegistry } from './registry'
 import { ClaudeAdapter } from './adapter/claude'
@@ -12,6 +12,7 @@ import { buildServer } from './server'
 
 async function main(): Promise<void> {
   const config = loadConfig()
+  assertConfig(config)
   if (!Number.isInteger(config.port) || config.port < 0 || config.port > 65535) {
     throw new Error(`invalid TRUX_PORT: ${process.env.TRUX_PORT}`)
   }

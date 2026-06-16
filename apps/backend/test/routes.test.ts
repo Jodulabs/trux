@@ -13,7 +13,7 @@ import type { Config } from '../src/config'
 
 const baseConfig: Config = {
   host: '127.0.0.1', port: 0, dbPath: ':memory:', secret: 'test-secret',
-  authRequired: false, workspaceRoots: [],
+  authRequired: false, workspaceRoots: [], tailscaleHost: null,
 }
 
 class FakeAdapter implements AgentAdapter {

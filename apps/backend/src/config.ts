@@ -9,6 +9,7 @@ export interface Config {
   dbPath: string
   secret: string | null
   authRequired: boolean
+  workspaceRoots: string[]
 }
 
 // Only an explicit '1'/'true' is true. Note this is fail-OPEN for TRUX_AUTH: a typo or unset
@@ -24,5 +25,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     dbPath: env.TRUX_DB_PATH ?? join(homedir(), '.trux', 'trux.db'),
     secret: env.TRUX_SECRET ?? null,
     authRequired: bool(env.TRUX_AUTH),
+    workspaceRoots: env.TRUX_WORKSPACES ? env.TRUX_WORKSPACES.split(':').filter(Boolean) : [],
   }
 }

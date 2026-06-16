@@ -47,6 +47,7 @@ export interface ToolResultEvent {
   tool_id: string
   status: ToolResultStatus
   output: string
+  images?: ImageAttachment[]
 }
 export interface ApprovalRequestEvent {
   type: 'approval_request'
@@ -78,10 +79,16 @@ export interface UserTextEvent {
   turn_id: string
   text: string
 }
+// The detected dev-server port for a conversation (Mode A "Open preview").
+export interface PortDetectedEvent {
+  type: 'port_detected'
+  port: number
+}
 
 export type ServerEvent =
   | HelloEvent
   | UserTextEvent
+  | PortDetectedEvent
   | TurnStartedEvent
   | TextDeltaEvent
   | TextEvent

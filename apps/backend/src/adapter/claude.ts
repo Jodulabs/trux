@@ -1,5 +1,5 @@
 import { query as realQuery } from '@anthropic-ai/claude-agent-sdk'
-import type { ApprovalDecision } from '@trux/protocol'
+import type { ApprovalDecision, ImageAttachment } from '@trux/protocol'
 import type { AgentAdapter, AgentSession, AdapterEvent } from './types'
 import { PushQueue } from './queue'
 
@@ -28,17 +28,28 @@ interface PendingApproval {
   suggestions?: unknown[]
 }
 
-// Best-effort stringify of a tool_result `content` (string | content-block array | object).
-function stringifyToolOutput(content: unknown): string {
-  if (typeof content === 'string') return content
-  if (Array.isArray(content)) {
-    return content
-      .map((c) =>
-        c && typeof c === 'object' && 'text' in c ? String((c as { text: unknown }).text) : JSON.stringify(c),
-      )
-      .join('')
+// Split a tool_result `content` into a text output plus any base64 images.
+function splitToolContent(content: unknown): { output: string; images: ImageAttachment[] } {
+  if (typeof content === 'string') return { output: content, images: [] }
+  if (!Array.isArray(content)) {
+    return { output: content == null ? '' : JSON.stringify(content), images: [] }
   }
-  return content == null ? '' : JSON.stringify(content)
+  const texts: string[] = []
+  const images: ImageAttachment[] = []
+  for (const c of content) {
+    const block = c as Record<string, unknown>
+    if (block.type === 'image') {
+      const source = block.source as { type?: string; media_type?: string; data?: string } | undefined
+      if (source?.type === 'base64' && typeof source.data === 'string') {
+        images.push({ kind: 'image', media_type: source.media_type ?? 'image/png', data: source.data })
+      }
+    } else if (block && typeof block === 'object' && 'text' in block) {
+      texts.push(String((block as { text: unknown }).text))
+    } else {
+      texts.push(JSON.stringify(block))
+    }
+  }
+  return { output: texts.join(''), images }
 }
 
 class ClaudeSession implements AgentSession {
@@ -112,11 +123,13 @@ class ClaudeSession implements AgentSession {
               for (const b of content) {
                 const block = b as Record<string, unknown>
                 if (block.type === 'tool_result') {
+                  const { output, images } = splitToolContent(block.content)
                   this.outbox.push({
                     type: 'tool_result',
                     tool_id: String(block.tool_use_id ?? ''),
                     status: block.is_error ? 'error' : 'ok',
-                    output: stringifyToolOutput(block.content),
+                    output,
+                    ...(images.length > 0 ? { images } : {}),
                   })
                 }
               }

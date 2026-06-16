@@ -1,4 +1,4 @@
-import type { AgentName, ApprovalDecision, ToolResultStatus } from '@trux/protocol'
+import type { AgentName, ApprovalDecision, ImageAttachment, ToolResultStatus } from '@trux/protocol'
 
 // NCP events as the adapter produces them: no turn_id (a conversation concern the
 // manager stamps) and no seq (allocated by the registry).
@@ -6,7 +6,7 @@ export type AdapterEvent =
   | { type: 'text_delta'; text: string }
   | { type: 'text'; text: string }
   | { type: 'tool_call'; tool_id: string; name: string; input: unknown }
-  | { type: 'tool_result'; tool_id: string; status: ToolResultStatus; output: string }
+  | { type: 'tool_result'; tool_id: string; status: ToolResultStatus; output: string; images?: ImageAttachment[] }
   | { type: 'approval_request'; request_id: string; tool: string; input: unknown; explanation?: string }
   | { type: 'turn_complete'; usage?: { input: number; output: number }; cost?: number | null }
   | { type: 'error'; message: string; recoverable: boolean }

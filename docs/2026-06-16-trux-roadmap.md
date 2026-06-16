@@ -39,10 +39,10 @@ off as they land.*
 ## Phase 3 — Local dev loop: preview + verification  ⭐
 *Closes the full loop at the desk.*
 
-- [ ] Render image `tool_result`s (agent Playwright screenshots show inline — Mode B)
-- [ ] Per-conversation **port registry** (agent announces / trux detects the dev-server port)
-- [ ] "Open preview" → `localhost:<port>` in a new tab (Mode A, local)
-- **Done when:** you ask Claude for a UI change, see its screenshot inline *and* click through to the live app.
+- [x] Render image `tool_result`s (agent Playwright screenshots show inline — Mode B)
+- [x] Per-conversation **port registry** (agent announces / trux detects the dev-server port)
+- [x] "Open preview" → `localhost:<port>` in a new tab (Mode A, local)
+- **Done when:** you ask Claude for a UI change, see its screenshot inline *and* click through to the live app. *(implementation complete + 67 tests, verified 2026-06-16; awaiting live Claude run to tick this line)*
 - **⭐ Milestone: trux is genuinely useful at the desk (Claude-only v1 = Phases 0–3).**
 
 ## Phase 4 — More agents

@@ -10,6 +10,8 @@ export interface TruxClientOptions {
 
 export interface TruxClient {
   send: (msg: ClientMessage) => void
+  sendUserMessage: (text: string) => void
+  interrupt: () => void
   close: () => void
 }
 
@@ -36,6 +38,8 @@ export function connectTrux(opts: TruxClientOptions): TruxClient {
 
   return {
     send: (msg) => ws.send(JSON.stringify(msg)),
+    sendUserMessage: (text) => ws.send(JSON.stringify({ type: 'user_message', text })),
+    interrupt: () => ws.send(JSON.stringify({ type: 'interrupt' })),
     close: () => ws.close(),
   }
 }

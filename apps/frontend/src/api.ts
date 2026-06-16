@@ -30,4 +30,6 @@ export const api = {
       headers: { 'content-type': 'application/json', ...authHeaders() },
       body: JSON.stringify(body),
     }).then(json<Conversation>),
+  getRemoteConfig: () =>
+    fetch('/config').then(json<{ tailscaleHost: string | null }>),
 }

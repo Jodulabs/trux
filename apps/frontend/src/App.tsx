@@ -8,12 +8,16 @@ export function App(): React.ReactElement {
   const conversations = useStore((s) => s.conversations)
   const currentId = useStore((s) => s.currentId)
   const loadConversations = useStore((s) => s.loadConversations)
+  const loadRemoteConfig = useStore((s) => s.loadRemoteConfig)
   const selectConversation = useStore((s) => s.selectConversation)
   const [needsToken, setNeedsToken] = useState(false)
   const [ready, setReady] = useState(false)
 
   const tryLoad = (): void => {
-    void loadConversations()
+    void Promise.all([
+      loadConversations(),
+      loadRemoteConfig().catch(() => { /* best-effort */ }),
+    ])
       .then(() => setReady(true))
       .catch((err: unknown) => {
         if (err instanceof Error && err.message.startsWith('401')) setNeedsToken(true)

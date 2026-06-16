@@ -60,7 +60,7 @@ export function NewConversationDialog({ onCreated }: Props): React.ReactElement 
         {workspaces.flatMap((w) =>
           w.worktrees.map((t) => (
             <option key={t.path} value={t.path}>
-              {t.path}{t.branch ? ` (${t.branch})` : ''}
+              {t.path.replace(/\/$/, '').split('/').pop()}{t.branch ? ` · ${t.branch}` : ''}
             </option>
           )),
         )}
@@ -73,7 +73,7 @@ export function NewConversationDialog({ onCreated }: Props): React.ReactElement 
           ))}
         </select>
       )}
-      <button data-testid="create" onClick={() => void create()}>New conversation</button>
+      <button className="create" data-testid="create" onClick={() => void create()}>+ New conversation</button>
     </div>
   )
 }

@@ -1,4 +1,6 @@
 import { execFileSync } from 'node:child_process'
+import { readdirSync, existsSync } from 'node:fs'
+import { join } from 'node:path'
 import type { Workspace, Worktree } from '@trux/protocol'
 
 // Parse `git worktree list --porcelain` into worktree records.
@@ -25,17 +27,46 @@ export function parseWorktrees(porcelain: string): Worktree[] {
   return out
 }
 
-// For each configured root, list its git worktrees; a non-repo degrades to itself.
+function isGitRepo(dir: string): boolean {
+  return existsSync(join(dir, '.git'))
+}
+
+// git worktrees of a repo; stderr is silenced so a non-repo never leaks
+// "fatal: not a git repository" into the server log.
+function worktreesOf(repo: string): Worktree[] {
+  try {
+    const porcelain = execFileSync('git', ['-C', repo, 'worktree', 'list', '--porcelain'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+    const worktrees = parseWorktrees(porcelain)
+    return worktrees.length > 0 ? worktrees : [{ path: repo, branch: null }]
+  } catch {
+    return [{ path: repo, branch: null }]
+  }
+}
+
+// For each configured root:
+//  - if the root is itself a git repo → list its worktrees;
+//  - otherwise (a directory *of* repos, e.g. ~/code) → surface the git repos one
+//    level down, so you pick a real repo instead of a bare non-repo directory.
 export function listWorkspaces(roots: string[]): Workspace[] {
   return roots.map((root) => {
+    if (isGitRepo(root)) {
+      return { root, worktrees: worktreesOf(root) }
+    }
+    let repos: string[] = []
     try {
-      const porcelain = execFileSync('git', ['-C', root, 'worktree', 'list', '--porcelain'], {
-        encoding: 'utf8',
-      })
-      const worktrees = parseWorktrees(porcelain)
-      return { root, worktrees: worktrees.length > 0 ? worktrees : [{ path: root, branch: null }] }
+      repos = readdirSync(root, { withFileTypes: true })
+        .filter((d) => d.isDirectory() && isGitRepo(join(root, d.name)))
+        .map((d) => join(root, d.name))
+        .sort()
     } catch {
+      repos = []
+    }
+    if (repos.length === 0) {
       return { root, worktrees: [{ path: root, branch: null }] }
     }
+    return { root, worktrees: repos.flatMap(worktreesOf) }
   })
 }

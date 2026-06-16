@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -47,9 +47,27 @@ describe('listWorkspaces', () => {
     expect(ws?.worktrees[0]?.branch).toBe('main')
   })
 
-  it('degrades a non-git directory to a single branchless entry', () => {
+  it('degrades a non-git directory with no repos to a single branchless entry', () => {
     const root = mkdtempSync(join(tmpdir(), 'trux-plain-'))
     dirs.push(root)
     expect(listWorkspaces([root])).toEqual([{ root, worktrees: [{ path: root, branch: null }] }])
+  })
+
+  it('surfaces git repos one level under a non-git root', () => {
+    const root = mkdtempSync(join(tmpdir(), 'trux-code-'))
+    dirs.push(root)
+    const repoA = join(root, 'alpha')
+    const repoB = join(root, 'beta')
+    for (const r of [repoA, repoB]) {
+      mkdirSync(r)
+      execFileSync('git', ['-C', r, 'init', '-q', '-b', 'main'])
+      execFileSync('git', ['-C', r, 'config', 'user.email', 't@t'])
+      execFileSync('git', ['-C', r, 'config', 'user.name', 't'])
+      execFileSync('git', ['-C', r, 'commit', '-q', '--allow-empty', '-m', 'init'])
+    }
+    mkdirSync(join(root, 'notarepo')) // ignored — no .git
+    const [ws] = listWorkspaces([root])
+    expect(ws?.root).toBe(root)
+    expect(ws?.worktrees.map((w) => w.path).sort()).toEqual([repoA, repoB])
   })
 })

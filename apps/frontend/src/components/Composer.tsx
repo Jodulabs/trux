@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import type { ImageAttachment } from '@trux/protocol'
 import { addSnippet, deleteSnippet, loadSnippets, type Snippet } from '../snippets'
+import { Icon } from './Icon'
 
 interface ComposerProps {
   busy: boolean
@@ -106,7 +107,7 @@ export function Composer({ busy, onSend, onInterrupt }: ComposerProps): React.Re
             <button data-testid="snippet-panel-close" onClick={() => setShowSnippets(false)}>✕</button>
           </div>
           {snippets.length === 0 ? (
-            <p className="snippet-empty">No saved snippets yet. Save the current message with ★.</p>
+            <p className="snippet-empty">No saved snippets yet. Save the current message with the bookmark.</p>
           ) : (
             snippets.map((s) => (
               <div key={s.id} className="snippet-row">
@@ -134,41 +135,50 @@ export function Composer({ busy, onSend, onInterrupt }: ComposerProps): React.Re
           ))}
         </div>
       )}
-      <textarea
-        ref={textareaRef}
-        data-testid="composer-input"
-        value={text}
-        onChange={handleChange}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault()
-            submit()
-          }
-        }}
-        placeholder="Message Claude…"
-      />
-      <div className="composer-actions">
-        <button data-testid="snippet-save" title="Save as snippet" onClick={saveSnippet}>★</button>
-        <button data-testid="snippet-open" title="Insert snippet" onClick={openSnippets}>☰</button>
-        <button
-          data-testid="attach-image"
-          title="Attach image"
-          onClick={() => fileInputRef.current?.click()}
-        >🖼</button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          multiple
-          style={{ display: 'none' }}
-          data-testid="file-input"
-          onChange={(e) => void handleFiles(e.target.files)}
+      <div className="composer-field">
+        <textarea
+          ref={textareaRef}
+          data-testid="composer-input"
+          value={text}
+          onChange={handleChange}
+          rows={1}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              submit()
+            }
+          }}
+          placeholder="Message Claude…"
         />
-        {busy ? (
-          <button data-testid="interrupt" onClick={onInterrupt}>Stop</button>
-        ) : (
-          <button data-testid="send" onClick={submit}>Send</button>
-        )}
+        <div className="composer-tools">
+          <button className="icon-btn" data-testid="snippet-save" title="Save as snippet" aria-label="Save as snippet" onClick={saveSnippet}>
+            <Icon name="bookmark" size={18} />
+          </button>
+          <button className="icon-btn" data-testid="snippet-open" title="Insert snippet" aria-label="Insert snippet" onClick={openSnippets}>
+            <Icon name="list" size={18} />
+          </button>
+          <button className="icon-btn" data-testid="attach-image" title="Attach image" aria-label="Attach image" onClick={() => fileInputRef.current?.click()}>
+            <Icon name="attach" size={18} />
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            style={{ display: 'none' }}
+            data-testid="file-input"
+            onChange={(e) => void handleFiles(e.target.files)}
+          />
+          {busy ? (
+            <button className="send-btn stop" data-testid="interrupt" title="Stop" aria-label="Stop" onClick={onInterrupt}>
+              <Icon name="stop" size={16} />
+            </button>
+          ) : (
+            <button className="send-btn" data-testid="send" title="Send" aria-label="Send" onClick={submit}>
+              <Icon name="send" size={20} />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )

@@ -9,6 +9,7 @@
     "dev": "pnpm --parallel -r dev",
     "build": "pnpm --filter @trux/frontend build",
     "start": "pnpm --filter @trux/backend start",
+    "pair": "pnpm --filter @trux/backend pair",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck"
   },

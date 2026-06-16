@@ -52,10 +52,11 @@ export function ConversationView({ id }: { id: string }): React.ReactElement {
         <div data-testid="status-line" className={`status ${status}`}>{STATUS_LABEL[status] ?? status}</div>
         {previewUrl !== null ? (
           <button
+            className="open-preview"
             data-testid="open-preview"
             onClick={() => window.open(previewUrl, '_blank')}
           >
-            Open preview :{previewPort}
+            ◳ preview :{previewPort}
           </button>
         ) : null}
       </div>

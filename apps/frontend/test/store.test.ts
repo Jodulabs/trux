@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ServerEvent } from '@trux/protocol'
-import { foldEvent, type TranscriptItem } from '../src/store'
+import { foldEvent, useStore, type TranscriptItem } from '../src/store'
 
 function fold(events: ServerEvent[]): TranscriptItem[] {
   return events.reduce<TranscriptItem[]>(foldEvent, [])
@@ -35,5 +35,23 @@ describe('foldEvent', () => {
       { type: 'turn_complete', turn_id: 't1', cost: 0 },
     ])
     expect(items).toEqual([])
+  })
+})
+
+describe('foldEvent approvals', () => {
+  it('keeps an approval_request as a transcript item', () => {
+    const items = fold([
+      { type: 'approval_request', turn_id: 't1', request_id: 'tu_1', tool: 'Bash', input: { command: 'ls' } },
+    ])
+    expect(items).toEqual([
+      { type: 'approval_request', turn_id: 't1', request_id: 'tu_1', tool: 'Bash', input: { command: 'ls' } },
+    ])
+  })
+})
+
+describe('recordApproval', () => {
+  it('records the decision for a request id', () => {
+    useStore.getState().recordApproval('tu_1', 'allow')
+    expect(useStore.getState().approvalDecisions['tu_1']).toBe('allow')
   })
 })

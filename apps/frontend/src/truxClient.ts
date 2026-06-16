@@ -1,4 +1,4 @@
-import type { ClientMessage, HelloEvent, ServerEvent } from '@trux/protocol'
+import type { ApprovalDecision, ClientMessage, HelloEvent, ServerEvent } from '@trux/protocol'
 
 export interface TruxClientOptions {
   url: string
@@ -12,6 +12,7 @@ export interface TruxClient {
   send: (msg: ClientMessage) => void
   sendUserMessage: (text: string) => void
   interrupt: () => void
+  respondApproval: (requestId: string, decision: ApprovalDecision, note?: string | null) => void
   close: () => void
 }
 
@@ -40,6 +41,8 @@ export function connectTrux(opts: TruxClientOptions): TruxClient {
     send: (msg) => ws.send(JSON.stringify(msg)),
     sendUserMessage: (text) => ws.send(JSON.stringify({ type: 'user_message', text })),
     interrupt: () => ws.send(JSON.stringify({ type: 'interrupt' })),
+    respondApproval: (requestId, decision, note = null) =>
+      ws.send(JSON.stringify({ type: 'approval_response', request_id: requestId, decision, note })),
     close: () => ws.close(),
   }
 }

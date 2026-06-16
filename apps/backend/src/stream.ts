@@ -58,9 +58,8 @@ export function registerStream(
           void manager.handleUserMessage(id, msg.text)
         } else if (msg.type === 'interrupt') {
           void manager.interrupt(id)
-        } else {
-          // approval_response is Phase 2.
-          send(socket, { type: 'error', message: 'not supported in phase 1', recoverable: true })
+        } else if (msg.type === 'approval_response') {
+          void manager.handleApprovalResponse(id, msg.request_id, msg.decision, msg.note ?? null)
         }
       })
     })

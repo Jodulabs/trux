@@ -1,11 +1,28 @@
+import type { ApprovalDecision } from '@trux/protocol'
 import type { TranscriptItem } from '../store'
+import { ApprovalCard } from './ApprovalCard'
 
-export function Transcript({ items }: { items: TranscriptItem[] }): React.ReactElement {
+interface Props {
+  items: TranscriptItem[]
+  approvalDecisions: Record<string, ApprovalDecision>
+  onRespond: (requestId: string, decision: ApprovalDecision) => void
+}
+
+export function Transcript({ items, approvalDecisions, onRespond }: Props): React.ReactElement {
   return (
     <div data-testid="transcript">
       {items.map((item, i) => {
         if (item.type === 'user_text') return <p key={i} className="msg user">{item.text}</p>
         if (item.type === 'text') return <p key={i} className="msg assistant">{item.text}</p>
+        if (item.type === 'approval_request')
+          return (
+            <ApprovalCard
+              key={i}
+              event={item}
+              decision={approvalDecisions[item.request_id]}
+              onRespond={onRespond}
+            />
+          )
         if (item.type === 'tool_call')
           return (
             <details key={i} className="tool">

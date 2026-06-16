@@ -2,19 +2,31 @@ import { describe, expect, it } from 'vitest'
 import { ClaudeAdapter } from '../../src/adapter/claude'
 import type { AdapterEvent } from '../../src/adapter/types'
 
-// Build a fake `query` that yields the given SDK messages and records interrupts.
-function fakeQuery(messages: unknown[]) {
+// Build a fake `query` that yields the given SDK messages, captures the
+// canUseTool callback, and (when block) never completes so the outbox stays open.
+function fakeQuery(messages: unknown[], block = false) {
   const calls: { interrupted: boolean } = { interrupted: false }
-  const fn = (() => ({
-    async *[Symbol.asyncIterator]() {
-      for (const m of messages) yield m
-    },
-    interrupt: async () => {
-      calls.interrupted = true
-    },
-    close: async () => {},
-  })) as unknown as ConstructorParameters<typeof ClaudeAdapter>[0]
-  return { fn, calls }
+  let canUseTool:
+    | ((
+        t: string,
+        i: Record<string, unknown>,
+        o: { signal: AbortSignal; toolUseID: string; suggestions?: unknown[]; title?: string },
+      ) => Promise<unknown>)
+    | undefined
+  const fn = ((arg: { options?: { canUseTool?: typeof canUseTool } }) => {
+    canUseTool = arg.options?.canUseTool
+    return {
+      async *[Symbol.asyncIterator]() {
+        for (const m of messages) yield m
+        if (block) await new Promise(() => {})
+      },
+      interrupt: async () => {
+        calls.interrupted = true
+      },
+      close: async () => {},
+    }
+  }) as unknown as ConstructorParameters<typeof ClaudeAdapter>[0]
+  return { fn, calls, getCanUseTool: () => canUseTool! }
 }
 
 async function collect(events: AsyncIterable<AdapterEvent>): Promise<AdapterEvent[]> {
@@ -71,5 +83,46 @@ describe('ClaudeAdapter mapping', () => {
     const session = new ClaudeAdapter(fn).start({ cwd: '/repo' })
     await session.interrupt()
     expect(calls.interrupted).toBe(true)
+  })
+
+  it('emits an approval_request and resolves allow with the input passed through', async () => {
+    const { fn, getCanUseTool } = fakeQuery([], true)
+    const session = new ClaudeAdapter(fn).start({ cwd: '/repo' })
+    const result = getCanUseTool()('Bash', { command: 'ls' }, {
+      signal: new AbortController().signal, toolUseID: 'tu_1', suggestions: [{ x: 1 }], title: 'run ls',
+    })
+    const it = session.events()[Symbol.asyncIterator]()
+    expect((await it.next()).value).toEqual({
+      type: 'approval_request', request_id: 'tu_1', tool: 'Bash', input: { command: 'ls' }, explanation: 'run ls',
+    })
+    session.respondApproval('tu_1', 'allow')
+    expect(await result).toEqual({ behavior: 'allow', updatedInput: { command: 'ls' } })
+  })
+
+  it('resolves allow_always with the suggestions as updatedPermissions', async () => {
+    const { fn, getCanUseTool } = fakeQuery([], true)
+    const session = new ClaudeAdapter(fn).start({ cwd: '/repo' })
+    const result = getCanUseTool()('Edit', { path: 'a' }, {
+      signal: new AbortController().signal, toolUseID: 'tu_2', suggestions: [{ x: 1 }],
+    })
+    session.respondApproval('tu_2', 'allow_always')
+    expect(await result).toEqual({ behavior: 'allow', updatedInput: { path: 'a' }, updatedPermissions: [{ x: 1 }] })
+  })
+
+  it('resolves deny with the note as the message', async () => {
+    const { fn, getCanUseTool } = fakeQuery([], true)
+    const session = new ClaudeAdapter(fn).start({ cwd: '/repo' })
+    const result = getCanUseTool()('Bash', {}, { signal: new AbortController().signal, toolUseID: 'tu_3' })
+    session.respondApproval('tu_3', 'deny', 'no thanks')
+    expect(await result).toEqual({ behavior: 'deny', message: 'no thanks' })
+  })
+
+  it('denies a parked approval when the signal aborts', async () => {
+    const { fn, getCanUseTool } = fakeQuery([], true)
+    new ClaudeAdapter(fn).start({ cwd: '/repo' })
+    const ac = new AbortController()
+    const result = getCanUseTool()('Bash', {}, { signal: ac.signal, toolUseID: 'tu_4' })
+    ac.abort()
+    expect(await result).toEqual({ behavior: 'deny', message: 'interrupted' })
   })
 })

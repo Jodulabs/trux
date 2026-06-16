@@ -27,6 +27,9 @@ export async function buildServer(config: Config, db: TruxDatabase): Promise<Fas
   })
 
   await app.register(async (scope) => {
+    // :id is accepted but unused until Phase 1 wires conversation routing.
+    // Phase 0 has no idle/auth-deadline timeout: a client that connects and never
+    // authenticates holds the socket open. Acceptable locally; harden with rate-limiting later.
     scope.get('/conversations/:id/stream', { websocket: true }, (socket) => {
       let authed = false
       // Handlers must be attached synchronously (per @fastify/websocket docs).

@@ -25,17 +25,21 @@ async function listen(config: Config): Promise<number> {
   return (app.server.address() as AddressInfo).port
 }
 
-// Open a WS, send the given first frame, resolve with the first server event received.
-function firstEvent(port: number, firstFrame: unknown): Promise<ServerEvent> {
+// Open a WS, send the given raw first frame, resolve with the first server event received.
+function firstEventRaw(port: number, firstFrame: string): Promise<ServerEvent> {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(`ws://127.0.0.1:${port}/conversations/dev/stream`)
-    ws.on('open', () => ws.send(JSON.stringify(firstFrame)))
+    ws.on('open', () => ws.send(firstFrame))
     ws.on('message', (raw) => {
       resolve(JSON.parse(raw.toString()) as ServerEvent)
       ws.close()
     })
     ws.on('error', reject)
   })
+}
+
+function firstEvent(port: number, firstFrame: unknown): Promise<ServerEvent> {
+  return firstEventRaw(port, JSON.stringify(firstFrame))
 }
 
 afterEach(async () => {
@@ -60,6 +64,12 @@ describe('buildServer websocket', () => {
     const port = await listen(baseConfig)
     const event = await firstEvent(port, { type: 'interrupt' })
     expect(event.type).toBe('error')
+  })
+
+  it('returns a recoverable error for a malformed frame', async () => {
+    const port = await listen(baseConfig)
+    const event = await firstEventRaw(port, '{not json')
+    expect(event).toEqual({ type: 'error', message: 'invalid message', recoverable: true })
   })
 
   it('serves a health endpoint backed by the db', async () => {

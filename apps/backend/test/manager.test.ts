@@ -18,6 +18,7 @@ class FakeAdapter implements AgentAdapter {
 }
 class FakeSession implements AgentSession {
   interrupted = false
+  respondedWith: string[] = []
   private outbox = new PushQueue<AdapterEvent>()
   constructor(private readonly script: AdapterEvent[]) {}
   send(): void {
@@ -33,6 +34,9 @@ class FakeSession implements AgentSession {
   async close(): Promise<void> {}
   nativeSessionId(): string | null {
     return 'sess_fake'
+  }
+  respondApproval(): void {
+    this.respondedWith.push('called')
   }
 }
 
@@ -100,5 +104,27 @@ describe('ConversationManager', () => {
     await manager.handleUserMessage(conv.id, 'hello')
     await manager.interrupt(conv.id)
     expect(adapter.last.interrupted).toBe(true)
+  })
+
+  it('emits awaiting_approval after an approval_request and routes the response', async () => {
+    const conv = registry.createConversation({ agent: 'claude', cwd: '/repo' })
+    const adapter = new FakeAdapter([
+      { type: 'approval_request', request_id: 'tu_1', tool: 'Bash', input: { command: 'ls' } },
+    ])
+    const manager = new ConversationManager(registry, adapter)
+    const seen: ServerEvent[] = []
+    manager.attach(conv.id, (e) => seen.push(e))
+    await manager.handleUserMessage(conv.id, 'go')
+    await settle()
+
+    expect(seen.map((e) => e.type)).toEqual([
+      'user_text', 'turn_started', 'status', 'approval_request', 'status',
+    ])
+    expect((seen.at(-1) as { state: string }).state).toBe('awaiting_approval')
+    expect(registry.getConversation(conv.id)?.status).toBe('awaiting_approval')
+
+    await manager.handleApprovalResponse(conv.id, 'tu_1', 'allow', null)
+    expect(adapter.last.respondedWith).toEqual(['called'])
+    expect(seen.at(-1)).toEqual({ type: 'status', state: 'thinking' })
   })
 })

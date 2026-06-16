@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { ServerEvent } from '@trux/protocol'
+import type { ApprovalDecision, ServerEvent } from '@trux/protocol'
 import type { AdapterEvent, AgentAdapter, AgentSession } from './adapter/types'
 import type { SqliteRegistry } from './registry'
 
@@ -21,6 +21,15 @@ function stampTurn(e: AdapterEvent, turnId: string): ServerEvent {
       return { type: 'tool_call', turn_id: turnId, tool_id: e.tool_id, name: e.name, input: e.input }
     case 'tool_result':
       return { type: 'tool_result', turn_id: turnId, tool_id: e.tool_id, status: e.status, output: e.output }
+    case 'approval_request':
+      return {
+        type: 'approval_request',
+        turn_id: turnId,
+        request_id: e.request_id,
+        tool: e.tool,
+        input: e.input,
+        explanation: e.explanation,
+      }
     case 'turn_complete':
       return { type: 'turn_complete', turn_id: turnId, usage: e.usage, cost: e.cost }
     case 'error':
@@ -60,6 +69,18 @@ export class ConversationManager {
     await this.live.get(convId)?.session.interrupt()
   }
 
+  async handleApprovalResponse(
+    convId: string,
+    requestId: string,
+    decision: ApprovalDecision,
+    note: string | null,
+  ): Promise<void> {
+    const live = this.live.get(convId)
+    if (!live) return
+    live.session.respondApproval(requestId, decision, note)
+    this.emit(convId, { type: 'status', state: 'thinking' })
+  }
+
   private ensureSession(convId: string): LiveSession {
     const existing = this.live.get(convId)
     if (existing) return existing
@@ -80,6 +101,9 @@ export class ConversationManager {
       for await (const e of live.session.events()) {
         const wire = stampTurn(e, live.currentTurnId ?? '')
         this.emit(convId, wire)
+        if (wire.type === 'approval_request') {
+          this.emit(convId, { type: 'status', state: 'awaiting_approval' })
+        }
         if (wire.type === 'turn_complete') {
           const sid = live.session.nativeSessionId()
           if (sid) this.registry.setNativeSessionId(convId, sid)

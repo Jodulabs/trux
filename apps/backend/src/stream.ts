@@ -55,7 +55,7 @@ export function registerStream(
         }
 
         if (msg.type === 'user_message') {
-          void manager.handleUserMessage(id, msg.text, msg.attachments, msg.client_message_id)
+          void manager.handleUserMessage(id, msg.text, msg.attachments, msg.client_message_id, msg.config)
         } else if (msg.type === 'interrupt') {
           void manager.interrupt(id)
         } else if (msg.type === 'approval_response') {

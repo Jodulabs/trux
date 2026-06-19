@@ -171,10 +171,12 @@ describe('REST', () => {
     expect(res.status).toBe(400)
   })
 
-  it('lists available agents', async () => {
+  it('lists agent capability manifests', async () => {
     const { port } = await start()
     const res = await (await fetch(`http://127.0.0.1:${port}/agents`)).json()
-    expect(res).toEqual({ agents: ['claude'] })
+    expect(res).toEqual({
+      agents: [{ agent: 'claude', models: [], defaultModel: null, controls: [] }],
+    })
   })
 
   it('stores and removes a push subscription', async () => {

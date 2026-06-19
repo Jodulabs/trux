@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs'
-import type { AgentName, ConversationDetail, CreateConversationRequest, DiscoveredSession } from '@trux/protocol'
+import type { AgentCapabilities, ConversationDetail, CreateConversationRequest, DiscoveredSession } from '@trux/protocol'
 import type { Config } from './config'
 import type { SqliteRegistry } from './registry'
 import { listWorkspaces } from './workspaces'
@@ -104,7 +104,7 @@ export function registerRoutes(
   app: FastifyInstance,
   config: Config,
   registry: SqliteRegistry,
-  agents: AgentName[],
+  agents: AgentCapabilities[],
 ): void {
   // Bearer gate for REST (no-op locally when authRequired is false). Scoped to
   // this plugin so it never runs for /health or the WS upgrade (registered elsewhere).
@@ -141,7 +141,7 @@ export function registerRoutes(
     if (!body || typeof body.cwd !== 'string' || body.cwd.length === 0) {
       return reply.code(400).send({ error: 'cwd is required' })
     }
-    if (!agents.includes(body.agent)) {
+    if (!agents.some((a) => a.agent === body.agent)) {
       return reply.code(400).send({ error: `unknown agent: ${body.agent}` })
     }
     return registry.createConversation({
@@ -149,6 +149,8 @@ export function registerRoutes(
       cwd: body.cwd,
       title: body.title,
       native_session_id: body.native_session_id,
+      model: body.model ?? null,
+      options: body.options ?? {},
     })
   })
 

@@ -1,0 +1,18 @@
+[Unit]
+Description=Trux backend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=__TRUX_DIR__
+EnvironmentFile=%h/.trux/.env
+# pnpm runs under `#!/usr/bin/env node`; without this the unit's minimal PATH finds
+# the system node (often too old) instead of the one trux was installed with.
+Environment=PATH=__NODE_DIR__:/usr/local/bin:/usr/bin:/bin
+ExecStart=__PNPM__ --filter backend start
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

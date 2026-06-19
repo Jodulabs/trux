@@ -52,6 +52,11 @@ export function openConnection(id: string): void {
         const cur = store.convMeta[id]?.lastSeq ?? -1
         if (event.seq > cur) store.setConvMeta(id, { lastSeq: event.seq })
       }
+      // Accumulate cost from turn_complete events.
+      if (event.type === 'turn_complete' && event.cost) {
+        const prev = store.convMeta[id]?.totalCost ?? 0
+        store.setConvMeta(id, { totalCost: prev + event.cost })
+      }
       // Bump unread for background conversations on significant events.
       if (id !== store.currentId) {
         if (event.type === 'turn_complete' || event.type === 'approval_request') {

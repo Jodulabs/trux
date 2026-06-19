@@ -41,6 +41,8 @@ export const api = {
       headers: { 'content-type': 'application/json', ...authHeaders() },
       body: JSON.stringify(sub),
     }).then(json<{ ok: boolean }>),
+  searchConversations: (q: string) =>
+    fetch(`/conversations/search?q=${encodeURIComponent(q)}`, { headers: authHeaders() }).then(json<Conversation[]>),
   discoverSessions: (agent: string, cwd: string) =>
     fetch(`/sessions/discover?agent=${encodeURIComponent(agent)}&cwd=${encodeURIComponent(cwd)}`, {
       headers: authHeaders(),

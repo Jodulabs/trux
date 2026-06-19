@@ -1,6 +1,6 @@
 // Minimal stroke icons (no emoji) — inherit currentColor.
 interface Props {
-  name: 'send' | 'stop' | 'attach' | 'bookmark' | 'list' | 'phone' | 'copy' | 'check' | 'chevron' | 'down'
+  name: 'send' | 'stop' | 'attach' | 'bookmark' | 'list' | 'phone' | 'copy' | 'check' | 'chevron' | 'down' | 'mic'
   size?: number
 }
 
@@ -15,6 +15,7 @@ const PATHS: Record<Props['name'], React.ReactNode> = {
   check: <path d="M5 12.5l4.5 4.5L19 7" />,
   chevron: <path d="M9 6l6 6-6 6" />,
   down: <path d="M12 5v14M6 13l6 6 6-6" />,
+  mic: <><path d="M12 2a3 3 0 013 3v6a3 3 0 01-6 0V5a3 3 0 013-3z" /><path d="M5 10a7 7 0 0014 0M12 19v3M9 22h6" /></>,
 }
 
 export function Icon({ name, size = 20 }: Props): React.ReactElement {

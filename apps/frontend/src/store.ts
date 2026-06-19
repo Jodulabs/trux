@@ -17,6 +17,7 @@ export type ConvMeta = {
   unread: number
   connState: ConnState
   lastSeq: number
+  totalCost: number
 }
 
 // A user_text item the client rendered optimistically, before the server echo.
@@ -209,11 +210,11 @@ export const useStore = create<TruxState>((set, get) => ({
     set({ approvalDecisions: { ...get().approvalDecisions, [requestId]: decision } })
   },
   setConvMeta(id, patch) {
-    const prev = get().convMeta[id] ?? { status: 'idle', unread: 0, connState: 'connecting' as ConnState, lastSeq: -1 }
+    const prev = get().convMeta[id] ?? { status: 'idle', unread: 0, connState: 'connecting' as ConnState, lastSeq: -1, totalCost: 0 }
     set({ convMeta: { ...get().convMeta, [id]: { ...prev, ...patch } } })
   },
   bumpUnread(id) {
-    const prev = get().convMeta[id] ?? { status: 'idle', unread: 0, connState: 'connecting' as ConnState, lastSeq: -1 }
+    const prev = get().convMeta[id] ?? { status: 'idle', unread: 0, connState: 'connecting' as ConnState, lastSeq: -1, totalCost: 0 }
     set({ convMeta: { ...get().convMeta, [id]: { ...prev, unread: prev.unread + 1 } } })
   },
   clearUnread(id) {

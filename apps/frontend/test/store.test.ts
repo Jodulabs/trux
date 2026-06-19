@@ -128,14 +128,14 @@ describe('convMeta', () => {
   })
 
   it('clearUnread resets the unread counter to 0', () => {
-    useStore.setState({ convMeta: { c1: { status: 'idle', unread: 5, connState: 'connected', lastSeq: 3 } } })
+    useStore.setState({ convMeta: { c1: { status: 'idle', unread: 5, connState: 'connected', lastSeq: 3, totalCost: 0 } } })
     useStore.getState().clearUnread('c1')
     expect(useStore.getState().convMeta['c1']?.unread).toBe(0)
   })
 
   it('setConvMeta patches without clobbering other fields', () => {
-    useStore.setState({ convMeta: { c1: { status: 'thinking', unread: 3, connState: 'connected', lastSeq: 7 } } })
+    useStore.setState({ convMeta: { c1: { status: 'thinking', unread: 3, connState: 'connected', lastSeq: 7, totalCost: 0.5 } } })
     useStore.getState().setConvMeta('c1', { status: 'idle' })
-    expect(useStore.getState().convMeta['c1']).toEqual({ status: 'idle', unread: 3, connState: 'connected', lastSeq: 7 })
+    expect(useStore.getState().convMeta['c1']).toEqual({ status: 'idle', unread: 3, connState: 'connected', lastSeq: 7, totalCost: 0.5 })
   })
 })

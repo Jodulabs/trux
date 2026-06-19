@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useMemo } from 'react'
 import type { ApprovalDecision, GitStatusResult, ImageAttachment } from '@trux/protocol'
 import { useStore } from '../store'
 import { api } from '../api'
@@ -16,6 +16,11 @@ import { GitPanel } from './GitPanel'
 import { Icon } from './Icon'
 import { haptic } from '../haptics'
 import { dequeue } from '../outbox'
+
+function elapsedLabel(secs: number): string {
+  if (secs < 60) return `${secs}s`
+  return `${Math.floor(secs / 60)}m ${secs % 60}s`
+}
 
 const STATUS_LABEL: Record<string, string> = {
   idle: 'Idle',
@@ -52,6 +57,8 @@ export function ConversationView({ id }: { id: string }): React.ReactElement {
   const [atBottom, setAtBottom] = useState(true)
   const [gitStatus, setGitStatus] = useState<GitStatusResult | null>(null)
   const [gitOpen, setGitOpen] = useState(false)
+  const [thinkingSecs, setThinkingSecs] = useState(0)
+  const thinkingStart = useRef<number | null>(null)
 
   const reloadGit = useCallback(async (): Promise<void> => {
     try { setGitStatus(await api.gitStatus(id)) } catch {}
@@ -128,11 +135,29 @@ export function ConversationView({ id }: { id: string }): React.ReactElement {
     haptic('medium')
   }
 
+  // Elapsed timer while agent is thinking.
+  useEffect(() => {
+    if (status === 'thinking') {
+      if (thinkingStart.current === null) thinkingStart.current = Date.now()
+      const tick = (): void => setThinkingSecs(Math.floor((Date.now() - (thinkingStart.current ?? Date.now())) / 1000))
+      tick()
+      const h = setInterval(tick, 1000)
+      return () => clearInterval(h)
+    } else {
+      thinkingStart.current = null
+      setThinkingSecs(0)
+    }
+  }, [status])
+
   // Poll git status on open and on each turn_complete.
   useEffect(() => { void reloadGit() }, [reloadGit])
 
   const busy = status === 'thinking' || status === 'awaiting_approval'
   const connNote = connState !== 'connected' ? CONN_LABEL[connState] : null
+  const statusLabel = useMemo(() => {
+    if (status === 'thinking') return `Thinking… ${elapsedLabel(thinkingSecs)}`
+    return STATUS_LABEL[status] ?? status
+  }, [status, thinkingSecs])
 
   // The latest still-unresolved approval — pinned above the composer so a blocking
   // decision can never scroll off-screen and strand the agent on a glanced-at phone.
@@ -151,6 +176,8 @@ export function ConversationView({ id }: { id: string }): React.ReactElement {
       : `http://localhost:${previewPort}`
     : null
 
+  const totalCost = useStore((s) => s.convMeta[id]?.totalCost ?? 0)
+
   const gitDirty = gitStatus?.repo && gitStatus.dirty
   const gitAhead = gitStatus?.repo ? gitStatus.ahead : 0
   const gitBehind = gitStatus?.repo ? gitStatus.behind : 0
@@ -161,9 +188,12 @@ export function ConversationView({ id }: { id: string }): React.ReactElement {
         <GitPanel conversationId={id} onClose={() => { setGitOpen(false); void reloadGit() }} />
       ) : null}
       <div className="conversation-bar">
-        <div data-testid="status-line" className={`status ${status}`}>{STATUS_LABEL[status] ?? status}</div>
+        <div data-testid="status-line" className={`status ${status}`}>{statusLabel}</div>
         {connNote ? (
           <div data-testid="conn-state" className={`conn ${connState}`}>{connNote}</div>
+        ) : null}
+        {totalCost > 0 ? (
+          <span className="cost-badge" data-testid="cost-badge">${totalCost.toFixed(4)}</span>
         ) : null}
         {gitStatus?.repo ? (
           <button

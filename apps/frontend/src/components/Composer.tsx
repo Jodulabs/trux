@@ -51,13 +51,32 @@ function readFileAsDataUrl(file: File): Promise<{ media_type: string; data: stri
   })
 }
 
+// Web Speech API (not typed in lib.dom by default for older TS versions).
+interface SpeechRecognitionEvent extends Event { results: SpeechRecognitionResultList }
+interface SpeechRecognitionResultList { length: number; item(i: number): SpeechRecognitionResult; [i: number]: SpeechRecognitionResult }
+interface SpeechRecognitionResult { isFinal: boolean; [i: number]: SpeechRecognitionAlternative }
+interface SpeechRecognitionAlternative { transcript: string }
+interface SpeechRecognitionInstance extends EventTarget {
+  continuous: boolean; interimResults: boolean; lang: string
+  start(): void; stop(): void
+  onresult: ((e: SpeechRecognitionEvent) => void) | null
+  onend: (() => void) | null
+}
+declare const SpeechRecognition: { new(): SpeechRecognitionInstance } | undefined
+declare const webkitSpeechRecognition: { new(): SpeechRecognitionInstance } | undefined
+const SpeechRecognitionClass = typeof SpeechRecognition !== 'undefined' ? SpeechRecognition
+  : typeof webkitSpeechRecognition !== 'undefined' ? webkitSpeechRecognition
+  : null
+
 export function Composer({ conversationId, busy, onSend, onInterrupt }: ComposerProps): React.ReactElement {
   const [text, setText] = useState(() => conversationId ? loadDraft(conversationId) : '')
   const [showSnippets, setShowSnippets] = useState(false)
   const [snippets, setSnippets] = useState<Snippet[]>([])
   const [attachments, setAttachments] = useState<ImageAttachment[]>([])
+  const [listening, setListening] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const speechRef = useRef<SpeechRecognitionInstance | null>(null)
 
   // Restore draft when switching conversations.
   useEffect(() => {
@@ -132,6 +151,29 @@ export function Composer({ conversationId, busy, onSend, onInterrupt }: Composer
     setAttachments((prev) => prev.filter((_, i) => i !== index))
   }
 
+  const toggleVoice = (): void => {
+    if (!SpeechRecognitionClass) return
+    if (listening) {
+      speechRef.current?.stop()
+      return
+    }
+    const rec = new SpeechRecognitionClass()
+    rec.continuous = false
+    rec.interimResults = false
+    rec.lang = 'en-US'
+    rec.onresult = (e: SpeechRecognitionEvent) => {
+      const t = e.results[0]?.[0]?.transcript ?? ''
+      if (t) {
+        setText((prev) => (prev ? `${prev} ${t}` : t))
+        if (conversationId) saveDraft(conversationId, text + (text ? ' ' : '') + t)
+      }
+    }
+    rec.onend = () => { setListening(false); speechRef.current = null }
+    speechRef.current = rec
+    rec.start()
+    setListening(true)
+  }
+
   return (
     <div className="composer">
       {showSnippets && (
@@ -204,6 +246,17 @@ export function Composer({ conversationId, busy, onSend, onInterrupt }: Composer
             data-testid="file-input"
             onChange={(e) => void handleFiles(e.target.files)}
           />
+          {SpeechRecognitionClass ? (
+            <button
+              className={`icon-btn${listening ? ' listening' : ''}`}
+              data-testid="mic-btn"
+              title={listening ? 'Stop recording' : 'Voice input'}
+              aria-label={listening ? 'Stop recording' : 'Voice input'}
+              onClick={toggleVoice}
+            >
+              <Icon name="mic" size={18} />
+            </button>
+          ) : null}
           <span className="composer-spacer" />
           {busy ? (
             <button className="send-btn stop" data-testid="interrupt" title="Stop" aria-label="Stop" onClick={onInterrupt}>

@@ -5,9 +5,9 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=%h/dreamLand/jodulabs/trux
+WorkingDirectory=__TRUX_DIR__
 EnvironmentFile=%h/.trux/.env
-ExecStart=/usr/bin/env pnpm --filter backend start
+ExecStart=__PNPM__ --filter backend start
 Restart=on-failure
 RestartSec=5
 

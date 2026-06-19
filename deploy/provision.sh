@@ -16,6 +16,10 @@ resolve_dirs() {
   SERVICE_DST="$HOME/.config/systemd/user/trux.service"
   SHIM_DST="$HOME/.local/bin/trux"
   PNPM_BIN="${PNPM_BIN:-$(command -v pnpm)}"
+  # The dir holding the node that should run trux. pnpm (#!/usr/bin/env node) and node
+  # are siblings under every version manager (pi-node/nvm/fnm/volta), so this one dir
+  # on the unit's PATH makes systemd use the right node instead of the system one.
+  NODE_DIR="${NODE_DIR:-$(dirname "$(command -v node)")}"
   # ENV_FILE/SERVICE_DST/SHIM_DST are consumed by ensure_env/render/install_shim/main below.
   export ENV_FILE SERVICE_DST SHIM_DST
 }
@@ -26,6 +30,7 @@ render_service() {
   mkdir -p "$(dirname "$out")"
   sed -e "s|__TRUX_DIR__|$TRUX_DIR|g" \
       -e "s|__PNPM__|$PNPM_BIN|g" \
+      -e "s|__NODE_DIR__|$NODE_DIR|g" \
       "$TRUX_PROVISION_DIR/trux.service.template" > "$out"
 }
 

@@ -66,7 +66,34 @@ EOF
   pass "trux shim token/url read from env correctly"
 }
 
+test_uninstall_files() {
+  local sandbox
+  sandbox="$(mktemp -d)"
+  # shellcheck disable=SC1090
+  source "$REPO/deploy/uninstall.sh"
+  # Seed a fake installation: shim, cloned code, and ~/.trux with a db.
+  mkdir -p "$sandbox/.local/bin" "$sandbox/.local/share/trux" "$sandbox/.trux"
+  : > "$sandbox/.local/bin/trux"
+  : > "$sandbox/.local/share/trux/marker"
+  : > "$sandbox/.trux/trux.db"
+  HOME="$sandbox" resolve_dirs
+
+  # Default: removes shim + code, KEEPS ~/.trux (token + history).
+  HOME="$sandbox" uninstall_files
+  [ -e "$sandbox/.local/bin/trux" ] && fail "shim not removed"
+  [ -e "$sandbox/.local/share/trux" ] && fail "install dir not removed"
+  [ -f "$sandbox/.trux/trux.db" ] || fail "TRUX_HOME deleted without --purge"
+
+  # --purge: also removes ~/.trux.
+  HOME="$sandbox" uninstall_files --purge
+  [ -e "$sandbox/.trux" ] && fail "TRUX_HOME not removed with --purge"
+
+  rm -rf "$sandbox"
+  pass "uninstall_files removes shim+code, keeps ~/.trux unless --purge"
+}
+
 test_render_service
 test_ensure_env
 test_shim_url_token
+test_uninstall_files
 echo "ALL TESTS PASSED"

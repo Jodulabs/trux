@@ -26,7 +26,8 @@ case "$cmd" in
     host="$(envval TRUX_TAILSCALE_HOST)"
     if [[ -n "$host" ]]; then echo "https://$host/"; else echo "http://localhost:$(envval TRUX_PORT)/"; fi ;;
   pair)    pnpm -C "$INSTALL_DIR" --filter backend pair ;;
+  uninstall) exec bash "$INSTALL_DIR/deploy/uninstall.sh" "${@:2}" ;;
   *)
-    echo "usage: trux {status|start|stop|restart|logs|update|token|url|pair}" >&2
+    echo "usage: trux {status|start|stop|restart|logs|update|token|url|pair|uninstall [--purge]}" >&2
     exit 1 ;;
 esac

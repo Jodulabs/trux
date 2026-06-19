@@ -66,12 +66,17 @@ install_shim() {
 }
 
 setup_tailscale() {
-  if command -v tailscale &>/dev/null; then
-    tailscale serve --bg https / http://127.0.0.1:4317 2>/dev/null \
-      && echo "trux: tailscale serve configured" \
-      || echo "trux: tailscale serve failed (run 'tailscale up' first?) — skipping"
-  else
+  if ! command -v tailscale &>/dev/null; then
     echo "trux: tailscale not found — skipping remote setup (local only)"
+    return
+  fi
+  # The serve CLI changed: current Tailscale (>=1.x) takes `serve --bg <target>`,
+  # older releases need `serve --bg https / <target>`. Try the new form, fall back.
+  if tailscale serve --bg http://127.0.0.1:4317 2>/dev/null \
+     || tailscale serve --bg https / http://127.0.0.1:4317 2>/dev/null; then
+    echo "trux: tailscale serve configured"
+  else
+    echo "trux: tailscale serve failed (run 'tailscale up' first?) — skipping"
   fi
 }
 

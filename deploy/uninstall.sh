@@ -27,8 +27,9 @@ uninstall_service() {
 
 uninstall_tailscale() {
   if command -v tailscale &>/dev/null; then
-    tailscale serve --https=443 off 2>/dev/null || true
-    echo "trux: cleared tailscale serve on https/443"
+    # New CLI clears serve with `serve reset`; older releases used `--https=443 off`.
+    tailscale serve reset 2>/dev/null || tailscale serve --https=443 off 2>/dev/null || true
+    echo "trux: cleared tailscale serve"
   fi
 }
 

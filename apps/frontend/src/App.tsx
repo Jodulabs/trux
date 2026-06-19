@@ -119,6 +119,18 @@ export function App(): React.ReactElement {
   const onNew = (): void => {
     void selectConversation('')
     setListOpen(false)
+    // Drop the stale deep-link so a reload shows the empty state, not the
+    // previous conversation. Cleared here (not in an effect) to avoid racing
+    // the initial deep-link consumption on mount.
+    try {
+      const url = new URL(location.href)
+      if (url.searchParams.has('c')) {
+        url.searchParams.delete('c')
+        history.replaceState(null, '', url)
+      }
+    } catch {
+      // URL/history unavailable (e.g. test env) — non-fatal
+    }
   }
 
   // Selecting/creating dismisses the slide-over so the conversation is full-screen.

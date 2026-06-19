@@ -282,7 +282,7 @@ main > [data-testid="empty"] {
   align-items: center;
   gap: 1.4rem;
 }
-.greeting { display: flex; align-items: center; gap: 0.6rem; color: var(--text); }
+.greeting { display: flex; align-items: center; gap: 0.6rem; color: var(--text); flex-wrap: wrap; justify-content: center; text-align: center; }
 .greeting-mark { color: var(--accent); font-size: 1.6rem; }
 .greeting h1 { font-family: var(--font-display); font-weight: 500; font-size: 1.8rem; }
 
@@ -330,6 +330,16 @@ main > [data-testid="empty"] {
 }
 .new-conversation .create:hover { background: var(--accent-bright); }
 
+/* Phones: the pickers can't sit side-by-side in ~340px without clipping, so
+   stack them full-width and shrink the greeting. Placed after the base
+   .new-conversation rules so the cascade picks these on a narrow screen. */
+@media (max-width: 640px) {
+  .greeting h1 { font-size: 1.5rem; }
+  .new-conversation { flex-direction: column; align-items: stretch; }
+  .new-conversation select,
+  .new-conversation .create { width: 100%; min-width: 0; }
+}
+
 /* ── Conversation ───────────────────────────────────────────── */
 .conversation { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 
@@ -343,6 +353,19 @@ main > [data-testid="empty"] {
   gap: 0.75rem;
   background: var(--surface-1);
 }
+
+/* The conversation's title in the bar. Desktop only — on mobile the title
+   already lives in the .mobile-bar, so showing it here would duplicate it. */
+.conv-title {
+  font-weight: 600;
+  font-size: 0.92rem;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 22rem;
+}
+@media (max-width: 640px) { .conv-title { display: none; } }
 
 .status {
   font-size: 0.78rem;

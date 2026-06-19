@@ -23,6 +23,9 @@ const baseConfig: Config = {
 
 class FakeAdapter implements AgentAdapter {
   readonly name = 'claude' as const
+  capabilities() {
+    return { agent: 'claude' as const, models: [], defaultModel: null, controls: [] }
+  }
   start(): AgentSession {
     const outbox = new PushQueue<AdapterEvent>()
     return {
@@ -43,6 +46,9 @@ class FakeAdapter implements AgentAdapter {
 // A fake whose turn parks on an approval_request and resumes once answered.
 class ApprovalFakeAdapter implements AgentAdapter {
   readonly name = 'claude' as const
+  capabilities() {
+    return { agent: 'claude' as const, models: [], defaultModel: null, controls: [] }
+  }
   start(): AgentSession {
     const outbox = new PushQueue<AdapterEvent>()
     let answered: (() => void) | null = null

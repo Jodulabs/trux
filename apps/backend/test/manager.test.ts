@@ -9,6 +9,9 @@ import { PushQueue } from '../src/adapter/queue'
 // A fake adapter whose session replays a scripted AdapterEvent stream per turn.
 class FakeAdapter implements AgentAdapter {
   readonly name = 'claude' as const
+  capabilities() {
+    return { agent: 'claude' as const, models: [], defaultModel: null, controls: [] }
+  }
   last!: FakeSession
   constructor(private readonly script: AdapterEvent[]) {}
   start(): AgentSession {
@@ -44,6 +47,9 @@ class FakeSession implements AgentSession {
 // once the response arrives — needed to exercise both push notifications.
 class ApprovalScriptAdapter implements AgentAdapter {
   readonly name = 'claude' as const
+  capabilities() {
+    return { agent: 'claude' as const, models: [], defaultModel: null, controls: [] }
+  }
   start(): AgentSession {
     const outbox = new PushQueue<AdapterEvent>()
     let answered: (() => void) | null = null

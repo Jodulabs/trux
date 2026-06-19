@@ -1,4 +1,4 @@
-import type { AgentName, ApprovalDecision, ImageAttachment, ToolResultStatus } from '@trux/protocol'
+import type { AgentCapabilities, AgentName, ApprovalDecision, ImageAttachment, ToolResultStatus, TurnConfig } from '@trux/protocol'
 
 // NCP events as the adapter produces them: no turn_id (a conversation concern the
 // manager stamps) and no seq (allocated by the registry).
@@ -12,7 +12,7 @@ export type AdapterEvent =
   | { type: 'error'; message: string; recoverable: boolean }
 
 export interface AgentSession {
-  send(text: string, attachments?: ImageAttachment[]): void
+  send(text: string, attachments?: ImageAttachment[], config?: TurnConfig): void
   events(): AsyncIterable<AdapterEvent>
   interrupt(): Promise<void>
   close(): Promise<void>
@@ -22,5 +22,6 @@ export interface AgentSession {
 
 export interface AgentAdapter {
   readonly name: AgentName
-  start(opts: { cwd: string; resume?: string }): AgentSession
+  capabilities(): AgentCapabilities
+  start(opts: { cwd: string; resume?: string; config?: TurnConfig }): AgentSession
 }

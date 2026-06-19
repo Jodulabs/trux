@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
 import { EventEmitter } from 'node:events'
-import type { ApprovalDecision } from '@trux/protocol'
+import type { AgentCapabilities, ApprovalDecision } from '@trux/protocol'
 import type { AgentAdapter, AgentSession, AdapterEvent } from './types'
 import { PushQueue } from './queue'
 import { mapCodexLine, type CodexMapState, type CodexEvent } from './codex-map'
@@ -17,6 +17,12 @@ const defaultSpawn: SpawnFn = (args, opts) =>
 
 export class CodexAdapter implements AgentAdapter {
   readonly name = 'codex' as const
+
+  // codex declares no controls yet — wired in a follow-up. Empty manifest renders
+  // no extra UI; identical code path to a populated backend.
+  capabilities(): AgentCapabilities {
+    return { agent: 'codex', models: [], defaultModel: null, controls: [] }
+  }
 
   constructor(private readonly spawnFn: SpawnFn = defaultSpawn) {}
 

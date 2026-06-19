@@ -1,5 +1,5 @@
 import { createOpencode } from '@opencode-ai/sdk'
-import type { ApprovalDecision } from '@trux/protocol'
+import type { AgentCapabilities, ApprovalDecision } from '@trux/protocol'
 import type { AgentAdapter, AgentSession, AdapterEvent } from './types'
 import { PushQueue } from './queue'
 import { OpencodeMapper, type OcEvent } from './opencode-map'
@@ -40,6 +40,11 @@ const defaultCreateServer: CreateServer = async () => {
 
 export class OpencodeAdapter implements AgentAdapter {
   readonly name = 'opencode' as const
+
+  // opencode declares no controls yet — wired in a follow-up. Empty manifest.
+  capabilities(): AgentCapabilities {
+    return { agent: 'opencode', models: [], defaultModel: null, controls: [] }
+  }
   private serverP: Promise<{ client: OcClient }> | null = null
   private readonly routes = new Map<string, (e: OcEvent) => void>()
 

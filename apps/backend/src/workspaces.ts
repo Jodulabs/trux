@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { readdirSync, existsSync } from 'node:fs'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import type { Workspace, Worktree } from '@trux/protocol'
 
 // Parse `git worktree list --porcelain` into worktree records.
@@ -46,15 +46,20 @@ function worktreesOf(repo: string): Worktree[] {
   }
 }
 
+// One Workspace per repo (the project), with that repo's own worktrees nested —
+// so the picker is repo → worktree, never a flat dump of every repo's worktrees.
+function repoWorkspace(repo: string): Workspace {
+  return { name: basename(repo), root: repo, worktrees: worktreesOf(repo) }
+}
+
 // For each configured root:
-//  - if the root is itself a git repo → list its worktrees;
-//  - otherwise (a directory *of* repos, e.g. ~/code) → surface the git repos one
-//    level down, so you pick a real repo instead of a bare non-repo directory.
+//  - if the root is itself a git repo → one workspace for it;
+//  - otherwise (a directory *of* repos, e.g. ~/code) → one workspace per git repo
+//    one level down, so you pick a real project instead of a bare directory.
+// A non-git root with no repos under it degrades to a single branchless entry.
 export function listWorkspaces(roots: string[]): Workspace[] {
-  return roots.map((root) => {
-    if (isGitRepo(root)) {
-      return { root, worktrees: worktreesOf(root) }
-    }
+  return roots.flatMap((root) => {
+    if (isGitRepo(root)) return [repoWorkspace(root)]
     let repos: string[] = []
     try {
       repos = readdirSync(root, { withFileTypes: true })
@@ -65,8 +70,8 @@ export function listWorkspaces(roots: string[]): Workspace[] {
       repos = []
     }
     if (repos.length === 0) {
-      return { root, worktrees: [{ path: root, branch: null }] }
+      return [{ name: basename(root), root, worktrees: [{ path: root, branch: null }] }]
     }
-    return { root, worktrees: repos.flatMap(worktreesOf) }
+    return repos.map(repoWorkspace)
   })
 }

@@ -33,6 +33,12 @@ export const api = {
       headers: { 'content-type': 'application/json', ...authHeaders() },
       body: JSON.stringify(body),
     }).then(json<Conversation>),
+  renameConversation: (id: string, title: string) =>
+    fetch(`/conversations/${id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ title }),
+    }).then(json<Conversation>),
   getRemoteConfig: () =>
     fetch('/config').then(json<{ tailscaleHost: string | null; vapidPublicKey: string | null }>),
   subscribePush: (sub: PushSubscriptionJSON) =>

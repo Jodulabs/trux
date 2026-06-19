@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Conversation } from '@trux/protocol'
-import { NewConversationDialog } from './NewConversationDialog'
 import { PairModal } from './PairModal'
 import { useStore } from '../store'
 import { api } from '../api'
@@ -14,7 +13,6 @@ interface Props {
   conversations: Conversation[]
   currentId: string | null
   onSelect: (id: string) => void
-  onCreated: (id: string) => void
 }
 
 function shortCwd(cwd: string): string {
@@ -30,7 +28,7 @@ const finePointer =
   typeof window.matchMedia === 'function' &&
   window.matchMedia('(pointer: fine)').matches
 
-export function Sidebar({ conversations, currentId, onSelect, onCreated }: Props): React.ReactElement {
+export function ConversationList({ conversations, currentId, onSelect }: Props): React.ReactElement {
   const [pairing, setPairing] = useState(false)
   const [searchQ, setSearchQ] = useState('')
   const [searchResults, setSearchResults] = useState<Conversation[] | null>(null)
@@ -53,12 +51,7 @@ export function Sidebar({ conversations, currentId, onSelect, onCreated }: Props
   const hasToken = Boolean(localStorage.getItem('trux_token'))
   const canPair = finePointer && Boolean(tailscaleHost) && hasToken
   return (
-    <aside className="sidebar">
-      <div className="brand">
-        <span className="mark">▰</span> trux
-        <span className="sub">· agent console</span>
-      </div>
-      <NewConversationDialog onCreated={onCreated} />
+    <aside className="conv-list" data-testid="conversation-list-panel">
       <div className="sidebar-search">
         <input
           className="sidebar-search-input"
@@ -83,7 +76,7 @@ export function Sidebar({ conversations, currentId, onSelect, onCreated }: Props
               onClick={() => onSelect(c.id)}
             >
               <span className={`dot ${liveStatus}`} />
-              <span className="title">{c.title ?? shortCwd(c.cwd)}</span>
+              <span className="title">{convMeta[c.id]?.title ?? c.title ?? shortCwd(c.cwd)}</span>
               {unread > 0 && c.id !== currentId ? (
                 <span className="unread-badge" data-testid="unread-badge">{unread}</span>
               ) : null}

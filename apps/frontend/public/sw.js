@@ -1,5 +1,11 @@
-// Bump SHELL to evict stale caches on deploy.
-const SHELL = 'trux-v4'
+// Push-only service worker. Deliberately caches NOTHING and has no fetch
+// handler, so every request goes straight to the network exactly as if no SW
+// were installed. A live agent console is useless offline (it needs the REST
+// API and the WebSocket stream), so an offline shell bought nothing — and a
+// precached, content-hashed shell actively *trapped* clients: after a rebuild
+// the cached HTML pointed at a deleted JS bundle, and the SW kept serving it
+// forever with no automatic recovery (the "blank screen, reload does nothing"
+// bug). The SW now exists solely to receive web push and deep-link on tap.
 
 self.addEventListener('install', () => {
   self.skipWaiting()
@@ -7,10 +13,24 @@ self.addEventListener('install', () => {
 
 self.addEventListener('activate', (e) => {
   e.waitUntil(
-    caches
-      .keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== SHELL).map((k) => caches.delete(k))))
-      .then(() => self.clients.claim()),
+    (async () => {
+      // Evict every cache any earlier SW version created. This is what frees a
+      // client that's stuck on a stale shell from a previous build.
+      const keys = await caches.keys()
+      await Promise.all(keys.map((k) => caches.delete(k)))
+      await self.clients.claim()
+      // Force any already-open page onto fresh network HTML in a single step —
+      // no "reload twice / clear site data / use incognito" dance for the user.
+      const clients = await self.clients.matchAll({ type: 'window' })
+      for (const c of clients) {
+        try {
+          await c.navigate(c.url)
+        } catch {
+          // navigate() is unsupported on some engines (older iOS Safari); with
+          // no fetch handler the user's next ordinary reload is already clean.
+        }
+      }
+    })(),
   )
 })
 
@@ -62,43 +82,5 @@ self.addEventListener('notificationclick', (e) => {
       }
       if (self.clients.openWindow) return self.clients.openWindow(target)
     })(),
-  )
-})
-
-self.addEventListener('fetch', (e) => {
-  if (e.request.method !== 'GET') return
-  const url = new URL(e.request.url)
-
-  // API + WS + config: always network, never cache.
-  if (/^\/(conversations|workspaces|agents|sessions|config|health)/.test(url.pathname)) return
-
-  // Navigations (HTML): network-first so a new build is picked up immediately;
-  // fall back to the cached shell when offline. This is what makes UI updates show.
-  if (e.request.mode === 'navigate') {
-    e.respondWith(
-      fetch(e.request)
-        .then((res) => {
-          const copy = res.clone()
-          void caches.open(SHELL).then((c) => c.put('/', copy))
-          return res
-        })
-        .catch(() => caches.match('/').then((hit) => hit ?? caches.match(e.request))),
-    )
-    return
-  }
-
-  // Hashed static assets (immutable): cache-first, populate on first fetch.
-  e.respondWith(
-    caches.match(e.request).then(
-      (hit) =>
-        hit ??
-        fetch(e.request).then((res) => {
-          if (res.ok && url.pathname.startsWith('/assets/')) {
-            const copy = res.clone()
-            void caches.open(SHELL).then((c) => c.put(e.request, copy))
-          }
-          return res
-        }),
-    ),
   )
 })

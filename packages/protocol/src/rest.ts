@@ -6,7 +6,11 @@ export interface Worktree {
   path: string
   branch: string | null
 }
+// One project = one git repo. `root` is the repo path, `name` its display label
+// (directory basename), and `worktrees` are that repo's own worktrees only —
+// never flattened across repos, so the picker can present repo → worktree.
 export interface Workspace {
+  name: string
   root: string
   worktrees: Worktree[]
 }

@@ -22,6 +22,19 @@ function elapsedLabel(secs: number): string {
   return `${Math.floor(secs / 60)}m ${secs % 60}s`
 }
 
+// Derive a short conversation title from the first user message: first
+// non-empty line, trimmed, capped at 60 chars.
+export function deriveTitle(text: string): string {
+  const firstLine = text.split('\n').find((l) => l.trim().length > 0) ?? ''
+  const t = firstLine.trim()
+  return t.length > 60 ? t.slice(0, 60) : t
+}
+
+function shortCwd(cwd: string): string {
+  const parts = cwd.replace(/\/$/, '').split('/')
+  return parts[parts.length - 1] || cwd
+}
+
 const STATUS_LABEL: Record<string, string> = {
   idle: 'Idle',
   thinking: 'Thinking…',
@@ -51,6 +64,10 @@ export function ConversationView({ id }: { id: string }): React.ReactElement {
   const recordApproval = useStore((s) => s.recordApproval)
   const previewPort = useStore((s) => s.previewPort)
   const tailscaleHost = useStore((s) => s.tailscaleHost)
+  const conversations = useStore((s) => s.conversations)
+  const setTitle = useStore((s) => s.setTitle)
+  const conv = conversations.find((c) => c.id === id)
+  const convTitle = conv?.title ?? (conv ? shortCwd(conv.cwd) : '')
   const scrollRef = useRef<HTMLDivElement | null>(null)
   // Whether the view is currently pinned to the bottom (following the stream).
   const stuck = useRef(true)
@@ -118,6 +135,16 @@ export function ConversationView({ id }: { id: string }): React.ReactElement {
   }
 
   const onSend = (text: string, attachments?: ImageAttachment[]): void => {
+    // Auto-title: derive a title from the first user message of an untitled
+    // conversation, persist it via the rename API, and reflect it in the store.
+    const noUserYet = !transcript.some((it) => it.type === 'user_text')
+    if (conv && !conv.title && noUserYet) {
+      const title = deriveTitle(text)
+      if (title) {
+        setTitle(id, title)
+        void api.renameConversation(id, title).catch(() => {})
+      }
+    }
     const cid = newMessageId()
     // Render instantly (sending), queue durably, then put it on the wire. The
     // server echo reconciles the bubble; the queue covers a dead socket.
@@ -188,6 +215,9 @@ export function ConversationView({ id }: { id: string }): React.ReactElement {
         <GitPanel conversationId={id} onClose={() => { setGitOpen(false); void reloadGit() }} />
       ) : null}
       <div className="conversation-bar">
+        {convTitle ? (
+          <span className="conv-title" data-testid="conv-title">{convTitle}</span>
+        ) : null}
         <div data-testid="status-line" className={`status ${status}`}>{statusLabel}</div>
         {connNote ? (
           <div data-testid="conn-state" className={`conn ${connState}`}>{connNote}</div>

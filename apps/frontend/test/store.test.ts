@@ -139,3 +139,18 @@ describe('convMeta', () => {
     expect(useStore.getState().convMeta['c1']).toEqual({ status: 'idle', unread: 3, connState: 'connected', lastSeq: 7, totalCost: 0.5 })
   })
 })
+
+describe('setTitle', () => {
+  it('setTitle updates the conversation in the list and convMeta', () => {
+    useStore.setState({
+      conversations: [
+        { id: 'c1', agent: 'claude', cwd: '/repo/darshi', title: null, status: 'idle',
+          native_session_id: null, archived: false, created_at: 1, updated_at: 1 },
+      ],
+      convMeta: {},
+    })
+    useStore.getState().setTitle('c1', 'Fix auth redirect')
+    expect(useStore.getState().conversations[0]?.title).toBe('Fix auth redirect')
+    expect(useStore.getState().convMeta['c1']?.title).toBe('Fix auth redirect')
+  })
+})

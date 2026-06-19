@@ -46,6 +46,16 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
 );
 `
 
+// Forward-only column adds. SQLite has no portable ADD COLUMN IF NOT EXISTS, so
+// check PRAGMA table_info first. Keep each add idempotent and ordered.
+function migrate(db: TruxDatabase): void {
+  const cols = new Set(
+    (db.prepare('PRAGMA table_info(conversations)').all() as { name: string }[]).map((r) => r.name),
+  )
+  if (!cols.has('model')) db.exec('ALTER TABLE conversations ADD COLUMN model TEXT')
+  if (!cols.has('options')) db.exec("ALTER TABLE conversations ADD COLUMN options TEXT NOT NULL DEFAULT '{}'")
+}
+
 export function openDb(path: string): TruxDatabase {
   if (path !== ':memory:') {
     mkdirSync(dirname(path), { recursive: true })
@@ -54,5 +64,6 @@ export function openDb(path: string): TruxDatabase {
   db.pragma('journal_mode = WAL')
   db.pragma('foreign_keys = ON')
   db.exec(SCHEMA)
+  migrate(db)
   return db
 }

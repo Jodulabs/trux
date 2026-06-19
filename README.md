@@ -42,11 +42,11 @@ trux update
 
 ## Uninstall
 ```sh
-systemctl --user disable --now trux.service
-rm -f ~/.config/systemd/user/trux.service ~/.local/bin/trux
-rm -rf ~/.local/share/trux ~/.trux
-tailscale serve --https=443 off 2>/dev/null || true
+trux uninstall            # stop+remove service, shim, and code; keeps ~/.trux
+trux uninstall --purge    # also delete ~/.trux (your token + conversation history)
 ```
+Keeps your token and conversation history (`~/.trux`) by default. Login linger is
+left enabled (it's a shared setting) — disable it with `loginctl disable-linger "$(whoami)"`.
 
 ## Develop
 ```sh

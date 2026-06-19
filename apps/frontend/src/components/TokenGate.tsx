@@ -27,8 +27,9 @@ export function TokenGate({ onSaved }: Props): React.ReactElement {
       />
       <button data-testid="token-save" onClick={save}>Save token</button>
       <p className="token-hint">
-        Your token is <code>TRUX_SECRET</code> in <code>~/.trux/.env</code> on the box.
-        On your phone, scan the QR from <code>pnpm pair</code> instead of typing it.
+        On this box, run <code>trux open</code> to launch already signed in.
+        Otherwise your token is <code>TRUX_SECRET</code> in <code>~/.trux/.env</code>.
+        On your phone, scan the QR from <code>trux pair</code> instead of typing it.
       </p>
     </div>
   )

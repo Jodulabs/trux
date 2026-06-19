@@ -32,6 +32,7 @@ trux restart     # restart the backend
 trux update      # pull latest, rebuild, restart
 trux token       # print your auth token
 trux url         # print your access URL
+trux open        # launch on this box already signed in (token in URL fragment)
 trux pair        # show the phone-pairing QR
 ```
 

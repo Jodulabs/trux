@@ -9,7 +9,7 @@ interface Props {
 export function ApprovalCard({ event, decision, onRespond }: Props): React.ReactElement {
   return (
     <div className="approval-card" data-testid="approval-card">
-      <strong>Approve {event.tool}?</strong>
+      <strong>Approve <span className="tool-name">{event.tool}</span>?</strong>
       {event.explanation ? <p>{event.explanation}</p> : null}
       <pre>{JSON.stringify(event.input, null, 2)}</pre>
       {decision ? (

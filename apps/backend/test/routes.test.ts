@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { AddressInfo } from 'node:net'
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import WebSocket from 'ws'
 import type { FastifyInstance } from 'fastify'
 import type { Conversation, ConversationDetail, ServerEvent } from '@trux/protocol'
@@ -10,7 +13,7 @@ import { ConversationManager } from '../src/manager'
 import type { AdapterEvent, AgentAdapter, AgentSession } from '../src/adapter/types'
 import { PushQueue } from '../src/adapter/queue'
 import type { Config } from '../src/config'
-import { cwdToClaudeFolder } from '../src/routes'
+import { cwdToClaudeFolder, discoverCodexSessions } from '../src/routes'
 
 const baseConfig: Config = {
   host: '127.0.0.1', port: 0, dbPath: ':memory:', secret: 'test-secret',
@@ -243,5 +246,43 @@ describe('WS turn engine', () => {
       .filter((e): e is Extract<ServerEvent, { type: 'status' }> => e.type === 'status')
       .map((e) => e.state)
     expect(states).toEqual(['thinking', 'awaiting_approval', 'thinking', 'idle'])
+  })
+})
+
+describe('discoverCodexSessions', () => {
+  const dirs: string[] = []
+  afterEach(() => {
+    for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true })
+  })
+
+  // Write a rollout file with a session_meta first line under YYYY/MM/DD.
+  function writeRollout(
+    root: string,
+    day: string,
+    name: string,
+    meta: { id?: string; cwd?: string; type?: string },
+  ): void {
+    const dir = join(root, ...day.split('/'))
+    mkdirSync(dir, { recursive: true })
+    const line = JSON.stringify({ type: meta.type ?? 'session_meta', payload: { id: meta.id, cwd: meta.cwd } })
+    writeFileSync(join(dir, name), `${line}\n{"type":"event"}\n`)
+  }
+
+  it('returns sessions whose session_meta cwd matches, newest first', () => {
+    const root = mkdtempSync(join(tmpdir(), 'trux-codex-'))
+    dirs.push(root)
+    writeRollout(root, '2026/06/16', 'rollout-2026-06-16T01-00-00-aaaa.jsonl', { id: 'old', cwd: '/repo' })
+    writeRollout(root, '2026/06/17', 'rollout-2026-06-17T01-00-00-bbbb.jsonl', { id: 'new', cwd: '/repo' })
+    writeRollout(root, '2026/06/17', 'rollout-2026-06-17T02-00-00-cccc.jsonl', { id: 'other', cwd: '/elsewhere' })
+    const found = discoverCodexSessions('/repo', root)
+    expect(found.map((s) => s.sessionId)).toEqual(['new', 'old'])
+  })
+
+  it('ignores non-session_meta and malformed rollouts, and returns [] for a missing root', () => {
+    const root = mkdtempSync(join(tmpdir(), 'trux-codex-'))
+    dirs.push(root)
+    writeRollout(root, '2026/06/17', 'rollout-2026-06-17T01-00-00-dddd.jsonl', { id: 'x', cwd: '/repo', type: 'other' })
+    expect(discoverCodexSessions('/repo', root)).toEqual([])
+    expect(discoverCodexSessions('/repo', join(root, 'nope'))).toEqual([])
   })
 })

@@ -1,8 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { readdirSync, readFileSync, existsSync } from 'node:fs'
-import { execFileSync } from 'node:child_process'
+import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs'
 import type { AgentName, ConversationDetail, CreateConversationRequest, DiscoveredSession } from '@trux/protocol'
 import type { Config } from './config'
 import type { SqliteRegistry } from './registry'
@@ -42,18 +41,62 @@ function discoverClaudeSessions(cwd: string): DiscoveredSession[] {
   return sessions.sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 10)
 }
 
-function discoverCodexSessions(cwd: string): DiscoveredSession[] {
-  try {
-    const out = execFileSync('codex', ['session', 'list', '--json'], { timeout: 5000, encoding: 'utf8' })
-    const rows = JSON.parse(out) as Array<{ id?: string; cwd?: string; updatedAt?: number; updated_at?: number }>
-    return rows
-      .filter((r) => r.cwd === cwd && r.id)
-      .map((r) => ({ sessionId: r.id!, updatedAt: r.updatedAt ?? r.updated_at ?? 0 }))
-      .sort((a, b) => b.updatedAt - a.updatedAt)
-      .slice(0, 10)
-  } catch {
-    return []
+// Codex stores each session as ~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl whose
+// first line is a `session_meta` record carrying the session id + cwd. (The old
+// `codex session list` CLI subcommand was removed, so we read disk directly — no
+// subprocess, no stderr leak.) Walk newest day-folders first, cap the scan.
+// `root` is injectable for tests; defaults to the real ~/.codex/sessions.
+export function discoverCodexSessions(
+  cwd: string,
+  root = join(homedir(), '.codex', 'sessions'),
+): DiscoveredSession[] {
+  if (!existsSync(root)) return []
+  const sessions: DiscoveredSession[] = []
+  // Descend year → month → day, each sorted desc, so recent sessions come first.
+  const descend = (dir: string): string[] => {
+    let entries: string[]
+    try {
+      entries = readdirSync(dir).sort().reverse()
+    } catch {
+      return []
+    }
+    return entries.map((e) => join(dir, e))
   }
+  const files: string[] = []
+  for (const year of descend(root)) {
+    for (const month of descend(year)) {
+      for (const day of descend(month)) {
+        try {
+          for (const f of readdirSync(day)) {
+            if (f.startsWith('rollout-') && f.endsWith('.jsonl')) files.push(join(day, f))
+          }
+        } catch {
+          // skip unreadable day folder
+        }
+      }
+    }
+    if (files.length > 500) break // safety cap on a deep history
+  }
+  // rollout-<ISO-timestamp>-… filenames sort lexically == chronologically, so a
+  // descending sort lets us read newest-first and stop at 10 matches.
+  files.sort().reverse()
+  for (const file of files) {
+    try {
+      const firstLine = readFileSync(file, 'utf8').split('\n')[0]
+      if (!firstLine) continue
+      const parsed = JSON.parse(firstLine) as {
+        type?: string
+        payload?: { id?: string; cwd?: string }
+      }
+      if (parsed.type === 'session_meta' && parsed.payload?.cwd === cwd && parsed.payload.id) {
+        sessions.push({ sessionId: parsed.payload.id, updatedAt: Math.floor(statSync(file).mtimeMs) })
+        if (sessions.length >= 10) break // newest-first, so the first 10 are the most recent
+      }
+    } catch {
+      // skip malformed rollout
+    }
+  }
+  return sessions.sort((a, b) => b.updatedAt - a.updatedAt)
 }
 
 export function registerRoutes(

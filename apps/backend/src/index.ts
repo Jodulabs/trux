@@ -1,10 +1,6 @@
-import { config as loadDotenv } from 'dotenv'
-import { homedir } from 'node:os'
-import { join } from 'node:path'
-import { existsSync } from 'node:fs'
-import qrcode from 'qrcode-terminal'
 import type { AgentName } from '@trux/protocol'
-import { loadConfig, assertConfig, type Config } from './config'
+import { loadEnvFiles, printStartBanner } from './banner'
+import { loadConfig, assertConfig } from './config'
 import { openDb } from './db'
 import { SqliteRegistry } from './registry'
 import { ClaudeAdapter } from './adapter/claude'
@@ -14,28 +10,7 @@ import { ConversationManager } from './manager'
 import type { AgentAdapter } from './adapter/types'
 import { buildServer } from './server'
 
-// Load env before reading config: repo-local .env first (dev), then ~/.trux/.env
-// (the deployed box). dotenv never overrides an already-set var, so the first load
-// wins per key — and a foreground `pnpm start` now works without systemd.
-loadDotenv()
-const userEnv = join(homedir(), '.trux', '.env')
-if (existsSync(userEnv)) loadDotenv({ path: userEnv })
-
-// Print how to reach trux. When a tailnet host + secret are configured, show a QR
-// that pairs a phone in one scan (URL + token in the fragment — see frontend pairing).
-function printAccessBanner(config: Config): void {
-  if (config.tailscaleHost) {
-    const base = `https://${config.tailscaleHost}/`
-    if (config.secret) {
-      console.log('\n📱 Pair your phone — scan this (phone must be on the tailnet):\n')
-      qrcode.generate(`${base}#token=${encodeURIComponent(config.secret)}`, { small: true })
-      console.log(`\n   …or open ${base} and paste your token`)
-    } else {
-      console.log(`\n📱 Phone: open ${base} (auth disabled)`)
-    }
-  }
-  console.log(`\n   local: http://localhost:${config.port}/\n`)
-}
+loadEnvFiles()
 
 async function main(): Promise<void> {
   const config = loadConfig()
@@ -54,7 +29,7 @@ async function main(): Promise<void> {
   const app = await buildServer(config, db, registry, manager)
   await app.listen({ host: config.host, port: config.port })
   console.log(`trux backend listening on http://${config.host}:${config.port} (db: ${config.dbPath})`)
-  printAccessBanner(config)
+  printStartBanner(config)
 }
 
 main().catch((err) => {

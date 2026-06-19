@@ -89,6 +89,20 @@ and [RUNBOOK](./RUNBOOK.md).)*
 - [x] RUNBOOK: start on the dev box, connect the phone, troubleshoot
 - **Done when:** from your phone over Tailscale you start a Claude conversation, approve a tool, and Open preview. *(plumbing verified locally; pending live phone + Claude run)*
 
+## Phase 6.7 — Mobile UX: from toy to instrument
+*Live use exposed a childish UI + ergonomic gaps. Redesign + fixes. (See
+[spec](../docs/superpowers/specs/2026-06-17-phase-6.7-mobile-ux-design.md).)*
+
+- [x] Refined dark "field console" theme — ink + copper accent, IBM Plex Sans/Mono (bundled, sovereign), SVG icons
+- [x] Render markdown in assistant replies (was raw `###`/`**`)
+- [x] User vs assistant message distinction
+- [x] Tool call summaries — show the command/file, not just `🔧 Bash`
+- [x] Rebuilt composer (proper field, auto-grow, icon actions)
+- [x] Workspaces surface git repos under a non-repo root (fixes "shows /home/gp" + git-noise root cause)
+- [x] `pnpm pair` — QR prints and exits (no hung terminal)
+- [x] Service worker network-first for navigations (UI updates now actually appear)
+- **Done when:** the phone UI reads like a developer tool, markdown + tools render cleanly, and you pick a real repo. *(pending your live look)*
+
 ## Phase 7 — Provisioner (the bigger, decoupled work)
 *Runtime never depends on this; it can land anytime.*
 

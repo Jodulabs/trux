@@ -92,8 +92,31 @@ test_uninstall_files() {
   pass "uninstall_files removes shim+code, keeps ~/.trux unless --purge"
 }
 
+test_shim_resolve_install_dir() {
+  # shellcheck disable=SC1090
+  source "$REPO/bin/trux"
+  local out
+  # 1. Explicit override wins.
+  out="$(TRUX_INSTALL_DIR=/custom/dir resolve_install_dir)"
+  [ "$out" = "/custom/dir" ] || fail "TRUX_INSTALL_DIR override ignored: '$out'"
+  # 2. The service's WorkingDirectory is used when it exists on disk.
+  # (Name this differently from resolve_install_dir's own `local wd` — bash is
+  #  dynamically scoped, so a shared name would let the stub read the wrong var.)
+  local fake_wd; fake_wd="$(mktemp -d)"
+  _service_workdir() { echo "$fake_wd"; }
+  out="$(resolve_install_dir)"
+  [ "$out" = "$fake_wd" ] || fail "service workdir not used: '$out'"
+  rmdir "$fake_wd"
+  # 3. Falls back to ~/.local/share/trux when the service workdir is empty/missing.
+  _service_workdir() { echo ""; }
+  out="$(HOME=/home/fake XDG_DATA_HOME='' resolve_install_dir)"
+  [ "$out" = "/home/fake/.local/share/trux" ] || fail "fallback wrong: '$out'"
+  pass "resolve_install_dir: override > service workdir > default"
+}
+
 test_render_service
 test_ensure_env
 test_shim_url_token
 test_uninstall_files
+test_shim_resolve_install_dir
 echo "ALL TESTS PASSED"

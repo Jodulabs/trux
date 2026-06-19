@@ -1,33 +1,50 @@
 #!/usr/bin/env bash
 # Trux management shim. Installed to ~/.local/bin/trux by the installer.
 set -euo pipefail
-ENV_FILE="$HOME/.trux/.env"
-INSTALL_DIR="${TRUX_INSTALL_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/trux}"
+
+# The directory the service actually runs from — read from the systemd unit so
+# update/pair/uninstall act on the live install whether trux came from curl
+# (~/.local/share/trux) or was provisioned from a dev checkout. Split out so it
+# can be stubbed in tests.
+_service_workdir() { systemctl --user show -p WorkingDirectory --value trux.service 2>/dev/null || true; }
+
+resolve_install_dir() {
+  if [[ -n "${TRUX_INSTALL_DIR:-}" ]]; then printf '%s\n' "$TRUX_INSTALL_DIR"; return; fi
+  local wd; wd="$(_service_workdir)"
+  if [[ -n "$wd" && -d "$wd" ]]; then printf '%s\n' "$wd"; return; fi
+  printf '%s\n' "${XDG_DATA_HOME:-$HOME/.local/share}/trux"
+}
 
 # Print the value of an env key, or empty string if absent. The `|| true` keeps a
 # missing key (e.g. TRUX_TAILSCALE_HOST on a local-only install) from tripping set -e.
-envval() { grep -E "^$1=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2- || true; }
+envval() { grep -E "^$1=" "$HOME/.trux/.env" 2>/dev/null | head -1 | cut -d= -f2- || true; }
 
-cmd="${1:-status}"
-case "$cmd" in
-  status)  systemctl --user status trux.service --no-pager ;;
-  start)   systemctl --user start trux.service ;;
-  stop)    systemctl --user stop trux.service ;;
-  restart) systemctl --user restart trux.service && echo "trux: restarted" ;;
-  logs)    journalctl --user -u trux.service -f ;;
-  update)
-    git -C "$INSTALL_DIR" pull --ff-only
-    pnpm -C "$INSTALL_DIR" install --frozen-lockfile
-    pnpm -C "$INSTALL_DIR" --filter frontend build
-    systemctl --user restart trux.service
-    echo "trux: updated and restarted" ;;
-  token)   envval TRUX_SECRET ;;
-  url)
-    host="$(envval TRUX_TAILSCALE_HOST)"
-    if [[ -n "$host" ]]; then echo "https://$host/"; else echo "http://localhost:$(envval TRUX_PORT)/"; fi ;;
-  pair)    pnpm -C "$INSTALL_DIR" --filter backend pair ;;
-  uninstall) exec bash "$INSTALL_DIR/deploy/uninstall.sh" "${@:2}" ;;
-  *)
-    echo "usage: trux {status|start|stop|restart|logs|update|token|url|pair|uninstall [--purge]}" >&2
-    exit 1 ;;
-esac
+main() {
+  local cmd="${1:-status}"
+  local install_dir host
+  install_dir="$(resolve_install_dir)"
+  case "$cmd" in
+    status)  systemctl --user status trux.service --no-pager ;;
+    start)   systemctl --user start trux.service ;;
+    stop)    systemctl --user stop trux.service ;;
+    restart) systemctl --user restart trux.service && echo "trux: restarted" ;;
+    logs)    journalctl --user -u trux.service -f ;;
+    update)
+      git -C "$install_dir" pull --ff-only
+      pnpm -C "$install_dir" install --frozen-lockfile
+      pnpm -C "$install_dir" --filter frontend build
+      systemctl --user restart trux.service
+      echo "trux: updated and restarted" ;;
+    token)   envval TRUX_SECRET ;;
+    url)
+      host="$(envval TRUX_TAILSCALE_HOST)"
+      if [[ -n "$host" ]]; then echo "https://$host/"; else echo "http://localhost:$(envval TRUX_PORT)/"; fi ;;
+    pair)    pnpm -C "$install_dir" --filter backend pair ;;
+    uninstall) exec bash "$install_dir/deploy/uninstall.sh" "${@:2}" ;;
+    *)
+      echo "usage: trux {status|start|stop|restart|logs|update|token|url|pair|uninstall [--purge]}" >&2
+      exit 1 ;;
+  esac
+}
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then main "$@"; fi

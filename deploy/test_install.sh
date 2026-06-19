@@ -42,6 +42,29 @@ test_ensure_env() {
   pass "ensure_env creates a 0600 env with a hex secret and is idempotent"
 }
 
+test_shim_url_token() {
+  local sandbox
+  sandbox="$(mktemp -d)"
+  mkdir -p "$sandbox/.trux"
+  cat > "$sandbox/.trux/.env" <<EOF
+TRUX_SECRET=deadbeef
+TRUX_PORT=4317
+TRUX_TAILSCALE_HOST=box.tail1234.ts.net
+EOF
+  local out
+  out="$(HOME="$sandbox" bash "$REPO/bin/trux" token)"
+  [ "$out" = "deadbeef" ] || fail "trux token returned '$out'"
+  out="$(HOME="$sandbox" bash "$REPO/bin/trux" url)"
+  [ "$out" = "https://box.tail1234.ts.net/" ] || fail "trux url returned '$out'"
+  # No tailnet host -> local URL
+  sed -i '/TRUX_TAILSCALE_HOST/d' "$sandbox/.trux/.env"
+  out="$(HOME="$sandbox" bash "$REPO/bin/trux" url)"
+  [ "$out" = "http://localhost:4317/" ] || fail "trux url (local) returned '$out'"
+  rm -rf "$sandbox"
+  pass "trux shim token/url read from env correctly"
+}
+
 test_render_service
 test_ensure_env
+test_shim_url_token
 echo "ALL TESTS PASSED"

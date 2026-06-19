@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Trux management shim. Installed to ~/.local/bin/trux by the installer.
+set -euo pipefail
+ENV_FILE="$HOME/.trux/.env"
+INSTALL_DIR="${TRUX_INSTALL_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/trux}"
+
+# Print the value of an env key, or empty string if absent. The `|| true` keeps a
+# missing key (e.g. TRUX_TAILSCALE_HOST on a local-only install) from tripping set -e.
+envval() { grep -E "^$1=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2- || true; }
+
+cmd="${1:-status}"
+case "$cmd" in
+  status)  systemctl --user status trux.service --no-pager ;;
+  start)   systemctl --user start trux.service ;;
+  stop)    systemctl --user stop trux.service ;;
+  restart) systemctl --user restart trux.service && echo "trux: restarted" ;;
+  logs)    journalctl --user -u trux.service -f ;;
+  update)
+    git -C "$INSTALL_DIR" pull --ff-only
+    pnpm -C "$INSTALL_DIR" install --frozen-lockfile
+    pnpm -C "$INSTALL_DIR" --filter frontend build
+    systemctl --user restart trux.service
+    echo "trux: updated and restarted" ;;
+  token)   envval TRUX_SECRET ;;
+  url)
+    host="$(envval TRUX_TAILSCALE_HOST)"
+    if [[ -n "$host" ]]; then echo "https://$host/"; else echo "http://localhost:$(envval TRUX_PORT)/"; fi ;;
+  pair)    pnpm -C "$INSTALL_DIR" --filter backend pair ;;
+  *)
+    echo "usage: trux {status|start|stop|restart|logs|update|token|url|pair}" >&2
+    exit 1 ;;
+esac

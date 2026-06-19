@@ -1,13 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ToolCallEvent, ToolResultEvent } from '@trux/protocol'
+import { api } from '../api'
 import { toolSummary } from '../tools'
 import { Icon } from './Icon'
+import { DiffView } from './DiffView'
 
 export type ToolItem = ToolCallEvent | ToolResultEvent
+
+const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
 
 interface Props {
   tools: ToolItem[]
   running: boolean
+  conversationId?: string
 }
 
 // Pair each tool_call with its tool_result (by tool_id) for rendering.
@@ -42,7 +47,7 @@ function elapsedLabel(seconds: number): string {
 // A folded run of tool activity: one collapsible cluster instead of a wall of
 // boxes. Expanded while running, auto-collapses when the turn settles — but never
 // fights a manual toggle. A child awaiting approval forces it open.
-export function ActivityGroup({ tools, running }: Props): React.ReactElement {
+export function ActivityGroup({ tools, running, conversationId }: Props): React.ReactElement {
   const steps = pair(tools)
   const [manual, setManual] = useState<boolean | null>(null) // null = follow auto
   const open = manual ?? running
@@ -63,55 +68,81 @@ export function ActivityGroup({ tools, running }: Props): React.ReactElement {
     return () => clearInterval(h)
   }, [running])
 
+  const [diffView, setDiffView] = useState<{ path: string; diff: string } | null>(null)
+
+  const openDiff = async (path: string): Promise<void> => {
+    if (!conversationId) return
+    try {
+      const { diff } = await api.gitDiff(conversationId, { path })
+      setDiffView({ path, diff })
+    } catch {}
+  }
+
   const latest = steps[steps.length - 1]
   const latestName = latest?.call?.name ?? (latest?.result ? 'result' : 'tool')
   const latestArg = latest?.call ? toolSummary(latest.call.name, latest.call.input) : null
   const hasError = steps.some((s) => s.result?.status === 'error')
 
   return (
-    <div className={`activity${running ? ' running' : ''}${hasError ? ' has-error' : ''}`} data-testid="activity-group">
-      <button
-        className="activity-head"
-        data-testid="activity-toggle"
-        aria-expanded={open}
-        onClick={() => setManual(!open)}
-      >
-        <span className={`activity-chevron${open ? ' open' : ''}`}><Icon name="chevron" size={14} /></span>
-        <span className="activity-name">{running ? latestName : `${steps.length} ${steps.length === 1 ? 'step' : 'steps'}`}</span>
-        {running && latestArg ? <span className="activity-arg">{latestArg}</span> : null}
-        <span className="activity-meta">
-          {running ? elapsedLabel(secs) : `${steps.length} ${steps.length === 1 ? 'step' : 'steps'}`}
-        </span>
-      </button>
-      {open && (
-        <div className="activity-body">
-          {steps.map((step, i) => {
-            const name = step.call?.name ?? 'result'
-            const arg = step.call ? toolSummary(step.call.name, step.call.input) : null
-            const status = step.result?.status
-            return (
-              <details key={i} className={`tool${status ? ` result ${status}` : ''}`}>
-                <summary>
-                  <span className="tool-name">{name}</span>
-                  {arg ? <span className="tool-arg">{arg}</span> : null}
-                  {status === 'error' ? <span className="tool-badge error">error</span> : null}
-                </summary>
-                {step.call ? <pre>{JSON.stringify(step.call.input, null, 2)}</pre> : null}
-                {step.result?.output ? <pre>{step.result.output}</pre> : null}
-                {step.result?.images?.map((img, j) => (
-                  <img
-                    key={j}
-                    data-testid="tool-image"
-                    className="tool-image"
-                    src={`data:${img.media_type};base64,${img.data}`}
-                    alt="tool output"
-                  />
-                ))}
-              </details>
-            )
-          })}
-        </div>
-      )}
-    </div>
+    <>
+      {diffView ? (
+        <DiffView title={diffView.path} diff={diffView.diff} onClose={() => setDiffView(null)} />
+      ) : null}
+      <div className={`activity${running ? ' running' : ''}${hasError ? ' has-error' : ''}`} data-testid="activity-group">
+        <button
+          className="activity-head"
+          data-testid="activity-toggle"
+          aria-expanded={open}
+          onClick={() => setManual(!open)}
+        >
+          <span className={`activity-chevron${open ? ' open' : ''}`}><Icon name="chevron" size={14} /></span>
+          <span className="activity-name">{running ? latestName : `${steps.length} ${steps.length === 1 ? 'step' : 'steps'}`}</span>
+          {running && latestArg ? <span className="activity-arg">{latestArg}</span> : null}
+          <span className="activity-meta">
+            {running ? elapsedLabel(secs) : `${steps.length} ${steps.length === 1 ? 'step' : 'steps'}`}
+          </span>
+        </button>
+        {open && (
+          <div className="activity-body">
+            {steps.map((step, i) => {
+              const name = step.call?.name ?? 'result'
+              const arg = step.call ? toolSummary(step.call.name, step.call.input) : null
+              const status = step.result?.status
+              const filePath = step.call && EDIT_TOOLS.has(step.call.name)
+                ? (step.call.input as { file_path?: string }).file_path
+                : undefined
+              return (
+                <details key={i} className={`tool${status ? ` result ${status}` : ''}`}>
+                  <summary>
+                    <span className="tool-name">{name}</span>
+                    {arg ? <span className="tool-arg">{arg}</span> : null}
+                    {status === 'error' ? <span className="tool-badge error">error</span> : null}
+                    {filePath && conversationId && !running ? (
+                      <button
+                        className="tool-diff-btn"
+                        data-testid="tool-diff-btn"
+                        onClick={(e) => { e.preventDefault(); void openDiff(filePath) }}
+                        aria-label={`View diff for ${filePath}`}
+                      >diff</button>
+                    ) : null}
+                  </summary>
+                  {step.call ? <pre>{JSON.stringify(step.call.input, null, 2)}</pre> : null}
+                  {step.result?.output ? <pre>{step.result.output}</pre> : null}
+                  {step.result?.images?.map((img, j) => (
+                    <img
+                      key={j}
+                      data-testid="tool-image"
+                      className="tool-image"
+                      src={`data:${img.media_type};base64,${img.data}`}
+                      alt="tool output"
+                    />
+                  ))}
+                </details>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </>
   )
 }

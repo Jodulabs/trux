@@ -10,6 +10,7 @@ interface Props {
   approvalDecisions: Record<string, ApprovalDecision>
   onRespond: (requestId: string, decision: ApprovalDecision) => void
   status?: string
+  conversationId?: string
 }
 
 // A render-time row: either a single transcript item or a folded run of tool
@@ -48,6 +49,7 @@ export function Transcript({
   approvalDecisions,
   onRespond,
   status,
+  conversationId,
 }: Props): React.ReactElement {
   const rows = groupRows(items)
   // The last prose item is "live" while the agent is thinking → show the caret.
@@ -61,7 +63,7 @@ export function Transcript({
     <div className="transcript" data-testid="transcript">
       {rows.map((row) => {
         if (row.kind === 'activity') {
-          return <ActivityGroup key={`a${row.key}`} tools={row.tools} running={streaming} />
+          return <ActivityGroup key={`a${row.key}`} tools={row.tools} running={streaming} conversationId={conversationId} />
         }
         const { item, index: i } = row
         if (item.type === 'user_text') {

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { AddressInfo } from 'node:net'
+import { execFileSync } from 'node:child_process'
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -276,6 +277,86 @@ describe('WS turn engine', () => {
       .filter((e): e is Extract<ServerEvent, { type: 'status' }> => e.type === 'status')
       .map((e) => e.state)
     expect(states).toEqual(['thinking', 'awaiting_approval', 'thinking', 'idle'])
+  })
+})
+
+describe('git routes', () => {
+  const repos: string[] = []
+  afterEach(() => {
+    for (const d of repos.splice(0)) rmSync(d, { recursive: true, force: true })
+  })
+  function initRepo(): string {
+    const dir = mkdtempSync(join(tmpdir(), 'trux-gitroute-'))
+    repos.push(dir)
+    const g = (args: string[]): void => { execFileSync('git', ['-C', dir, ...args], { stdio: 'ignore' }) }
+    g(['init', '-q'])
+    g(['config', 'user.email', 'test@trux'])
+    g(['config', 'user.name', 'Trux Test'])
+    g(['config', 'commit.gpgsign', 'false'])
+    writeFileSync(join(dir, 'README.md'), 'hello\n')
+    g(['add', '-A'])
+    g(['commit', '-q', '-m', 'init'])
+    return dir
+  }
+
+  it('reports status, diffs, stages, and commits a change', async () => {
+    const repo = initRepo()
+    const { port, registry } = await start()
+    const conv = registry.createConversation({ agent: 'claude', cwd: repo })
+    writeFileSync(join(repo, 'README.md'), 'changed\n')
+
+    const status = await (await fetch(`http://127.0.0.1:${port}/conversations/${conv.id}/git`)).json()
+    expect(status).toMatchObject({ repo: true, dirty: true })
+
+    const diff = await (
+      await fetch(`http://127.0.0.1:${port}/conversations/${conv.id}/git/diff?path=README.md`)
+    ).json() as { diff: string }
+    expect(diff.diff).toContain('+changed')
+
+    const staged = await fetch(`http://127.0.0.1:${port}/conversations/${conv.id}/git/stage`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ path: 'README.md' }),
+    })
+    expect(staged.status).toBe(200)
+
+    const commit = await (
+      await fetch(`http://127.0.0.1:${port}/conversations/${conv.id}/git/commit`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ message: 'route commit' }),
+      })
+    ).json() as { ok: boolean; hash?: string }
+    expect(commit.ok).toBe(true)
+    expect(commit.hash).toMatch(/^[0-9a-f]+$/)
+  })
+
+  it('404s git status for an unknown conversation', async () => {
+    const { port } = await start()
+    const res = await fetch(`http://127.0.0.1:${port}/conversations/nope/git`)
+    expect(res.status).toBe(404)
+  })
+
+  it('400s a stage with no path', async () => {
+    const repo = initRepo()
+    const { port, registry } = await start()
+    const conv = registry.createConversation({ agent: 'claude', cwd: repo })
+    const res = await fetch(`http://127.0.0.1:${port}/conversations/${conv.id}/git/stage`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({}),
+    })
+    expect(res.status).toBe(400)
+  })
+
+  it('400s an unsafe diff path', async () => {
+    const repo = initRepo()
+    const { port, registry } = await start()
+    const conv = registry.createConversation({ agent: 'claude', cwd: repo })
+    const res = await fetch(
+      `http://127.0.0.1:${port}/conversations/${conv.id}/git/diff?path=${encodeURIComponent('../escape')}`,
+    )
+    expect(res.status).toBe(400)
   })
 })
 

@@ -7,6 +7,7 @@ import type { Config } from './config'
 import type { SqliteRegistry } from './registry'
 import { listWorkspaces } from './workspaces'
 import { tokenAccepted } from './auth'
+import { gitCommit, gitDiff, gitStage, gitStatus, gitUnstage } from './git'
 
 // Convert an absolute cwd to the Claude project folder name.
 // e.g. /home/gp/foo → -home-gp-foo  (leading slash → hyphen, each subsequent / → -)
@@ -180,6 +181,62 @@ export function registerRoutes(
     }
     registry.removePushSubscription(body.endpoint)
     return { ok: true }
+  })
+
+  // --- Git: review & commit the agent's work from the phone. Safe ops only
+  // (status / diff / add / restore --staged / commit). No reset/push/rebase/
+  // checkout — a fat-finger there is unrecoverable. cwd comes from the conversation.
+  const convCwd = (id: string): string | null => registry.getConversation(id)?.cwd ?? null
+
+  app.get('/conversations/:id/git', async (req, reply) => {
+    const cwd = convCwd((req.params as { id: string }).id)
+    if (!cwd) return reply.code(404).send({ error: 'not found' })
+    return gitStatus(cwd)
+  })
+
+  app.get('/conversations/:id/git/diff', async (req, reply) => {
+    const cwd = convCwd((req.params as { id: string }).id)
+    if (!cwd) return reply.code(404).send({ error: 'not found' })
+    const { path, staged } = req.query as { path?: string; staged?: string }
+    try {
+      return { diff: await gitDiff(cwd, { path, staged: staged === '1' || staged === 'true' }) }
+    } catch {
+      return reply.code(400).send({ error: 'invalid path' })
+    }
+  })
+
+  app.post('/conversations/:id/git/stage', async (req, reply) => {
+    const cwd = convCwd((req.params as { id: string }).id)
+    if (!cwd) return reply.code(404).send({ error: 'not found' })
+    const { path } = (req.body ?? {}) as { path?: string }
+    if (typeof path !== 'string') return reply.code(400).send({ error: 'path is required' })
+    try {
+      await gitStage(cwd, path)
+      return { ok: true }
+    } catch {
+      return reply.code(400).send({ error: 'invalid path' })
+    }
+  })
+
+  app.post('/conversations/:id/git/unstage', async (req, reply) => {
+    const cwd = convCwd((req.params as { id: string }).id)
+    if (!cwd) return reply.code(404).send({ error: 'not found' })
+    const { path } = (req.body ?? {}) as { path?: string }
+    if (typeof path !== 'string') return reply.code(400).send({ error: 'path is required' })
+    try {
+      await gitUnstage(cwd, path)
+      return { ok: true }
+    } catch {
+      return reply.code(400).send({ error: 'invalid path' })
+    }
+  })
+
+  app.post('/conversations/:id/git/commit', async (req, reply) => {
+    const cwd = convCwd((req.params as { id: string }).id)
+    if (!cwd) return reply.code(404).send({ error: 'not found' })
+    const { message } = (req.body ?? {}) as { message?: string }
+    if (typeof message !== 'string') return reply.code(400).send({ error: 'message is required' })
+    return gitCommit(cwd, message)
   })
 
   app.patch('/conversations/:id', async (req, reply) => {

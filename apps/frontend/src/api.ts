@@ -1,9 +1,11 @@
 import type {
   AgentsResponse,
+  CommitResult,
   Conversation,
   ConversationDetail,
   CreateConversationRequest,
   DiscoveredSession,
+  GitStatusResult,
   Workspace,
 } from '@trux/protocol'
 
@@ -43,4 +45,33 @@ export const api = {
     fetch(`/sessions/discover?agent=${encodeURIComponent(agent)}&cwd=${encodeURIComponent(cwd)}`, {
       headers: authHeaders(),
     }).then(json<DiscoveredSession[]>),
+  gitStatus: (id: string) =>
+    fetch(`/conversations/${id}/git`, { headers: authHeaders() }).then(json<GitStatusResult>),
+  gitDiff: (id: string, opts?: { path?: string; staged?: boolean }) => {
+    const p = new URLSearchParams()
+    if (opts?.path) p.set('path', opts.path)
+    if (opts?.staged) p.set('staged', '1')
+    const qs = p.toString()
+    return fetch(`/conversations/${id}/git/diff${qs ? `?${qs}` : ''}`, {
+      headers: authHeaders(),
+    }).then(json<{ diff: string }>)
+  },
+  gitStage: (id: string, path: string) =>
+    fetch(`/conversations/${id}/git/stage`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ path }),
+    }).then(json<{ ok: boolean }>),
+  gitUnstage: (id: string, path: string) =>
+    fetch(`/conversations/${id}/git/unstage`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ path }),
+    }).then(json<{ ok: boolean }>),
+  gitCommit: (id: string, message: string) =>
+    fetch(`/conversations/${id}/git/commit`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ message }),
+    }).then(json<CommitResult>),
 }

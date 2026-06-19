@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { ApprovalDecision, ImageAttachment } from '@trux/protocol'
+import type { ApprovalDecision, GitStatusResult, ImageAttachment } from '@trux/protocol'
 import { connectTrux, type TruxClient } from '../truxClient'
 import { useStore } from '../store'
+import { api } from '../api'
 import { Transcript } from './Transcript'
 import { Composer } from './Composer'
 import { ApprovalCard } from './ApprovalCard'
+import { GitPanel } from './GitPanel'
 import { Icon } from './Icon'
 import { haptic } from '../haptics'
 import { dequeue, enqueue, loadQueue, newMessageId } from '../outbox'
@@ -43,6 +45,12 @@ export function ConversationView({ id }: { id: string }): React.ReactElement {
   // Whether the view is currently pinned to the bottom (following the stream).
   const stuck = useRef(true)
   const [atBottom, setAtBottom] = useState(true)
+  const [gitStatus, setGitStatus] = useState<GitStatusResult | null>(null)
+  const [gitOpen, setGitOpen] = useState(false)
+
+  const reloadGit = useCallback(async (): Promise<void> => {
+    try { setGitStatus(await api.gitStatus(id)) } catch {}
+  }, [id])
 
   useEffect(() => {
     const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -69,7 +77,7 @@ export function ConversationView({ id }: { id: string }): React.ReactElement {
         }
         // Physical taps for the moments you're not looking at the screen.
         if (event.type === 'approval_request') haptic('notify')
-        if (event.type === 'turn_complete') haptic('success')
+        if (event.type === 'turn_complete') { haptic('success'); void reloadGit() }
         // A non-recoverable error means the turn won't echo — stop the pending
         // bubble spinning forever and drop it from the outbox so it can't retry.
         if (event.type === 'error' && !event.recoverable) {
@@ -81,7 +89,7 @@ export function ConversationView({ id }: { id: string }): React.ReactElement {
     })
     client.current = c
     return () => c.close()
-  }, [id, applyEvent, setConnState, addOptimistic, failPending])
+  }, [id, applyEvent, setConnState, addOptimistic, failPending, reloadGit])
 
   const onScroll = useCallback((): void => {
     const el = scrollRef.current
@@ -128,6 +136,9 @@ export function ConversationView({ id }: { id: string }): React.ReactElement {
     haptic('medium')
   }
 
+  // Poll git status on open and on each turn_complete.
+  useEffect(() => { void reloadGit() }, [reloadGit])
+
   const busy = status === 'thinking' || status === 'awaiting_approval'
   const connNote = connState !== 'connected' ? CONN_LABEL[connState] : null
 
@@ -148,12 +159,32 @@ export function ConversationView({ id }: { id: string }): React.ReactElement {
       : `http://localhost:${previewPort}`
     : null
 
+  const gitDirty = gitStatus?.repo && gitStatus.dirty
+  const gitAhead = gitStatus?.repo ? gitStatus.ahead : 0
+  const gitBehind = gitStatus?.repo ? gitStatus.behind : 0
+
   return (
     <section className="conversation">
+      {gitOpen ? (
+        <GitPanel conversationId={id} onClose={() => { setGitOpen(false); void reloadGit() }} />
+      ) : null}
       <div className="conversation-bar">
         <div data-testid="status-line" className={`status ${status}`}>{STATUS_LABEL[status] ?? status}</div>
         {connNote ? (
           <div data-testid="conn-state" className={`conn ${connState}`}>{connNote}</div>
+        ) : null}
+        {gitStatus?.repo ? (
+          <button
+            className={`git-badge${gitDirty ? ' dirty' : ''}`}
+            data-testid="git-badge"
+            onClick={() => setGitOpen(true)}
+            aria-label="Open git panel"
+          >
+            {gitStatus.branch ?? 'HEAD'}
+            {gitAhead > 0 ? <span className="git-ahead">↑{gitAhead}</span> : null}
+            {gitBehind > 0 ? <span className="git-behind">↓{gitBehind}</span> : null}
+            {gitDirty ? ' ●' : ''}
+          </button>
         ) : null}
         {previewUrl !== null ? (
           <button
@@ -167,7 +198,7 @@ export function ConversationView({ id }: { id: string }): React.ReactElement {
       </div>
       <div className="transcript-area">
         <div className="transcript-scroll" ref={scrollRef} onScroll={onScroll}>
-          <Transcript items={transcript} approvalDecisions={approvalDecisions} onRespond={onRespond} status={status} />
+          <Transcript items={transcript} approvalDecisions={approvalDecisions} onRespond={onRespond} status={status} conversationId={id} />
         </div>
         {!atBottom ? (
           <button

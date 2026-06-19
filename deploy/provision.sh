@@ -51,9 +51,54 @@ EOF
   echo "trux: wrote $ENV_FILE (edit TRUX_WORKSPACES / TRUX_TAILSCALE_HOST as needed)"
 }
 
+install_shim() {
+  mkdir -p "$(dirname "$SHIM_DST")"
+  install -m 0755 "$TRUX_DIR/bin/trux" "$SHIM_DST"
+  case ":$PATH:" in
+    *":$(dirname "$SHIM_DST"):"*) ;;
+    *) echo "trux: add $(dirname "$SHIM_DST") to your PATH to use the 'trux' command" ;;
+  esac
+}
+
+setup_tailscale() {
+  if command -v tailscale &>/dev/null; then
+    tailscale serve --bg https / http://127.0.0.1:4317 2>/dev/null \
+      && echo "trux: tailscale serve configured" \
+      || echo "trux: tailscale serve failed (run 'tailscale up' first?) — skipping"
+  else
+    echo "trux: tailscale not found — skipping remote setup (local only)"
+  fi
+}
+
+print_banner() {
+  # shellcheck disable=SC1090
+  source "$ENV_FILE"
+  echo ""
+  echo "  ✅ trux installed and running."
+  echo "     local:  http://localhost:${TRUX_PORT:-4317}/"
+  [[ -n "${TRUX_TAILSCALE_HOST:-}" ]] && echo "     phone:  https://${TRUX_TAILSCALE_HOST}/"
+  echo "     token:  ${TRUX_SECRET:-<see ~/.trux/.env>}"
+  echo ""
+  echo "  Manage:  trux status | trux logs | trux restart | trux update"
+  echo "  Pair a phone (QR):  trux pair"
+  echo ""
+}
+
 main() {
   resolve_dirs
   echo "trux: provisioning from $TRUX_DIR"
+  echo "trux: installing dependencies..."
+  pnpm -C "$TRUX_DIR" install --frozen-lockfile
+  echo "trux: building frontend..."
+  pnpm -C "$TRUX_DIR" --filter frontend build
+  ensure_env
+  render_service "$SERVICE_DST"
+  install_shim
+  loginctl enable-linger "$(whoami)" >/dev/null 2>&1 || true
+  systemctl --user daemon-reload
+  systemctl --user enable --now trux.service
+  setup_tailscale
+  print_banner
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then main "$@"; fi

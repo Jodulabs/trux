@@ -90,3 +90,30 @@ describe('SqliteRegistry', () => {
     expect(registry.listPushSubscriptions().map((s) => s.endpoint)).toEqual(['https://push/b'])
   })
 })
+
+describe('registry model/options persistence', () => {
+  it('seeds model/options on create and reads them back', () => {
+    const conv = registry.createConversation({
+      agent: 'claude', cwd: '/x', model: 'claude-opus-4-8', options: { effort: 'high' },
+    })
+    expect(conv.model).toBe('claude-opus-4-8')
+    expect(conv.options).toEqual({ effort: 'high' })
+    const again = registry.getConversation(conv.id)
+    expect(again?.model).toBe('claude-opus-4-8')
+    expect(again?.options).toEqual({ effort: 'high' })
+  })
+
+  it('defaults to null model / empty options when unspecified', () => {
+    const conv = registry.createConversation({ agent: 'claude', cwd: '/x' })
+    expect(conv.model).toBeNull()
+    expect(conv.options).toEqual({})
+  })
+
+  it('setConfig updates the last-used selection (sticky)', () => {
+    const conv = registry.createConversation({ agent: 'claude', cwd: '/x' })
+    registry.setConfig(conv.id, { model: 'claude-sonnet-4-6', options: { effort: 'low' } })
+    const again = registry.getConversation(conv.id)
+    expect(again?.model).toBe('claude-sonnet-4-6')
+    expect(again?.options).toEqual({ effort: 'low' })
+  })
+})

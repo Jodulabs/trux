@@ -13,8 +13,20 @@ export function loadEnvFiles(): void {
   if (existsSync(userEnv)) loadDotenv({ path: userEnv })
 }
 
-// Print how to reach trux. With a tailnet host + secret, show a QR that pairs a
-// phone in one scan (URL + token in the fragment — see frontend pairing).
+// Compact banner for `pnpm start` — how to reach trux, no QR (the QR floods the
+// terminal on every start; `pnpm pair` is the QR path). One glanceable block.
+export function printStartBanner(config: Config): void {
+  console.log(`\n   local:  http://localhost:${config.port}/`)
+  if (config.tailscaleHost) {
+    console.log(`   phone:  https://${config.tailscaleHost}/`)
+    if (config.secret) console.log('   pair:   run `pnpm pair` to show the QR for one-scan phone setup')
+    else console.log('   (auth disabled)')
+  }
+  console.log('')
+}
+
+// Full pairing banner for `pnpm pair`. With a tailnet host + secret, show a QR
+// that pairs a phone in one scan (URL + token in the fragment — see frontend pairing).
 export function printAccessBanner(config: Config): void {
   if (config.tailscaleHost) {
     const base = `https://${config.tailscaleHost}/`

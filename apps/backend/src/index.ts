@@ -1,5 +1,5 @@
 import type { AgentName } from '@trux/protocol'
-import { loadEnvFiles, printAccessBanner } from './banner'
+import { loadEnvFiles, printStartBanner } from './banner'
 import { loadConfig, assertConfig } from './config'
 import { openDb } from './db'
 import { SqliteRegistry } from './registry'
@@ -29,7 +29,7 @@ async function main(): Promise<void> {
   const app = await buildServer(config, db, registry, manager)
   await app.listen({ host: config.host, port: config.port })
   console.log(`trux backend listening on http://${config.host}:${config.port} (db: ${config.dbPath})`)
-  printAccessBanner(config)
+  printStartBanner(config)
 }
 
 main().catch((err) => {

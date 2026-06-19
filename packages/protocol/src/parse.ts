@@ -18,7 +18,13 @@ export function parseClientMessage(raw: string): ClientMessage | null {
     case 'auth':
       return typeof d.token === 'string' ? { type: 'auth', token: d.token } : null
     case 'user_message':
-      return typeof d.text === 'string' ? { type: 'user_message', text: d.text } : null
+      return typeof d.text === 'string'
+        ? {
+            type: 'user_message',
+            text: d.text,
+            ...(typeof d.client_message_id === 'string' ? { client_message_id: d.client_message_id } : {}),
+          }
+        : null
     case 'approval_response':
       if (typeof d.request_id !== 'string') return null
       if (!DECISIONS.includes(d.decision as ApprovalDecision)) return null
@@ -31,6 +37,10 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       }
     case 'interrupt':
       return { type: 'interrupt' }
+    case 'resume':
+      return typeof d.since_seq === 'number' && Number.isInteger(d.since_seq)
+        ? { type: 'resume', since_seq: d.since_seq }
+        : null
     default:
       return null
   }

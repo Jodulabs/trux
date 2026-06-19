@@ -49,10 +49,60 @@ describe('foldEvent approvals', () => {
   })
 })
 
+describe('foldEvent optimistic reconciliation', () => {
+  it('replaces a pending optimistic bubble with the server echo by client_message_id', () => {
+    const optimistic: TranscriptItem = {
+      type: 'user_text', turn_id: '', text: 'hi', client_message_id: 'm1', pending: true,
+    } as TranscriptItem
+    const items = foldEvent([optimistic], {
+      type: 'user_text', turn_id: 't1', text: 'hi', client_message_id: 'm1',
+    })
+    expect(items).toHaveLength(1)
+    expect(items[0]).toEqual({ type: 'user_text', turn_id: 't1', text: 'hi', client_message_id: 'm1' })
+  })
+
+  it('appends a user_text with no matching optimistic id', () => {
+    const items = foldEvent([], { type: 'user_text', turn_id: 't1', text: 'hi', client_message_id: 'm9' })
+    expect(items).toHaveLength(1)
+  })
+})
+
+describe('applyEvent history_delta', () => {
+  it('folds a delta batch in order and tracks lastSeq', () => {
+    useStore.setState({ transcript: [], lastSeq: -1, status: 'idle' })
+    useStore.getState().applyEvent({
+      type: 'history_delta',
+      events: [
+        { type: 'user_text', turn_id: 't1', text: 'hi', seq: 3 },
+        { type: 'text', turn_id: 't1', text: 'yo', seq: 4 },
+        { type: 'status', state: 'idle', seq: 5 },
+      ],
+    })
+    expect(useStore.getState().transcript.map((i) => i.type)).toEqual(['user_text', 'text'])
+    expect(useStore.getState().lastSeq).toBe(5)
+  })
+})
+
 describe('recordApproval', () => {
   it('records the decision for a request id', () => {
     useStore.getState().recordApproval('tu_1', 'allow')
     expect(useStore.getState().approvalDecisions['tu_1']).toBe('allow')
+  })
+})
+
+describe('failPending', () => {
+  it('marks pending optimistic bubbles failed and returns their ids', () => {
+    useStore.setState({
+      transcript: [
+        { type: 'user_text', turn_id: '', text: 'hi', client_message_id: 'm1', pending: true },
+        { type: 'text', turn_id: 't1', text: 'reply' },
+      ] as TranscriptItem[],
+    })
+    const ids = useStore.getState().failPending()
+    expect(ids).toEqual(['m1'])
+    const bubble = useStore.getState().transcript[0] as { pending?: boolean; failed?: boolean }
+    expect(bubble.pending).toBe(false)
+    expect(bubble.failed).toBe(true)
   })
 })
 

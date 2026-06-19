@@ -31,16 +31,30 @@ describe('Composer', () => {
 })
 
 describe('Transcript', () => {
-  it('renders user, assistant, and tool items', () => {
+  it('renders user and assistant items, and folds tool activity', () => {
     const items: TranscriptItem[] = [
       { type: 'user_text', turn_id: 't1', text: 'hello' },
       { type: 'text', turn_id: 't1', text: 'hi back' },
       { type: 'tool_call', turn_id: 't1', tool_id: 'x', name: 'Bash', input: { command: 'ls' } },
     ]
-    render(<Transcript items={items} approvalDecisions={{}} onRespond={() => {}} />)
+    // running → the activity group is open, so the tool name shows
+    render(<Transcript items={items} approvalDecisions={{}} onRespond={() => {}} status="thinking" />)
     expect(screen.getByText('hello')).toBeInTheDocument()
     expect(screen.getByText('hi back')).toBeInTheDocument()
-    expect(screen.getByText(/Bash/)).toBeInTheDocument()
+    expect(screen.getByTestId('activity-group')).toBeInTheDocument()
+    expect(screen.getAllByText(/Bash/).length).toBeGreaterThan(0)
+  })
+
+  it('collapses a settled tool group and expands it on tap', () => {
+    const items: TranscriptItem[] = [
+      { type: 'tool_call', turn_id: 't1', tool_id: 'x', name: 'Bash', input: { command: 'ls' } },
+      { type: 'tool_result', turn_id: 't1', tool_id: 'x', status: 'ok', output: 'file.txt' },
+    ]
+    // not running → collapsed: output hidden until the header is tapped
+    render(<Transcript items={items} approvalDecisions={{}} onRespond={() => {}} status="idle" />)
+    expect(screen.queryByText('file.txt')).toBeNull()
+    fireEvent.click(screen.getByTestId('activity-toggle'))
+    expect(screen.getByText('file.txt')).toBeInTheDocument()
   })
 
   it('renders an inline image for a tool_result with images', () => {
@@ -50,7 +64,8 @@ describe('Transcript', () => {
         images: [{ kind: 'image', media_type: 'image/png', data: 'AAAA' }],
       },
     ]
-    render(<Transcript items={items} approvalDecisions={{}} onRespond={() => {}} />)
+    // running → open, so the image renders
+    render(<Transcript items={items} approvalDecisions={{}} onRespond={() => {}} status="thinking" />)
     const img = screen.getByTestId('tool-image') as HTMLImageElement
     expect(img.src).toContain('data:image/png;base64,AAAA')
   })

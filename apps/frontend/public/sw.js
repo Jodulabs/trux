@@ -1,5 +1,5 @@
 // Bump SHELL to evict stale caches on deploy.
-const SHELL = 'trux-v2'
+const SHELL = 'trux-v3'
 
 self.addEventListener('install', () => {
   self.skipWaiting()

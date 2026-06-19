@@ -55,11 +55,14 @@ export function registerStream(
         }
 
         if (msg.type === 'user_message') {
-          void manager.handleUserMessage(id, msg.text, msg.attachments)
+          void manager.handleUserMessage(id, msg.text, msg.attachments, msg.client_message_id)
         } else if (msg.type === 'interrupt') {
           void manager.interrupt(id)
         } else if (msg.type === 'approval_response') {
           void manager.handleApprovalResponse(id, msg.request_id, msg.decision, msg.note ?? null)
+        } else if (msg.type === 'resume') {
+          // Reconnect: replay only what this socket missed, to this socket alone.
+          manager.replaySince(id, msg.since_seq, (event) => send(socket, event))
         }
       })
     })

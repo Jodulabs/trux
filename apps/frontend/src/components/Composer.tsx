@@ -3,6 +3,14 @@ import type { ImageAttachment } from '@trux/protocol'
 import { addSnippet, deleteSnippet, loadSnippets, type Snippet } from '../snippets'
 import { Icon } from './Icon'
 
+// Touch devices have no Shift key, so "Enter sends / Shift+Enter newline" makes
+// newlines impossible. On a coarse pointer, Enter inserts a newline and the Send
+// button is the only way to submit; a hardware keyboard keeps Enter-to-send.
+const coarsePointer =
+  typeof window !== 'undefined' &&
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(pointer: coarse)').matches
+
 interface ComposerProps {
   busy: boolean
   onSend: (text: string, attachments?: ImageAttachment[]) => void
@@ -143,14 +151,15 @@ export function Composer({ busy, onSend, onInterrupt }: ComposerProps): React.Re
           onChange={handleChange}
           rows={1}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
+            // Coarse pointers (phones): Enter = newline, Send button submits.
+            if (e.key === 'Enter' && !e.shiftKey && !coarsePointer) {
               e.preventDefault()
               submit()
             }
           }}
           placeholder="Message Claude…"
         />
-        <div className="composer-tools">
+        <div className="composer-actions">
           <button className="icon-btn" data-testid="snippet-save" title="Save as snippet" aria-label="Save as snippet" onClick={saveSnippet}>
             <Icon name="bookmark" size={18} />
           </button>
@@ -169,6 +178,7 @@ export function Composer({ busy, onSend, onInterrupt }: ComposerProps): React.Re
             data-testid="file-input"
             onChange={(e) => void handleFiles(e.target.files)}
           />
+          <span className="composer-spacer" />
           {busy ? (
             <button className="send-btn stop" data-testid="interrupt" title="Stop" aria-label="Stop" onClick={onInterrupt}>
               <Icon name="stop" size={16} />

@@ -135,17 +135,23 @@ describe('NewConversationDialog', () => {
     vi.spyOn(api, 'listWorkspaces').mockResolvedValue([
       { name: 'repo', root: '/repo', worktrees: [{ path: '/repo', branch: 'main' }] },
     ])
-    vi.spyOn(api, 'listAgents').mockResolvedValue({ agents: ['claude', 'opencode'] })
+    vi.spyOn(api, 'listAgents').mockResolvedValue({
+      agents: [
+        { agent: 'claude', models: [], defaultModel: null, controls: [] },
+        { agent: 'opencode', models: [], defaultModel: null, controls: [] },
+      ],
+    })
     const created = vi.spyOn(api, 'createConversation').mockResolvedValue({
       id: 'c1', agent: 'opencode', cwd: '/repo', title: null, status: 'idle',
       native_session_id: null, archived: false, created_at: 1, updated_at: 1,
+      model: null, options: {},
     })
     const onCreated = vi.fn()
     render(<NewConversationDialog onCreated={onCreated} />)
     const agentSelect = await screen.findByTestId('agent-select')
     fireEvent.change(agentSelect, { target: { value: 'opencode' } })
     fireEvent.click(screen.getByTestId('create'))
-    await waitFor(() => expect(created).toHaveBeenCalledWith({ agent: 'opencode', cwd: '/repo' }))
+    await waitFor(() => expect(created).toHaveBeenCalledWith(expect.objectContaining({ agent: 'opencode', cwd: '/repo' })))
     vi.restoreAllMocks()
   })
 
@@ -161,10 +167,13 @@ describe('NewConversationDialog', () => {
         ],
       },
     ])
-    vi.spyOn(api, 'listAgents').mockResolvedValue({ agents: ['claude'] })
+    vi.spyOn(api, 'listAgents').mockResolvedValue({
+      agents: [{ agent: 'claude', models: [], defaultModel: null, controls: [] }],
+    })
     const created = vi.spyOn(api, 'createConversation').mockResolvedValue({
       id: 'c2', agent: 'claude', cwd: '/multi/.worktrees/feat', title: null, status: 'idle',
       native_session_id: null, archived: false, created_at: 1, updated_at: 1,
+      model: null, options: {},
     })
     render(<NewConversationDialog onCreated={vi.fn()} />)
     // First repo ('solo') has one worktree → no worktree picker.
@@ -176,7 +185,7 @@ describe('NewConversationDialog', () => {
     fireEvent.change(cwdSelect, { target: { value: '/multi/.worktrees/feat' } })
     fireEvent.click(screen.getByTestId('create'))
     await waitFor(() =>
-      expect(created).toHaveBeenCalledWith({ agent: 'claude', cwd: '/multi/.worktrees/feat' }),
+      expect(created).toHaveBeenCalledWith(expect.objectContaining({ agent: 'claude', cwd: '/multi/.worktrees/feat' })),
     )
     vi.restoreAllMocks()
   })
@@ -196,7 +205,8 @@ describe('ConversationList', () => {
     useStore.setState({
       conversations: [
         { id: 'c1', agent: 'claude', cwd: '/x/darshi', title: 'Fix auth', status: 'idle',
-          native_session_id: null, archived: false, created_at: 1, updated_at: 1 },
+          native_session_id: null, archived: false, created_at: 1, updated_at: 1,
+          model: null, options: {} },
       ],
       convMeta: {},
     })

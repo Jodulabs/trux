@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { afterEach, describe, it, expect, vi } from 'vitest'
 import { cleanup, render, screen, fireEvent } from '@testing-library/react'
 import type { AgentCapabilities } from '@trux/protocol'
 import { ControlPicker } from '../src/components/ControlPicker'

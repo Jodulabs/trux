@@ -5,7 +5,12 @@ export const PROTOCOL_VERSION = 1 as const
 
 // ---- Shared ----
 export type ConversationStatus = 'idle' | 'thinking' | 'awaiting_approval' | 'error'
-export type ApprovalDecision = 'allow' | 'deny' | 'allow_always'
+// Graduated trust scopes. `allow`/`deny` are one-shot. `allow_always` accepts the
+// SDK's suggested permission rule. `allow_edits` flips Edit/Write/MultiEdit to
+// auto-approve for the rest of the session; `allow_command` pins this exact Bash
+// command so future identical invocations auto-approve — the middle ground between
+// babysitting every call and full yolo.
+export type ApprovalDecision = 'allow' | 'deny' | 'allow_always' | 'allow_edits' | 'allow_command'
 export type ToolResultStatus = 'ok' | 'error'
 
 export interface ImageAttachment {

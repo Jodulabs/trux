@@ -57,4 +57,12 @@ describe('parseClientMessage', () => {
       parseClientMessage(JSON.stringify({ type: 'approval_response', request_id: 'ap_1', decision: 'maybe' })),
     ).toBeNull()
   })
+
+  it('parses graduated decision scopes', () => {
+    for (const decision of ['allow_edits', 'allow_command'] as const) {
+      expect(
+        parseClientMessage(JSON.stringify({ type: 'approval_response', request_id: 'ap_1', decision })),
+      ).toEqual({ type: 'approval_response', request_id: 'ap_1', decision, note: null })
+    }
+  })
 })

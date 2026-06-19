@@ -1,6 +1,12 @@
 import type { ApprovalDecision, ClientMessage } from './events'
 
-const DECISIONS: readonly ApprovalDecision[] = ['allow', 'deny', 'allow_always']
+const DECISIONS: readonly ApprovalDecision[] = [
+  'allow',
+  'deny',
+  'allow_always',
+  'allow_edits',
+  'allow_command',
+]
 
 // Validate and narrow an untrusted inbound frame to a ClientMessage.
 // Returns null on anything malformed — the WS boundary must never trust raw input.

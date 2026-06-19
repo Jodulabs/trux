@@ -76,17 +76,36 @@ describe('ApprovalCard', () => {
     type: 'approval_request', turn_id: 't1', request_id: 'tu_1', tool: 'Bash', input: { command: 'ls' },
   }
 
-  it('renders Allow/Deny/Always and calls onRespond', () => {
+  it('renders graduated Bash actions and calls onRespond', () => {
     const onRespond = vi.fn()
     render(<ApprovalCard event={event} onRespond={onRespond} />)
+    // Bash gets Allow once / Allow this command / Deny.
+    expect(screen.getByTestId('approve-command')).toBeInTheDocument()
     fireEvent.click(screen.getByTestId('approve-allow'))
     expect(onRespond).toHaveBeenCalledWith('tu_1', 'allow')
+    fireEvent.click(screen.getByTestId('approve-command'))
+    expect(onRespond).toHaveBeenCalledWith('tu_1', 'allow_command')
   })
 
-  it('shows the decided state instead of buttons', () => {
+  it('renders "Allow all edits" for an Edit tool', () => {
+    const editEvent: ApprovalRequestEvent = {
+      type: 'approval_request', turn_id: 't1', request_id: 'tu_2', tool: 'Write', input: { file_path: 'a.ts' },
+    }
+    const onRespond = vi.fn()
+    render(<ApprovalCard event={editEvent} onRespond={onRespond} />)
+    fireEvent.click(screen.getByTestId('approve-edits'))
+    expect(onRespond).toHaveBeenCalledWith('tu_2', 'allow_edits')
+    // The one approved thing is surfaced structurally, not as JSON only.
+    expect(screen.getByTestId('approval-subject')).toHaveTextContent('a.ts')
+  })
+
+  it('shows the chosen decision and disables the buttons (decision history)', () => {
     render(<ApprovalCard event={event} decision="deny" onRespond={() => {}} />)
     expect(screen.getByTestId('approval-decided')).toHaveTextContent('deny')
-    expect(screen.queryByTestId('approve-allow')).toBeNull()
+    // Buttons stay rendered (lit/dimmed) but are disabled.
+    const allow = screen.getByTestId('approve-allow')
+    expect(allow).toBeDisabled()
+    expect(screen.getByTestId('approve-deny')).toHaveClass('chosen')
   })
 })
 

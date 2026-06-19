@@ -608,7 +608,7 @@ main > [data-testid="empty"] {
 .scroll-latest:hover { border-color: var(--accent); color: var(--accent-bright); }
 
 @media (prefers-reduced-motion: reduce) {
-  .msg, .scroll-latest { animation: none; }
+  .msg, .scroll-latest, .approval-card.pinned { animation: none; }
   .caret { animation: none; opacity: 1; }
   .dot.thinking, .conn::before { animation: none; }
   .activity-chevron { transition: none; }
@@ -625,9 +625,32 @@ main > [data-testid="empty"] {
 }
 .approval-card strong { display: block; font-size: 0.95rem; }
 .approval-card strong .tool-name { font-family: var(--font-mono); color: var(--accent-bright); }
-.approval-card > p { color: var(--text-dim); font-size: 0.85rem; margin-top: 0.3rem; }
-.approval-card pre {
-  margin-top: 0.6rem;
+.approval-card .approval-why { color: var(--text-dim); font-size: 0.85rem; margin-top: 0.3rem; }
+/* The one thing being approved — copper mono, front and centre. */
+.approval-subject {
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--accent-bright);
+  background: var(--ink);
+  border: 1px solid var(--line);
+  border-top: 1px solid var(--accent-soft);
+  border-radius: var(--radius-sm);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 140px;
+  overflow-y: auto;
+}
+.approval-raw { margin-top: 0.5rem; }
+.approval-raw summary {
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  color: var(--text-faint);
+}
+.approval-raw pre {
+  margin-top: 0.4rem;
   padding: 0.6rem;
   font-family: var(--font-mono);
   font-size: 0.78rem;
@@ -639,9 +662,10 @@ main > [data-testid="empty"] {
   word-break: break-word;
   max-height: 220px;
 }
-.approval-actions { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
-.approval-actions button {
+.approval-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; }
+.approve-btn {
   flex: 1 1 0;
+  min-width: 5.5rem;
   min-height: 44px;
   font-size: 0.9rem;
   font-weight: 500;
@@ -652,11 +676,24 @@ main > [data-testid="empty"] {
   color: var(--text);
   transition: all 0.12s ease;
 }
-.approval-actions button[data-testid="approve-allow"] { background: var(--accent); color: #1a1206; border-color: var(--accent); font-weight: 600; }
-.approval-actions button[data-testid="approve-allow"]:hover { background: var(--accent-bright); }
-.approval-actions button[data-testid="approve-deny"]:hover { border-color: var(--error); color: var(--error); }
-.approval-actions button[data-testid="approve-always"]:hover { border-color: var(--accent); }
+.approve-btn.primary { background: var(--accent); color: #1a1206; border-color: var(--accent); font-weight: 600; }
+.approve-btn.primary:hover { background: var(--accent-bright); }
+.approve-btn[data-testid="approve-deny"]:hover { border-color: var(--error); color: var(--error); }
+.approve-btn:hover { border-color: var(--accent); }
+/* Optimistic decision history: the chosen button stays lit, siblings dim. */
+.approve-btn.chosen { border-color: var(--accent); color: var(--accent-bright); box-shadow: 0 0 0 1px var(--accent-soft); }
+.approve-btn.dimmed { opacity: 0.62; }
+.approve-btn:disabled { cursor: default; }
 .approval-card [data-testid="approval-decided"] { margin-top: 0.6rem; font-size: 0.82rem; color: var(--text-faint); font-family: var(--font-mono); }
+
+/* Pinned above the composer: a blocking decision in the thumb zone, never lost. */
+.approval-card.pinned {
+  flex: 0 0 auto;
+  margin: 0 0.75rem 0.5rem;
+  border-color: var(--accent);
+  box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.35), 0 0 0 1px var(--accent-soft);
+  animation: rise 0.2s ease both;
+}
 
 /* ── Composer ───────────────────────────────────────────────── */
 .composer {

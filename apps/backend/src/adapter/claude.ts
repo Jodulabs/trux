@@ -56,23 +56,38 @@ function splitToolContent(content: unknown): { output: string; images: ImageAtta
   return { output: texts.join(''), images }
 }
 
+// Tools whose mutations a single "Allow all edits" should cover for the session.
+const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
+
 class ClaudeSession implements AgentSession {
   private sessionId: string | null = null
   private readonly outbox = new PushQueue<AdapterEvent>()
   private readonly pending = new Map<string, PendingApproval>()
   private readonly q: QueryHandle
+  // Session-scoped graduated-trust state, set by allow_edits / allow_command.
+  private editsAllowed = false
+  private readonly allowedCommands = new Set<string>()
 
   constructor(startQuery: (canUseTool: CanUseTool) => QueryHandle, private readonly inbox: PushQueue<SdkUserMessage>) {
     this.q = startQuery((toolName, input, options) => this.requestApproval(toolName, input, options))
     void this.consume()
   }
 
-  // The canUseTool bridge: surface an approval_request and park the SDK's promise.
+  // The canUseTool bridge: surface an approval_request and park the SDK's promise —
+  // unless a session-scoped graduated-trust rule already covers this call, in which
+  // case auto-allow without prompting (the whole point of "allow all edits" / "allow
+  // this command").
   private requestApproval(
     toolName: string,
     input: Record<string, unknown>,
     options: CanUseToolOptions,
   ): Promise<PermissionResult> {
+    if (this.editsAllowed && EDIT_TOOLS.has(toolName)) {
+      return Promise.resolve({ behavior: 'allow', updatedInput: input })
+    }
+    if (toolName === 'Bash' && typeof input.command === 'string' && this.allowedCommands.has(input.command)) {
+      return Promise.resolve({ behavior: 'allow', updatedInput: input })
+    }
     return new Promise<PermissionResult>((resolve) => {
       const requestId = options.toolUseID
       this.pending.set(requestId, { resolve, input, suggestions: options.suggestions })
@@ -183,11 +198,18 @@ class ClaudeSession implements AgentSession {
     this.pending.delete(requestId)
     if (decision === 'deny') {
       entry.resolve({ behavior: 'deny', message: note ?? 'Denied by user' })
-    } else if (decision === 'allow_always') {
-      entry.resolve({ behavior: 'allow', updatedInput: entry.input, updatedPermissions: entry.suggestions })
-    } else {
-      entry.resolve({ behavior: 'allow', updatedInput: entry.input })
+      return
     }
+    if (decision === 'allow_always') {
+      entry.resolve({ behavior: 'allow', updatedInput: entry.input, updatedPermissions: entry.suggestions })
+      return
+    }
+    // Graduated scopes set session state so future matching calls skip the prompt.
+    if (decision === 'allow_edits') this.editsAllowed = true
+    if (decision === 'allow_command' && typeof entry.input.command === 'string') {
+      this.allowedCommands.add(entry.input.command)
+    }
+    entry.resolve({ behavior: 'allow', updatedInput: entry.input })
   }
 
   async interrupt(): Promise<void> {

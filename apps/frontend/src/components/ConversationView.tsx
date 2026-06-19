@@ -4,6 +4,7 @@ import { connectTrux, type TruxClient } from '../truxClient'
 import { useStore } from '../store'
 import { Transcript } from './Transcript'
 import { Composer } from './Composer'
+import { ApprovalCard } from './ApprovalCard'
 import { Icon } from './Icon'
 import { haptic } from '../haptics'
 import { dequeue, enqueue, loadQueue, newMessageId } from '../outbox'
@@ -130,6 +131,17 @@ export function ConversationView({ id }: { id: string }): React.ReactElement {
   const busy = status === 'thinking' || status === 'awaiting_approval'
   const connNote = connState !== 'connected' ? CONN_LABEL[connState] : null
 
+  // The latest still-unresolved approval — pinned above the composer so a blocking
+  // decision can never scroll off-screen and strand the agent on a glanced-at phone.
+  const pendingApproval = (() => {
+    if (status !== 'awaiting_approval') return null
+    for (let i = transcript.length - 1; i >= 0; i--) {
+      const it = transcript[i]
+      if (it.type === 'approval_request' && !approvalDecisions[it.request_id]) return it
+    }
+    return null
+  })()
+
   const previewUrl = previewPort !== null
     ? tailscaleHost
       ? `https://${tailscaleHost}:${previewPort}`
@@ -168,6 +180,15 @@ export function ConversationView({ id }: { id: string }): React.ReactElement {
           </button>
         ) : null}
       </div>
+      {pendingApproval ? (
+        <ApprovalCard
+          key={pendingApproval.request_id}
+          event={pendingApproval}
+          decision={approvalDecisions[pendingApproval.request_id]}
+          onRespond={onRespond}
+          pinned
+        />
+      ) : null}
       <Composer
         busy={busy}
         onSend={onSend}

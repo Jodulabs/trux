@@ -2,6 +2,37 @@ import type { ConversationStatus, ServerEvent } from './events'
 
 export type AgentName = 'claude' | 'codex' | 'opencode'
 
+// One selectable value for a model or a control. `value` is sent to the backend
+// verbatim; `label` is shown in the unified UI.
+export interface ControlOption {
+  value: string
+  label: string
+}
+
+// A generic, opaque-to-trux knob the backend exposes (effort, reasoning, …).
+// trux renders it and passes the chosen value through; it never interprets `key`.
+export interface AgentControl {
+  key: string
+  label: string
+  options: ControlOption[]
+  default: string // a ControlOption.value, or '' meaning "no override"
+}
+
+// A faithful manifest of one backend's native controls. `model` is first-class
+// (universal, worth surfacing per conversation); everything else is opaque.
+export interface AgentCapabilities {
+  agent: AgentName
+  models: ControlOption[]
+  defaultModel: string | null // null = trux does not pick; backend default applies
+  controls: AgentControl[]
+}
+
+// Per-turn / per-conversation selection. `options` is keyed by AgentControl.key.
+export interface TurnConfig {
+  model: string | null // null/'' = no override
+  options: Record<string, string>
+}
+
 export interface Worktree {
   path: string
   branch: string | null
@@ -25,6 +56,8 @@ export interface Conversation {
   archived: boolean
   created_at: number
   updated_at: number
+  model: string | null
+  options: Record<string, string>
 }
 
 // One persisted transcript row: a server event with its per-conversation sequence number.
@@ -38,6 +71,8 @@ export interface CreateConversationRequest {
   cwd: string
   title?: string
   native_session_id?: string
+  model?: string | null
+  options?: Record<string, string>
 }
 
 export interface DiscoveredSession {
@@ -51,7 +86,7 @@ export interface ConversationDetail {
 }
 
 export interface AgentsResponse {
-  agents: AgentName[]
+  agents: AgentCapabilities[]
 }
 
 export interface GitFileStatus {

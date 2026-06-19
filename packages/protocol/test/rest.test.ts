@@ -11,7 +11,7 @@ import type {
 
 describe('rest dtos', () => {
   it('builds a Conversation and Workspace', () => {
-    const ws: Workspace = { root: '/repo', worktrees: [{ path: '/repo', branch: 'main' }] }
+    const ws: Workspace = { name: 'repo', root: '/repo', worktrees: [{ path: '/repo', branch: 'main' }] }
     const conv: Conversation = {
       id: 'c1', agent: 'claude', cwd: '/repo', title: null, status: 'idle',
       native_session_id: null, archived: false, created_at: 1, updated_at: 1,

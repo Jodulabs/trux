@@ -132,7 +132,7 @@ describe('ConversationView preview', () => {
 describe('NewConversationDialog', () => {
   it('renders fetched agents and creates with the selected one', async () => {
     vi.spyOn(api, 'listWorkspaces').mockResolvedValue([
-      { root: '/repo', worktrees: [{ path: '/repo', branch: 'main' }] },
+      { name: 'repo', root: '/repo', worktrees: [{ path: '/repo', branch: 'main' }] },
     ])
     vi.spyOn(api, 'listAgents').mockResolvedValue({ agents: ['claude', 'opencode'] })
     const created = vi.spyOn(api, 'createConversation').mockResolvedValue({
@@ -145,6 +145,38 @@ describe('NewConversationDialog', () => {
     fireEvent.change(agentSelect, { target: { value: 'opencode' } })
     fireEvent.click(screen.getByTestId('create'))
     await waitFor(() => expect(created).toHaveBeenCalledWith({ agent: 'opencode', cwd: '/repo' }))
+    vi.restoreAllMocks()
+  })
+
+  it('hides the worktree picker for a single-worktree repo, shows it for many', async () => {
+    vi.spyOn(api, 'listWorkspaces').mockResolvedValue([
+      { name: 'solo', root: '/solo', worktrees: [{ path: '/solo', branch: 'main' }] },
+      {
+        name: 'multi',
+        root: '/multi',
+        worktrees: [
+          { path: '/multi', branch: 'main' },
+          { path: '/multi/.worktrees/feat', branch: 'feat' },
+        ],
+      },
+    ])
+    vi.spyOn(api, 'listAgents').mockResolvedValue({ agents: ['claude'] })
+    const created = vi.spyOn(api, 'createConversation').mockResolvedValue({
+      id: 'c2', agent: 'claude', cwd: '/multi/.worktrees/feat', title: null, status: 'idle',
+      native_session_id: null, archived: false, created_at: 1, updated_at: 1,
+    })
+    render(<NewConversationDialog onCreated={vi.fn()} />)
+    // First repo ('solo') has one worktree → no worktree picker.
+    const repoSelect = await screen.findByTestId('repo-select')
+    expect(screen.queryByTestId('cwd-select')).toBeNull()
+    // Switch to the multi-worktree repo → the worktree picker appears.
+    fireEvent.change(repoSelect, { target: { value: '/multi' } })
+    const cwdSelect = await screen.findByTestId('cwd-select')
+    fireEvent.change(cwdSelect, { target: { value: '/multi/.worktrees/feat' } })
+    fireEvent.click(screen.getByTestId('create'))
+    await waitFor(() =>
+      expect(created).toHaveBeenCalledWith({ agent: 'claude', cwd: '/multi/.worktrees/feat' }),
+    )
     vi.restoreAllMocks()
   })
 })

@@ -11,9 +11,15 @@ function formatSession(s: DiscoveredSession): string {
   return `${date}  (${s.sessionId.slice(0, 8)}…)`
 }
 
+function basename(path: string): string {
+  const p = path.replace(/\/$/, '').split('/').pop()
+  return p || path
+}
+
 export function NewConversationDialog({ onCreated }: Props): React.ReactElement {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [agents, setAgents] = useState<AgentName[]>([])
+  const [repoRoot, setRepoRoot] = useState('')
   const [cwd, setCwd] = useState('')
   const [agent, setAgent] = useState<AgentName>('claude')
   const [sessions, setSessions] = useState<DiscoveredSession[]>([])
@@ -22,7 +28,9 @@ export function NewConversationDialog({ onCreated }: Props): React.ReactElement 
   useEffect(() => {
     void api.listWorkspaces().then((ws) => {
       setWorkspaces(ws)
-      setCwd(ws[0]?.worktrees[0]?.path ?? '')
+      const first = ws[0]
+      setRepoRoot(first?.root ?? '')
+      setCwd(first?.worktrees[0]?.path ?? '')
     })
     void api.listAgents().then((r) => {
       const list = r.agents ?? []
@@ -30,6 +38,14 @@ export function NewConversationDialog({ onCreated }: Props): React.ReactElement 
       if (list[0]) setAgent(list[0])
     })
   }, [])
+
+  // Picking a project resets the worktree to that repo's first (its main checkout).
+  const selectRepo = (root: string): void => {
+    setRepoRoot(root)
+    const repo = workspaces.find((w) => w.root === root)
+    setCwd(repo?.worktrees[0]?.path ?? '')
+  }
+  const worktrees = workspaces.find((w) => w.root === repoRoot)?.worktrees ?? []
 
   // Re-discover sessions whenever agent or cwd changes.
   useEffect(() => {
@@ -56,15 +72,18 @@ export function NewConversationDialog({ onCreated }: Props): React.ReactElement 
           <option key={a} value={a}>{a}</option>
         ))}
       </select>
-      <select data-testid="cwd-select" value={cwd} onChange={(e) => setCwd(e.target.value)}>
-        {workspaces.flatMap((w) =>
-          w.worktrees.map((t) => (
-            <option key={t.path} value={t.path}>
-              {t.path.replace(/\/$/, '').split('/').pop()}{t.branch ? ` · ${t.branch}` : ''}
-            </option>
-          )),
-        )}
+      <select data-testid="repo-select" value={repoRoot} onChange={(e) => selectRepo(e.target.value)}>
+        {workspaces.map((w) => (
+          <option key={w.root} value={w.root}>{w.name}</option>
+        ))}
       </select>
+      {worktrees.length > 1 && (
+        <select data-testid="cwd-select" value={cwd} onChange={(e) => setCwd(e.target.value)}>
+          {worktrees.map((t) => (
+            <option key={t.path} value={t.path}>{t.branch ?? basename(t.path)}</option>
+          ))}
+        </select>
+      )}
       {sessions.length > 0 && (
         <select data-testid="session-select" value={sessionId} onChange={(e) => setSessionId(e.target.value)}>
           <option value="">— new session —</option>

@@ -29,6 +29,28 @@ render_service() {
       "$TRUX_PROVISION_DIR/trux.service.template" > "$out"
 }
 
+ensure_env() {
+  if [[ -f "$ENV_FILE" ]]; then
+    echo "trux: $ENV_FILE exists — keeping it"
+    return 0
+  fi
+  mkdir -p "$(dirname "$ENV_FILE")"
+  local secret ts_host
+  secret="$(openssl rand -hex 32)"
+  ts_host="$(tailscale status --json 2>/dev/null \
+    | python3 -c "import sys,json; print(json.load(sys.stdin)['Self']['DNSName'].rstrip('.'))" 2>/dev/null || echo "")"
+  cat > "$ENV_FILE" <<EOF
+TRUX_AUTH=1
+TRUX_SECRET=$secret
+TRUX_HOST=127.0.0.1
+TRUX_PORT=4317
+TRUX_WORKSPACES=$HOME
+TRUX_TAILSCALE_HOST=$ts_host
+EOF
+  chmod 0600 "$ENV_FILE"
+  echo "trux: wrote $ENV_FILE (edit TRUX_WORKSPACES / TRUX_TAILSCALE_HOST as needed)"
+}
+
 main() {
   resolve_dirs
   echo "trux: provisioning from $TRUX_DIR"

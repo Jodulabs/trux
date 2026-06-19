@@ -40,7 +40,7 @@ export function openConnection(id: string): void {
     onConnState(state) {
       useStore.getState().setConvMeta(id, { connState: state })
       if (state === 'connected') {
-        for (const m of loadQueue(id)) client.sendUserMessage(m.text, m.attachments, m.client_message_id)
+        for (const m of loadQueue(id)) client.sendUserMessage(m.text, m.attachments, m.client_message_id, m.config)
       }
       if (activeHandlers?.id === id) activeHandlers.onConnState(state)
     },

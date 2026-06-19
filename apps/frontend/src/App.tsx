@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
+import type { Conversation } from '@trux/protocol'
 import { useStore } from './store'
 import { api } from './api'
 import { subscribeToPush } from './push'
-import { Sidebar } from './components/Sidebar'
+import { Rail } from './components/Rail'
+import { ConversationList } from './components/ConversationList'
 import { ConversationView } from './components/ConversationView'
+import { NewConversationDialog } from './components/NewConversationDialog'
 import { TokenGate } from './components/TokenGate'
 
 // A push deep-link arrives as ?c=<id> (cold open) or a SW postMessage (warm tab).
@@ -20,6 +23,11 @@ function shortCwd(cwd: string): string {
   return parts[parts.length - 1] || cwd
 }
 
+// A conversation's display title: a live/stored title wins over the cwd basename.
+function titleOf(c: Conversation): string {
+  return c.title ?? shortCwd(c.cwd)
+}
+
 export function App(): React.ReactElement {
   const conversations = useStore((s) => s.conversations)
   const currentId = useStore((s) => s.currentId)
@@ -29,8 +37,9 @@ export function App(): React.ReactElement {
   const [needsToken, setNeedsToken] = useState(false)
   const [ready, setReady] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
-  // Mobile: the sidebar is an off-canvas drawer; this gates it open/closed.
-  const [drawerOpen, setDrawerOpen] = useState(false)
+  // The conversation list is a slide-over toggled from the rail (desktop) or the
+  // mobile hamburger. Collapsed by default on every screen.
+  const [listOpen, setListOpen] = useState(false)
 
   const tryLoad = (): void => {
     void Promise.all([
@@ -105,25 +114,34 @@ export function App(): React.ReactElement {
     await selectConversation(id)
   }
 
-  // Selecting/creating on mobile dismisses the drawer so the conversation is full-screen.
+  // Start a new conversation: clear the current one (show the greeting empty
+  // state) and close the list. selectConversation('') short-circuits to empty.
+  const onNew = (): void => {
+    void selectConversation('')
+    setListOpen(false)
+  }
+
+  // Selecting/creating dismisses the slide-over so the conversation is full-screen.
   const pick = (id: string): void => {
     void selectConversation(id)
-    setDrawerOpen(false)
+    setListOpen(false)
   }
 
   const current = conversations.find((c) => c.id === currentId)
-  const mobileTitle = current ? current.title ?? shortCwd(current.cwd) : 'trux'
+  const mobileTitle = current ? titleOf(current) : 'trux'
 
   return (
-    <div className={`app${drawerOpen ? ' drawer-open' : ''}`}>
-      <Sidebar
-        conversations={conversations}
-        currentId={currentId}
-        onSelect={pick}
-        onCreated={(id) => { void onCreated(id); setDrawerOpen(false) }}
-      />
-      {drawerOpen ? (
-        <div className="drawer-backdrop" data-testid="drawer-backdrop" onClick={() => setDrawerOpen(false)} />
+    <div className="app">
+      <Rail onNew={onNew} onToggleList={() => setListOpen(true)} />
+      {listOpen ? (
+        <>
+          <ConversationList
+            conversations={conversations}
+            currentId={currentId}
+            onSelect={pick}
+          />
+          <div className="drawer-backdrop" data-testid="list-backdrop" onClick={() => setListOpen(false)} />
+        </>
       ) : null}
       <main>
         <header className="mobile-bar">
@@ -131,7 +149,7 @@ export function App(): React.ReactElement {
             className="drawer-toggle"
             data-testid="drawer-toggle"
             aria-label="Open conversations"
-            onClick={() => setDrawerOpen(true)}
+            onClick={() => setListOpen(true)}
           >
             ☰
           </button>
@@ -140,7 +158,13 @@ export function App(): React.ReactElement {
         {currentId ? (
           <ConversationView key={currentId} id={currentId} />
         ) : (
-          <p data-testid="empty">Select or create a conversation.</p>
+          <div className="empty-state" data-testid="empty">
+            <div className="greeting">
+              <span className="greeting-mark">✳</span>
+              <h1>What should we build?</h1>
+            </div>
+            <NewConversationDialog onCreated={(id) => void onCreated(id)} />
+          </div>
         )}
       </main>
     </div>

@@ -4,7 +4,8 @@ import type { ApprovalRequestEvent } from '@trux/protocol'
 import { Composer } from '../src/components/Composer'
 import { Transcript } from '../src/components/Transcript'
 import { ApprovalCard } from '../src/components/ApprovalCard'
-import { ConversationView } from '../src/components/ConversationView'
+import { ConversationView, deriveTitle } from '../src/components/ConversationView'
+import { ConversationList } from '../src/components/ConversationList'
 import { NewConversationDialog } from '../src/components/NewConversationDialog'
 import { api } from '../src/api'
 import { useStore, type TranscriptItem } from '../src/store'
@@ -178,5 +179,28 @@ describe('NewConversationDialog', () => {
       expect(created).toHaveBeenCalledWith({ agent: 'claude', cwd: '/multi/.worktrees/feat' }),
     )
     vi.restoreAllMocks()
+  })
+})
+
+describe('deriveTitle', () => {
+  it('takes the first line, trims, and caps at 60 chars', () => {
+    expect(deriveTitle('Fix the auth redirect\nmore detail')).toBe('Fix the auth redirect')
+    expect(deriveTitle('  hello world  ')).toBe('hello world')
+    expect(deriveTitle('x'.repeat(80))).toHaveLength(60)
+    expect(deriveTitle('')).toBe('')
+  })
+})
+
+describe('ConversationList', () => {
+  it('renders a conversation title once set', () => {
+    useStore.setState({
+      conversations: [
+        { id: 'c1', agent: 'claude', cwd: '/x/darshi', title: 'Fix auth', status: 'idle',
+          native_session_id: null, archived: false, created_at: 1, updated_at: 1 },
+      ],
+      convMeta: {},
+    })
+    render(<ConversationList conversations={useStore.getState().conversations} currentId={null} onSelect={() => {}} />)
+    expect(screen.getByText('Fix auth')).toBeTruthy()
   })
 })

@@ -39,9 +39,15 @@
 
   --radius:    11px;
   --radius-sm: 7px;
+  --radius-lg: 22px;
+
+  /* Centered reading column — the conversation and composer share this width
+     so content stays focused instead of stretching edge-to-edge (claude.ai). */
+  --col: 46rem;
 
   --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-display: 'Georgia', 'Times New Roman', ui-serif, serif;
 }
 
 html, body, #root { height: 100%; }
@@ -74,6 +80,27 @@ button { font-family: inherit; }
     var(--ink);
 }
 
+/* ── Icon rail (always visible on desktop, folds into the mobile bar) ── */
+.rail {
+  flex: 0 0 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.7rem 0;
+  background: var(--surface-1);
+  border-right: 1px solid var(--line-soft);
+}
+.rail-mark { color: var(--accent); font-size: 1.1rem; margin-bottom: 0.4rem; }
+.rail-btn {
+  width: 40px; height: 40px;
+  display: grid; place-items: center;
+  background: none; border: 1px solid transparent; border-radius: var(--radius-sm);
+  color: var(--text-dim); font-size: 1.2rem; cursor: pointer;
+}
+.rail-btn:hover { background: var(--surface-2); color: var(--text); }
+@media (max-width: 640px) { .rail { display: none; } }
+
 main {
   flex: 1 1 0;
   min-width: 0;
@@ -84,8 +111,6 @@ main {
 
 main > [data-testid="empty"] {
   margin: auto;
-  color: var(--text-faint);
-  font-size: 0.9rem;
 }
 
 /* Mobile top bar (hamburger + conversation title). Desktop has the sidebar
@@ -113,27 +138,30 @@ main > [data-testid="empty"] {
   white-space: nowrap;
 }
 
-/* ── Sidebar ────────────────────────────────────────────────── */
-.sidebar {
-  width: 264px;
-  flex-shrink: 0;
+/* ── Conversation list (slide-over, collapsed by default) ───── */
+.conv-list {
+  position: fixed;
+  top: 0; bottom: 0; left: 0;
+  width: min(86vw, 320px);
+  display: flex; flex-direction: column;
   background: var(--surface-1);
   border-right: 1px solid var(--line-soft);
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
+  box-shadow: 2px 0 18px rgba(0, 0, 0, 0.45);
+  z-index: 50;
+  padding-top: env(safe-area-inset-top, 0px);
+  animation: slidein 0.18s ease both;
 }
+@media (min-width: 641px) { .conv-list { left: 56px; } }
+@keyframes slidein { from { transform: translateX(-8px); opacity: 0; } to { transform: none; opacity: 1; } }
 
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.9rem 1rem 0.6rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
+/* Backdrop dims the main column while the list is open (all widths). */
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  background: rgba(6, 7, 9, 0.55);
+  backdrop-filter: blur(1px);
 }
-.brand .mark { color: var(--accent); }
-.brand .sub { color: var(--text-faint); font-size: 0.72rem; font-weight: 400; letter-spacing: 0.02em; }
 
 .conversation-list {
   list-style: none;
@@ -213,29 +241,7 @@ main > [data-testid="empty"] {
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
 
 @media (max-width: 640px) {
-  /* Sidebar becomes an off-canvas drawer; the conversation gets the full screen. */
-  .sidebar {
-    position: fixed;
-    top: 0;
-    bottom: 0;
-    left: 0;
-    width: min(86vw, 320px);
-    max-height: none;
-    border-right: 1px solid var(--line-soft);
-    box-shadow: 2px 0 18px rgba(0, 0, 0, 0.45);
-    transform: translateX(-100%);
-    transition: transform 0.22s ease;
-    z-index: 50;
-    padding-top: env(safe-area-inset-top, 0px);
-  }
-  .app.drawer-open .sidebar { transform: translateX(0); }
-  .drawer-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 45;
-    background: rgba(6, 7, 9, 0.55);
-    backdrop-filter: blur(1px);
-  }
+  /* The conversation gets the full screen; the list slides over on demand. */
   .mobile-bar {
     display: flex;
     align-items: center;
@@ -245,11 +251,6 @@ main > [data-testid="empty"] {
     border-bottom: 1px solid var(--line-soft);
     background: var(--surface-1);
   }
-}
-
-@media (min-width: 641px) {
-  /* No drawer on desktop — the sidebar is always present, never dimmed. */
-  .drawer-backdrop { display: none; }
 }
 
 /* ── Sidebar search ─────────────────────────────────────────── */
@@ -270,17 +271,35 @@ main > [data-testid="empty"] {
 .sidebar-search-input::placeholder { color: var(--text-faint); }
 .sidebar-search-input::-webkit-search-cancel-button { display: none; }
 
+/* ── Empty state (greeting + new-conversation panel) ───────── */
+.empty-state {
+  margin: auto;
+  width: 100%;
+  max-width: var(--col);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.4rem;
+}
+.greeting { display: flex; align-items: center; gap: 0.6rem; color: var(--text); }
+.greeting-mark { color: var(--accent); font-size: 1.6rem; }
+.greeting h1 { font-family: var(--font-display); font-weight: 500; font-size: 1.8rem; }
+
 /* ── New conversation ───────────────────────────────────────── */
 .new-conversation {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
   gap: 0.5rem;
-  padding: 0.75rem;
-  border-bottom: 1px solid var(--line-soft);
+  width: 100%;
 }
 
 .new-conversation select {
-  width: 100%;
+  width: auto;
+  min-width: 140px;
   padding: 0.5rem 0.6rem;
   background: var(--surface-2);
   color: var(--text);
@@ -297,8 +316,9 @@ main > [data-testid="empty"] {
 .new-conversation select:focus { outline: none; border-color: var(--accent); }
 
 .new-conversation .create {
-  width: 100%;
-  padding: 0.55rem;
+  width: auto;
+  min-height: 40px;
+  padding: 0.55rem 1.1rem;
   background: var(--accent);
   color: #1a1206;
   font-weight: 600;
@@ -399,6 +419,9 @@ main > [data-testid="empty"] {
   overscroll-behavior: contain;
 }
 .transcript {
+  width: 100%;
+  max-width: var(--col);
+  margin-inline: auto;
   padding: 1.1rem 1rem 1.5rem;
   display: flex;
   flex-direction: column;
@@ -816,12 +839,16 @@ main > [data-testid="empty"] {
 }
 
 /* ── Composer ───────────────────────────────────────────────── */
+/* Floats as a centered rounded card over the conversation (claude.ai), not a
+   full-width bar. A soft top fade lets text scroll up behind it. */
 .composer {
   flex: 0 0 auto;
-  padding: 0.6rem 0.75rem;
-  padding-bottom: calc(0.6rem + env(safe-area-inset-bottom, 0px));
-  border-top: 1px solid var(--line-soft);
-  background: var(--surface-1);
+  width: 100%;
+  max-width: var(--col);
+  margin-inline: auto;
+  padding: 0.5rem 0.9rem;
+  padding-bottom: calc(0.7rem + env(safe-area-inset-bottom, 0px));
+  background: none;
 }
 
 .composer-field {
@@ -830,13 +857,14 @@ main > [data-testid="empty"] {
   gap: 0.35rem;
   background: var(--surface-2);
   border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 0.5rem 0.6rem;
-  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+  border-radius: var(--radius-lg);
+  padding: 0.55rem 0.7rem 0.5rem;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.32);
+  transition: border-color 0.14s ease, box-shadow 0.14s ease;
 }
 .composer-field:focus-within {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.32), 0 0 0 3px var(--accent-soft);
 }
 
 .composer textarea {

@@ -225,7 +225,7 @@ export function Composer({ conversationId, busy, onSend, onInterrupt }: Composer
               submit()
             }
           }}
-          placeholder="Message Claude…"
+          placeholder="Message…"
         />
         <div className="composer-actions">
           <button className="icon-btn" data-testid="snippet-save" title="Save as snippet" aria-label="Save as snippet" onClick={saveSnippet}>

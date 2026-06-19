@@ -18,6 +18,7 @@ export type ConvMeta = {
   connState: ConnState
   lastSeq: number
   totalCost: number
+  title?: string
 }
 
 // A user_text item the client rendered optimistically, before the server echo.
@@ -99,6 +100,7 @@ interface TruxState {
   setConvMeta: (id: string, patch: Partial<ConvMeta>) => void
   bumpUnread: (id: string) => void
   clearUnread: (id: string) => void
+  setTitle: (id: string, title: string) => void
 }
 
 export const useStore = create<TruxState>((set, get) => ({
@@ -121,6 +123,11 @@ export const useStore = create<TruxState>((set, get) => ({
     set({ tailscaleHost: cfg.tailscaleHost, vapidPublicKey: cfg.vapidPublicKey })
   },
   async selectConversation(id) {
+    // A falsy id means "show the empty state" (e.g. the rail's New button).
+    if (!id) {
+      set({ currentId: null })
+      return
+    }
     const detail = await api.getConversation(id)
     const stored = detail.transcript
     const events = stored.map((s) => s.event)
@@ -221,5 +228,13 @@ export const useStore = create<TruxState>((set, get) => ({
     const prev = get().convMeta[id]
     if (!prev) return
     set({ convMeta: { ...get().convMeta, [id]: { ...prev, unread: 0 } } })
+  },
+  setTitle(id, title) {
+    set({
+      conversations: get().conversations.map((c) => (c.id === id ? { ...c, title } : c)),
+    })
+    const prev = get().convMeta[id]
+    if (prev) set({ convMeta: { ...get().convMeta, [id]: { ...prev, title } } })
+    else get().setConvMeta(id, { title })
   },
 }))

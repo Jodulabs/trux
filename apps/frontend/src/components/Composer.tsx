@@ -1,7 +1,18 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ImageAttachment } from '@trux/protocol'
 import { addSnippet, deleteSnippet, loadSnippets, type Snippet } from '../snippets'
 import { Icon } from './Icon'
+
+function draftKey(id: string): string { return `trux-draft-${id}` }
+function loadDraft(id: string): string {
+  try { return localStorage.getItem(draftKey(id)) ?? '' } catch { return '' }
+}
+function saveDraft(id: string, text: string): void {
+  try {
+    if (text) localStorage.setItem(draftKey(id), text)
+    else localStorage.removeItem(draftKey(id))
+  } catch {}
+}
 
 // Touch devices have no Shift key, so "Enter sends / Shift+Enter newline" makes
 // newlines impossible. On a coarse pointer, Enter inserts a newline and the Send
@@ -12,6 +23,7 @@ const coarsePointer =
   window.matchMedia('(pointer: coarse)').matches
 
 interface ComposerProps {
+  conversationId?: string
   busy: boolean
   onSend: (text: string, attachments?: ImageAttachment[]) => void
   onInterrupt: () => void
@@ -39,16 +51,29 @@ function readFileAsDataUrl(file: File): Promise<{ media_type: string; data: stri
   })
 }
 
-export function Composer({ busy, onSend, onInterrupt }: ComposerProps): React.ReactElement {
-  const [text, setText] = useState('')
+export function Composer({ conversationId, busy, onSend, onInterrupt }: ComposerProps): React.ReactElement {
+  const [text, setText] = useState(() => conversationId ? loadDraft(conversationId) : '')
   const [showSnippets, setShowSnippets] = useState(false)
   const [snippets, setSnippets] = useState<Snippet[]>([])
   const [attachments, setAttachments] = useState<ImageAttachment[]>([])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // Restore draft when switching conversations.
+  useEffect(() => {
+    if (!conversationId) return
+    const draft = loadDraft(conversationId)
+    setText(draft)
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+      if (draft) textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 160)}px`
+    }
+  }, [conversationId])
+
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>): void => {
-    setText(e.target.value)
+    const val = e.target.value
+    setText(val)
+    if (conversationId) saveDraft(conversationId, val)
     const el = e.target
     el.style.height = 'auto'
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`
@@ -64,6 +89,7 @@ export function Composer({ busy, onSend, onInterrupt }: ComposerProps): React.Re
     }
     setText('')
     setAttachments([])
+    if (conversationId) saveDraft(conversationId, '')
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
   }
 

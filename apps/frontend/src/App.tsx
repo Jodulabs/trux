@@ -5,6 +5,7 @@ import { subscribeToPush } from './push'
 import { Sidebar } from './components/Sidebar'
 import { ConversationView } from './components/ConversationView'
 import { TokenGate } from './components/TokenGate'
+import { QuickSwitcher } from './components/QuickSwitcher'
 
 // A push deep-link arrives as ?c=<id> (cold open) or a SW postMessage (warm tab).
 function deepLinkConversationId(): string | null {
@@ -101,6 +102,11 @@ export function App(): React.ReactElement {
         ) : (
           <p data-testid="empty">Select or create a conversation.</p>
         )}
+        <QuickSwitcher
+          conversations={conversations}
+          currentId={currentId}
+          onSelect={(id) => void selectConversation(id)}
+        />
       </main>
     </div>
   )

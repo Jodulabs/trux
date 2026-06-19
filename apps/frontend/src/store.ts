@@ -12,6 +12,13 @@ import type {
 import type { ConnState } from './truxClient'
 import { api } from './api'
 
+export type ConvMeta = {
+  status: string
+  unread: number
+  connState: ConnState
+  lastSeq: number
+}
+
 // A user_text item the client rendered optimistically, before the server echo.
 // `pending`/`failed` drive the sending → sent → retry affordance.
 export type OptimisticUserText = UserTextEvent & { pending?: boolean; failed?: boolean; client_message_id?: string }
@@ -78,6 +85,8 @@ interface TruxState {
   previewPort: number | null
   tailscaleHost: string | null
   vapidPublicKey: string | null
+  // Per-conversation lightweight state for background connections.
+  convMeta: Record<string, ConvMeta>
   loadConversations: () => Promise<void>
   loadRemoteConfig: () => Promise<void>
   selectConversation: (id: string) => Promise<void>
@@ -86,6 +95,9 @@ interface TruxState {
   addOptimistic: (item: OptimisticUserText) => void
   failPending: () => string[]
   recordApproval: (requestId: string, decision: ApprovalDecision) => void
+  setConvMeta: (id: string, patch: Partial<ConvMeta>) => void
+  bumpUnread: (id: string) => void
+  clearUnread: (id: string) => void
 }
 
 export const useStore = create<TruxState>((set, get) => ({
@@ -99,6 +111,7 @@ export const useStore = create<TruxState>((set, get) => ({
   previewPort: null,
   tailscaleHost: null,
   vapidPublicKey: null,
+  convMeta: {},
   async loadConversations() {
     set({ conversations: await api.listConversations() })
   },
@@ -116,6 +129,9 @@ export const useStore = create<TruxState>((set, get) => ({
       null,
     )
     const lastSeq = stored.reduce<number>((m, s) => (s.seq > m ? s.seq : m), -1)
+    // Clear unread for the conversation being opened.
+    const prevMeta = get().convMeta[id]
+    const newMeta = prevMeta ? { ...prevMeta, unread: 0 } : undefined
     set({
       currentId: id,
       status: detail.conversation.status,
@@ -123,6 +139,7 @@ export const useStore = create<TruxState>((set, get) => ({
       previewPort: lastPort,
       lastSeq,
       transcript: events.reduce(foldEvent, [] as TranscriptItem[]),
+      ...(newMeta ? { convMeta: { ...get().convMeta, [id]: newMeta } } : {}),
     })
   },
   applyEvent(event) {
@@ -190,5 +207,18 @@ export const useStore = create<TruxState>((set, get) => ({
   },
   recordApproval(requestId, decision) {
     set({ approvalDecisions: { ...get().approvalDecisions, [requestId]: decision } })
+  },
+  setConvMeta(id, patch) {
+    const prev = get().convMeta[id] ?? { status: 'idle', unread: 0, connState: 'connecting' as ConnState, lastSeq: -1 }
+    set({ convMeta: { ...get().convMeta, [id]: { ...prev, ...patch } } })
+  },
+  bumpUnread(id) {
+    const prev = get().convMeta[id] ?? { status: 'idle', unread: 0, connState: 'connecting' as ConnState, lastSeq: -1 }
+    set({ convMeta: { ...get().convMeta, [id]: { ...prev, unread: prev.unread + 1 } } })
+  },
+  clearUnread(id) {
+    const prev = get().convMeta[id]
+    if (!prev) return
+    set({ convMeta: { ...get().convMeta, [id]: { ...prev, unread: 0 } } })
   },
 }))

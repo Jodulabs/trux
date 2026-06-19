@@ -1,15 +1,21 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ApprovalDecision, GitStatusResult, ImageAttachment } from '@trux/protocol'
-import { connectTrux, type TruxClient } from '../truxClient'
 import { useStore } from '../store'
 import { api } from '../api'
+import {
+  clearActiveHandlers,
+  getConnection,
+  openConnection,
+  setActiveHandlers,
+} from '../connectionManager'
+import { enqueue, newMessageId } from '../outbox'
 import { Transcript } from './Transcript'
 import { Composer } from './Composer'
 import { ApprovalCard } from './ApprovalCard'
 import { GitPanel } from './GitPanel'
 import { Icon } from './Icon'
 import { haptic } from '../haptics'
-import { dequeue, enqueue, loadQueue, newMessageId } from '../outbox'
+import { dequeue } from '../outbox'
 
 const STATUS_LABEL: Record<string, string> = {
   idle: 'Idle',
@@ -40,7 +46,6 @@ export function ConversationView({ id }: { id: string }): React.ReactElement {
   const recordApproval = useStore((s) => s.recordApproval)
   const previewPort = useStore((s) => s.previewPort)
   const tailscaleHost = useStore((s) => s.tailscaleHost)
-  const client = useRef<TruxClient | null>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
   // Whether the view is currently pinned to the bottom (following the stream).
   const stuck = useRef(true)
@@ -52,29 +57,17 @@ export function ConversationView({ id }: { id: string }): React.ReactElement {
     try { setGitStatus(await api.gitStatus(id)) } catch {}
   }, [id])
 
+  // Register active-conversation event handlers with the connection manager.
+  // The manager calls these when events arrive for `id`, regardless of which
+  // component created the underlying TruxClient.
   useEffect(() => {
-    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const c = connectTrux({
-      url: `${proto}//${location.host}/conversations/${id}/stream`,
-      token: localStorage.getItem('trux_token') ?? '',
-      // Ask the server for events past what we've already folded in.
-      resumeSeq: () => useStore.getState().lastSeq,
-      onConnState: (state) => {
+    openConnection(id)
+    setActiveHandlers({
+      id,
+      onConnState(state) {
         setConnState(state)
-        // On a (re)connection, flush anything queued while we were down. Each is
-        // deduped server-side by client_message_id; the echo reconciles the bubble.
-        if (state === 'connected') {
-          for (const m of loadQueue(id)) c.sendUserMessage(m.text, m.attachments, m.client_message_id)
-        }
       },
-      onEvent: (event) => {
-        // A delivered message's echo clears it from the durable outbox.
-        if (event.type === 'user_text' && event.client_message_id) dequeue(id, event.client_message_id)
-        if (event.type === 'history_delta' || event.type === 'history_snapshot') {
-          for (const e of event.events) {
-            if (e.type === 'user_text' && e.client_message_id) dequeue(id, e.client_message_id)
-          }
-        }
+      onEvent(event) {
         // Physical taps for the moments you're not looking at the screen.
         if (event.type === 'approval_request') haptic('notify')
         if (event.type === 'turn_complete') { haptic('success'); void reloadGit() }
@@ -87,9 +80,8 @@ export function ConversationView({ id }: { id: string }): React.ReactElement {
         applyEvent(event)
       },
     })
-    client.current = c
-    return () => c.close()
-  }, [id, applyEvent, setConnState, addOptimistic, failPending, reloadGit])
+    return () => clearActiveHandlers()
+  }, [id, applyEvent, setConnState, failPending, reloadGit])
 
   const onScroll = useCallback((): void => {
     const el = scrollRef.current
@@ -126,12 +118,12 @@ export function ConversationView({ id }: { id: string }): React.ReactElement {
     enqueue(id, { client_message_id: cid, text, attachments })
     stuck.current = true
     setAtBottom(true)
-    client.current?.sendUserMessage(text, attachments, cid)
+    getConnection(id)?.sendUserMessage(text, attachments, cid)
     haptic('light')
   }
 
   const onRespond = (requestId: string, decision: ApprovalDecision): void => {
-    client.current?.respondApproval(requestId, decision)
+    getConnection(id)?.respondApproval(requestId, decision)
     recordApproval(requestId, decision)
     haptic('medium')
   }
@@ -221,10 +213,11 @@ export function ConversationView({ id }: { id: string }): React.ReactElement {
         />
       ) : null}
       <Composer
+        conversationId={id}
         busy={busy}
         onSend={onSend}
         onInterrupt={() => {
-          client.current?.interrupt()
+          getConnection(id)?.interrupt()
           haptic('medium')
         }}
       />

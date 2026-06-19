@@ -112,3 +112,30 @@ describe('previewPort', () => {
     expect(useStore.getState().previewPort).toBe(5173)
   })
 })
+
+describe('convMeta', () => {
+  it('setConvMeta creates a new entry with defaults merged in', () => {
+    useStore.setState({ convMeta: {} })
+    useStore.getState().setConvMeta('c1', { status: 'thinking' })
+    expect(useStore.getState().convMeta['c1']).toMatchObject({ status: 'thinking', unread: 0, lastSeq: -1 })
+  })
+
+  it('bumpUnread increments unread for a background conversation', () => {
+    useStore.setState({ convMeta: {} })
+    useStore.getState().bumpUnread('c1')
+    useStore.getState().bumpUnread('c1')
+    expect(useStore.getState().convMeta['c1']?.unread).toBe(2)
+  })
+
+  it('clearUnread resets the unread counter to 0', () => {
+    useStore.setState({ convMeta: { c1: { status: 'idle', unread: 5, connState: 'connected', lastSeq: 3 } } })
+    useStore.getState().clearUnread('c1')
+    expect(useStore.getState().convMeta['c1']?.unread).toBe(0)
+  })
+
+  it('setConvMeta patches without clobbering other fields', () => {
+    useStore.setState({ convMeta: { c1: { status: 'thinking', unread: 3, connState: 'connected', lastSeq: 7 } } })
+    useStore.getState().setConvMeta('c1', { status: 'idle' })
+    expect(useStore.getState().convMeta['c1']).toEqual({ status: 'idle', unread: 3, connState: 'connected', lastSeq: 7 })
+  })
+})

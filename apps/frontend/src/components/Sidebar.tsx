@@ -5,11 +5,20 @@ import { PairModal } from './PairModal'
 import { useStore } from '../store'
 import { Icon } from './Icon'
 
+function hasDraft(id: string): boolean {
+  try { return Boolean(localStorage.getItem(`trux-draft-${id}`)) } catch { return false }
+}
+
 interface Props {
   conversations: Conversation[]
   currentId: string | null
   onSelect: (id: string) => void
   onCreated: (id: string) => void
+}
+
+function shortCwd(cwd: string): string {
+  const parts = cwd.replace(/\/$/, '').split('/')
+  return parts[parts.length - 1] || cwd
 }
 
 // Pairing is a desktop→phone handoff (the big screen shows a QR the phone scans),
@@ -20,15 +29,10 @@ const finePointer =
   typeof window.matchMedia === 'function' &&
   window.matchMedia('(pointer: fine)').matches
 
-// Last path segment of the cwd, so the list reads as repo names not full paths.
-function shortCwd(cwd: string): string {
-  const parts = cwd.replace(/\/$/, '').split('/')
-  return parts[parts.length - 1] || cwd
-}
-
 export function Sidebar({ conversations, currentId, onSelect, onCreated }: Props): React.ReactElement {
   const [pairing, setPairing] = useState(false)
   const tailscaleHost = useStore((s) => s.tailscaleHost)
+  const convMeta = useStore((s) => s.convMeta)
   // Only useful on the desktop, and only when pairing can actually produce a QR:
   // it needs both the tailnet host and a token (PairModal gates the QR on both).
   const hasToken = Boolean(localStorage.getItem('trux_token'))
@@ -41,17 +45,28 @@ export function Sidebar({ conversations, currentId, onSelect, onCreated }: Props
       </div>
       <NewConversationDialog onCreated={onCreated} />
       <ul className="conversation-list" data-testid="conversation-list">
-        {conversations.map((c) => (
-          <li
-            key={c.id}
-            className={c.id === currentId ? 'active' : ''}
-            onClick={() => onSelect(c.id)}
-          >
-            <span className={`dot ${c.status}`} />
-            <span className="title">{c.title ?? shortCwd(c.cwd)}</span>
-            <span className="badge">{c.agent}</span>
-          </li>
-        ))}
+        {conversations.map((c) => {
+          // Prefer live status from the connection manager; fall back to the REST snapshot.
+          const liveStatus = convMeta[c.id]?.status ?? c.status
+          const unread = convMeta[c.id]?.unread ?? 0
+          return (
+            <li
+              key={c.id}
+              className={c.id === currentId ? 'active' : ''}
+              onClick={() => onSelect(c.id)}
+            >
+              <span className={`dot ${liveStatus}`} />
+              <span className="title">{c.title ?? shortCwd(c.cwd)}</span>
+              {unread > 0 && c.id !== currentId ? (
+                <span className="unread-badge" data-testid="unread-badge">{unread}</span>
+              ) : null}
+              {hasDraft(c.id) ? (
+                <span className="draft-badge" data-testid="draft-badge" title="Unsent draft">✏</span>
+              ) : null}
+              <span className="badge">{c.agent}</span>
+            </li>
+          )
+        })}
       </ul>
       {canPair && (
         <button className="pair-button" data-testid="pair-open" onClick={() => setPairing(true)}>

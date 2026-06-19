@@ -114,9 +114,38 @@ test_shim_resolve_install_dir() {
   pass "resolve_install_dir: override > service workdir > default"
 }
 
+test_shim_open() {
+  local sandbox bindir
+  sandbox="$(mktemp -d)"
+  bindir="$sandbox/bin"
+  mkdir -p "$bindir" "$sandbox/.trux"
+  open_url_file="$sandbox/opened.txt"
+  cat > "$bindir/xdg-open" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$1" > "$open_url_file"
+EOF
+  chmod +x "$bindir/xdg-open"
+  cat > "$sandbox/.trux/.env" <<EOF
+TRUX_SECRET=deadbeef
+TRUX_PORT=4317
+EOF
+  HOME="$sandbox" PATH="$bindir:$PATH" bash "$REPO/bin/trux" open >/dev/null
+  local out; out="$(cat "$open_url_file")"
+  [ "$out" = "http://localhost:4317/#token=deadbeef" ] \
+    || fail "trux open should xdg-open localhost URL with token in fragment, got '$out'"
+  sed -i '/TRUX_SECRET/d' "$sandbox/.trux/.env"
+  HOME="$sandbox" PATH="$bindir:$PATH" bash "$REPO/bin/trux" open >/dev/null
+  out="$(cat "$open_url_file")"
+  [ "$out" = "http://localhost:4317/" ] \
+    || fail "trux open with no secret should pass bare localhost URL, got '$out'"
+  rm -rf "$sandbox"
+  pass "trux open constructs a localhost URL with token in the fragment"
+}
+
 test_render_service
 test_ensure_env
 test_shim_url_token
 test_uninstall_files
 test_shim_resolve_install_dir
+test_shim_open
 echo "ALL TESTS PASSED"

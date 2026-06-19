@@ -39,10 +39,25 @@ main() {
     url)
       host="$(envval TRUX_TAILSCALE_HOST)"
       if [[ -n "$host" ]]; then echo "https://$host/"; else echo "http://localhost:$(envval TRUX_PORT)/"; fi ;;
+    open)
+      secret="$(envval TRUX_SECRET)"
+      port="$(envval TRUX_PORT)"; port="${port:-4317}"
+      open_url="http://localhost:${port}/"
+      [[ -n "$secret" ]] && open_url="${open_url}#token=${secret}"
+      if command -v xdg-open &>/dev/null; then
+        if xdg-open "$open_url" >/dev/null 2>&1; then
+          echo "trux: opening ${open_url}"
+        else
+          echo "trux: xdg-open failed — open this URL manually:" >&2
+          echo "$open_url"
+        fi
+      else
+        echo "$open_url"
+      fi ;;
     pair)    pnpm -C "$install_dir" --filter backend pair ;;
     uninstall) exec bash "$install_dir/deploy/uninstall.sh" "${@:2}" ;;
     *)
-      echo "usage: trux {status|start|stop|restart|logs|update|token|url|pair|uninstall [--purge]}" >&2
+      echo "usage: trux {status|start|stop|restart|logs|update|token|url|open|pair|uninstall [--purge]}" >&2
       exit 1 ;;
   esac
 }

@@ -22,6 +22,7 @@ export function printStartBanner(config: Config): void {
     if (config.secret) console.log('   pair:   run `pnpm pair` to show the QR for one-scan phone setup')
     else console.log('   (auth disabled)')
   }
+  if (config.secret) console.log('   open:   run `trux open` to launch on this box already signed in')
   console.log('')
 }
 

@@ -58,6 +58,9 @@
       ::selection { background: var(--accent-soft); color: var(--accent-bright); }
 
       .wrap { max-width: 46rem; margin: 0 auto; padding: 0 1.5rem; width: 100%; position: relative; z-index: 1; }
+      /* Header and footer span the full page width with comfortable gutters,
+         so the brand sits near the left edge and nav near the right edge on desktop. */
+      .wrap-wide { max-width: 72rem; }
 
       /* Top bar */
       .topbar {
@@ -162,7 +165,7 @@
   </head>
   <body>
     <header class="topbar">
-      <div class="wrap topbar-inner">
+      <div class="wrap wrap-wide topbar-inner">
         <a class="brand" href="#" aria-label="Trux home">
           <span class="brand-mark">T</span>
           <span>trux</span>
@@ -203,16 +206,19 @@
             <a class="btn btn-ghost" href="https://github.com/Jodulabs/trux/blob/main/docs/RUNBOOK.md" target="_blank" rel="noopener">Docs</a>
           </div>
 
-          <p class="note">Linux + systemd · prints your URL &amp; token · configures tailscale serve</p>
+          <p class="note">
+            Needs Linux + systemd · Node 22 · Tailscale · the <code>claude</code> CLI logged in.<br>
+            The installer prints your URL &amp; token and configures tailscale serve.
+          </p>
         </div>
       </section>
     </main>
 
     <footer>
-      <div class="wrap foot">
+      <div class="wrap wrap-wide foot">
         <div class="foot-brand">
           <span class="brand-mark">T</span>
-          <span class="foot-tag">trux — your box. your code. your subscriptions.</span>
+          <span class="foot-tag">trux — self-hosted · open source (MIT)</span>
         </div>
         <div class="foot-links">
           <a href="https://github.com/Jodulabs/trux" target="_blank" rel="noopener">GitHub</a>

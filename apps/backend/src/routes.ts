@@ -1,13 +1,13 @@
 import type { FastifyInstance } from 'fastify'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { readdirSync, readFileSync, existsSync } from 'node:fs'
-import { execFileSync } from 'node:child_process'
+import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs'
 import type { AgentName, ConversationDetail, CreateConversationRequest, DiscoveredSession } from '@trux/protocol'
 import type { Config } from './config'
 import type { SqliteRegistry } from './registry'
 import { listWorkspaces } from './workspaces'
 import { tokenAccepted } from './auth'
+import { gitCommit, gitDiff, gitStage, gitStatus, gitUnstage } from './git'
 
 // Convert an absolute cwd to the Claude project folder name.
 // e.g. /home/gp/foo → -home-gp-foo  (leading slash → hyphen, each subsequent / → -)
@@ -42,18 +42,62 @@ function discoverClaudeSessions(cwd: string): DiscoveredSession[] {
   return sessions.sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 10)
 }
 
-function discoverCodexSessions(cwd: string): DiscoveredSession[] {
-  try {
-    const out = execFileSync('codex', ['session', 'list', '--json'], { timeout: 5000, encoding: 'utf8' })
-    const rows = JSON.parse(out) as Array<{ id?: string; cwd?: string; updatedAt?: number; updated_at?: number }>
-    return rows
-      .filter((r) => r.cwd === cwd && r.id)
-      .map((r) => ({ sessionId: r.id!, updatedAt: r.updatedAt ?? r.updated_at ?? 0 }))
-      .sort((a, b) => b.updatedAt - a.updatedAt)
-      .slice(0, 10)
-  } catch {
-    return []
+// Codex stores each session as ~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl whose
+// first line is a `session_meta` record carrying the session id + cwd. (The old
+// `codex session list` CLI subcommand was removed, so we read disk directly — no
+// subprocess, no stderr leak.) Walk newest day-folders first, cap the scan.
+// `root` is injectable for tests; defaults to the real ~/.codex/sessions.
+export function discoverCodexSessions(
+  cwd: string,
+  root = join(homedir(), '.codex', 'sessions'),
+): DiscoveredSession[] {
+  if (!existsSync(root)) return []
+  const sessions: DiscoveredSession[] = []
+  // Descend year → month → day, each sorted desc, so recent sessions come first.
+  const descend = (dir: string): string[] => {
+    let entries: string[]
+    try {
+      entries = readdirSync(dir).sort().reverse()
+    } catch {
+      return []
+    }
+    return entries.map((e) => join(dir, e))
   }
+  const files: string[] = []
+  for (const year of descend(root)) {
+    for (const month of descend(year)) {
+      for (const day of descend(month)) {
+        try {
+          for (const f of readdirSync(day)) {
+            if (f.startsWith('rollout-') && f.endsWith('.jsonl')) files.push(join(day, f))
+          }
+        } catch {
+          // skip unreadable day folder
+        }
+      }
+    }
+    if (files.length > 500) break // safety cap on a deep history
+  }
+  // rollout-<ISO-timestamp>-… filenames sort lexically == chronologically, so a
+  // descending sort lets us read newest-first and stop at 10 matches.
+  files.sort().reverse()
+  for (const file of files) {
+    try {
+      const firstLine = readFileSync(file, 'utf8').split('\n')[0]
+      if (!firstLine) continue
+      const parsed = JSON.parse(firstLine) as {
+        type?: string
+        payload?: { id?: string; cwd?: string }
+      }
+      if (parsed.type === 'session_meta' && parsed.payload?.cwd === cwd && parsed.payload.id) {
+        sessions.push({ sessionId: parsed.payload.id, updatedAt: Math.floor(statSync(file).mtimeMs) })
+        if (sessions.length >= 10) break // newest-first, so the first 10 are the most recent
+      }
+    } catch {
+      // skip malformed rollout
+    }
+  }
+  return sessions.sort((a, b) => b.updatedAt - a.updatedAt)
 }
 
 export function registerRoutes(
@@ -114,6 +158,85 @@ export function registerRoutes(
     if (!conversation) return reply.code(404).send({ error: 'not found' })
     const detail: ConversationDetail = { conversation, transcript: registry.loadTranscript(id) }
     return detail
+  })
+
+  // A browser PushSubscription, stored so the manager can push to this device
+  // while the PWA is closed. Body is the JSON the SW's pushManager produced.
+  app.post('/push/subscribe', async (req, reply) => {
+    const body = req.body as { endpoint?: string; keys?: { p256dh?: string; auth?: string } }
+    const endpoint = body?.endpoint
+    const p256dh = body?.keys?.p256dh
+    const auth = body?.keys?.auth
+    if (typeof endpoint !== 'string' || typeof p256dh !== 'string' || typeof auth !== 'string') {
+      return reply.code(400).send({ error: 'endpoint and keys.{p256dh,auth} are required' })
+    }
+    registry.addPushSubscription({ endpoint, p256dh, auth })
+    return { ok: true }
+  })
+
+  app.post('/push/unsubscribe', async (req, reply) => {
+    const body = req.body as { endpoint?: string }
+    if (typeof body?.endpoint !== 'string') {
+      return reply.code(400).send({ error: 'endpoint is required' })
+    }
+    registry.removePushSubscription(body.endpoint)
+    return { ok: true }
+  })
+
+  // --- Git: review & commit the agent's work from the phone. Safe ops only
+  // (status / diff / add / restore --staged / commit). No reset/push/rebase/
+  // checkout — a fat-finger there is unrecoverable. cwd comes from the conversation.
+  const convCwd = (id: string): string | null => registry.getConversation(id)?.cwd ?? null
+
+  app.get('/conversations/:id/git', async (req, reply) => {
+    const cwd = convCwd((req.params as { id: string }).id)
+    if (!cwd) return reply.code(404).send({ error: 'not found' })
+    return gitStatus(cwd)
+  })
+
+  app.get('/conversations/:id/git/diff', async (req, reply) => {
+    const cwd = convCwd((req.params as { id: string }).id)
+    if (!cwd) return reply.code(404).send({ error: 'not found' })
+    const { path, staged } = req.query as { path?: string; staged?: string }
+    try {
+      return { diff: await gitDiff(cwd, { path, staged: staged === '1' || staged === 'true' }) }
+    } catch {
+      return reply.code(400).send({ error: 'invalid path' })
+    }
+  })
+
+  app.post('/conversations/:id/git/stage', async (req, reply) => {
+    const cwd = convCwd((req.params as { id: string }).id)
+    if (!cwd) return reply.code(404).send({ error: 'not found' })
+    const { path } = (req.body ?? {}) as { path?: string }
+    if (typeof path !== 'string') return reply.code(400).send({ error: 'path is required' })
+    try {
+      await gitStage(cwd, path)
+      return { ok: true }
+    } catch {
+      return reply.code(400).send({ error: 'invalid path' })
+    }
+  })
+
+  app.post('/conversations/:id/git/unstage', async (req, reply) => {
+    const cwd = convCwd((req.params as { id: string }).id)
+    if (!cwd) return reply.code(404).send({ error: 'not found' })
+    const { path } = (req.body ?? {}) as { path?: string }
+    if (typeof path !== 'string') return reply.code(400).send({ error: 'path is required' })
+    try {
+      await gitUnstage(cwd, path)
+      return { ok: true }
+    } catch {
+      return reply.code(400).send({ error: 'invalid path' })
+    }
+  })
+
+  app.post('/conversations/:id/git/commit', async (req, reply) => {
+    const cwd = convCwd((req.params as { id: string }).id)
+    if (!cwd) return reply.code(404).send({ error: 'not found' })
+    const { message } = (req.body ?? {}) as { message?: string }
+    if (typeof message !== 'string') return reply.code(400).send({ error: 'message is required' })
+    return gitCommit(cwd, message)
   })
 
   app.patch('/conversations/:id', async (req, reply) => {

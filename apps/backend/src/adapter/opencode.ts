@@ -22,9 +22,14 @@ export interface OcClient {
 
 type CreateServer = () => Promise<{ client: OcClient; server: { close(): void } }>
 
+// Opencode's native permission API has no session-scoped per-tool/per-command
+// rules, so the graduated scopes degrade to the nearest equivalent: allow_edits /
+// allow_command allow this single call ('once') rather than widening the grant.
 const RESPONSE: Record<ApprovalDecision, 'once' | 'always' | 'reject'> = {
   allow: 'once',
   allow_always: 'always',
+  allow_edits: 'once',
+  allow_command: 'once',
   deny: 'reject',
 }
 

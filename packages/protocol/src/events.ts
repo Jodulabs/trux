@@ -5,7 +5,12 @@ export const PROTOCOL_VERSION = 1 as const
 
 // ---- Shared ----
 export type ConversationStatus = 'idle' | 'thinking' | 'awaiting_approval' | 'error'
-export type ApprovalDecision = 'allow' | 'deny' | 'allow_always'
+// Graduated trust scopes. `allow`/`deny` are one-shot. `allow_always` accepts the
+// SDK's suggested permission rule. `allow_edits` flips Edit/Write/MultiEdit to
+// auto-approve for the rest of the session; `allow_command` pins this exact Bash
+// command so future identical invocations auto-approve — the middle ground between
+// babysitting every call and full yolo.
+export type ApprovalDecision = 'allow' | 'deny' | 'allow_always' | 'allow_edits' | 'allow_command'
 export type ToolResultStatus = 'ok' | 'error'
 
 export interface ImageAttachment {
@@ -74,22 +79,42 @@ export interface ErrorEvent {
 }
 // The persisted echo of a user's prompt, so the transcript renders user turns
 // on reload. Emitted by the manager when a user_message arrives (additive, like hello).
+// client_message_id echoes the sender's optimistic id so the client can reconcile
+// its locally-rendered bubble instead of duplicating it.
 export interface UserTextEvent {
   type: 'user_text'
   turn_id: string
   text: string
   attachments?: ImageAttachment[]
+  client_message_id?: string
 }
 // The detected dev-server port for a conversation (Mode A "Open preview").
 export interface PortDetectedEvent {
   type: 'port_detected'
   port: number
 }
+// Sent once after a resume to replay events the client missed while disconnected.
+export interface HistoryDeltaEvent {
+  type: 'history_delta'
+  events: ServerEvent[]
+}
+// Sent instead of a delta when the client is too far behind: the full transcript,
+// which the client folds from scratch (replacing its current items).
+export interface HistorySnapshotEvent {
+  type: 'history_snapshot'
+  events: ServerEvent[]
+}
 
-export type ServerEvent =
+// Every persisted server event carries an optional per-conversation seq once it
+// has been stored (text_delta stays unsequenced — it's broadcast-only). The
+// intersection distributes `seq?` across each member while keeping `type`
+// narrowing intact (A & (B | C) === (A & B) | (A & C)).
+export type ServerEvent = { seq?: number } & (
   | HelloEvent
   | UserTextEvent
   | PortDetectedEvent
+  | HistoryDeltaEvent
+  | HistorySnapshotEvent
   | TurnStartedEvent
   | TextDeltaEvent
   | TextEvent
@@ -99,6 +124,7 @@ export type ServerEvent =
   | StatusEvent
   | TurnCompleteEvent
   | ErrorEvent
+)
 
 // ---- Client -> server ----
 export interface AuthMessage {
@@ -109,6 +135,9 @@ export interface UserMessageMessage {
   type: 'user_message'
   text: string
   attachments?: ImageAttachment[]
+  // Optimistic id the client assigns so it can reconcile its locally-rendered
+  // bubble with the server's user_text echo, and dedupe a re-sent queued message.
+  client_message_id?: string
 }
 export interface ApprovalResponseMessage {
   type: 'approval_response'
@@ -119,9 +148,15 @@ export interface ApprovalResponseMessage {
 export interface InterruptMessage {
   type: 'interrupt'
 }
+// Sent right after auth on a reconnect: replay everything with seq > since_seq.
+export interface ResumeMessage {
+  type: 'resume'
+  since_seq: number
+}
 
 export type ClientMessage =
   | AuthMessage
   | UserMessageMessage
   | ApprovalResponseMessage
   | InterruptMessage
+  | ResumeMessage

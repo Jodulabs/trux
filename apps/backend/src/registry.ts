@@ -137,6 +137,54 @@ export class SqliteRegistry {
     ).map((r) => ({ seq: r.seq, event: JSON.parse(r.payload) as ServerEvent }))
   }
 
+  // Events with seq > sinceSeq, for replaying what a reconnecting client missed.
+  // Filtered in SQL so a long transcript isn't fully materialized per reconnect.
+  loadTranscriptSince(convId: string, sinceSeq: number): StoredEvent[] {
+    return (
+      this.db
+        .prepare('SELECT seq, payload FROM events WHERE conversation_id = ? AND seq > ? ORDER BY seq')
+        .all(convId, sinceSeq) as { seq: number; payload: string }[]
+    ).map((r) => ({ seq: r.seq, event: JSON.parse(r.payload) as ServerEvent }))
+  }
+
+  // The client_message_ids already persisted for a conversation — seeds the
+  // manager's idempotency set so a reconnect flush can't replay a processed turn
+  // even across a process restart.
+  seenMessageIds(convId: string): string[] {
+    const rows = this.db
+      .prepare("SELECT payload FROM events WHERE conversation_id = ? AND type = 'user_text'")
+      .all(convId) as { payload: string }[]
+    const ids: string[] = []
+    for (const r of rows) {
+      const id = (JSON.parse(r.payload) as { client_message_id?: string }).client_message_id
+      if (id) ids.push(id)
+    }
+    return ids
+  }
+
+  // --- Web-push subscriptions ---
+
+  // Upsert by endpoint so a device re-subscribing refreshes its keys in place.
+  addPushSubscription(sub: { endpoint: string; p256dh: string; auth: string }): void {
+    this.db
+      .prepare(
+        `INSERT INTO push_subscriptions (endpoint, p256dh, auth, created_at)
+         VALUES (@endpoint, @p256dh, @auth, @created_at)
+         ON CONFLICT(endpoint) DO UPDATE SET p256dh = excluded.p256dh, auth = excluded.auth`,
+      )
+      .run({ ...sub, created_at: Date.now() })
+  }
+
+  listPushSubscriptions(): Array<{ endpoint: string; p256dh: string; auth: string }> {
+    return this.db
+      .prepare('SELECT endpoint, p256dh, auth FROM push_subscriptions')
+      .all() as Array<{ endpoint: string; p256dh: string; auth: string }>
+  }
+
+  removePushSubscription(endpoint: string): void {
+    this.db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').run(endpoint)
+  }
+
   searchConversations(q: string): Array<{ conversation: Conversation; snippet: string }> {
     // snippet() is an FTS5 auxiliary function — cannot be used with GROUP BY.
     // Fetch up to 100 raw matches, then deduplicate by conversation_id in JS.

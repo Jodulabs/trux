@@ -149,6 +149,36 @@ describe('ClaudeAdapter mapping', () => {
     expect(await result).toEqual({ behavior: 'deny', message: 'no thanks' })
   })
 
+  it('allow_edits auto-approves later Edit/Write calls without prompting', async () => {
+    const { fn, getCanUseTool } = fakeQuery([], true)
+    const session = new ClaudeAdapter(fn).start({ cwd: '/repo' })
+    const opts = (id: string) => ({ signal: new AbortController().signal, toolUseID: id })
+    // First Edit prompts; user grants "allow all edits".
+    const first = getCanUseTool()('Edit', { file_path: 'a.ts' }, opts('tu_1'))
+    session.respondApproval('tu_1', 'allow_edits')
+    expect(await first).toEqual({ behavior: 'allow', updatedInput: { file_path: 'a.ts' } })
+    // A later Write resolves immediately — no second approval_request parked.
+    const second = getCanUseTool()('Write', { file_path: 'b.ts' }, opts('tu_2'))
+    expect(await second).toEqual({ behavior: 'allow', updatedInput: { file_path: 'b.ts' } })
+  })
+
+  it('allow_command pins the exact command; a different command still prompts', async () => {
+    const { fn, getCanUseTool } = fakeQuery([], true)
+    const session = new ClaudeAdapter(fn).start({ cwd: '/repo' })
+    const opts = (id: string) => ({ signal: new AbortController().signal, toolUseID: id })
+    const first = getCanUseTool()('Bash', { command: 'pnpm test' }, opts('tu_1'))
+    session.respondApproval('tu_1', 'allow_command')
+    expect(await first).toEqual({ behavior: 'allow', updatedInput: { command: 'pnpm test' } })
+    // Same command → auto-allowed.
+    const same = getCanUseTool()('Bash', { command: 'pnpm test' }, opts('tu_2'))
+    expect(await same).toEqual({ behavior: 'allow', updatedInput: { command: 'pnpm test' } })
+    // Different command → parks a new approval_request (not yet resolved).
+    let resolved = false
+    void getCanUseTool()('Bash', { command: 'rm -rf dist' }, opts('tu_3')).then(() => { resolved = true })
+    await new Promise((r) => setTimeout(r, 5))
+    expect(resolved).toBe(false)
+  })
+
   it('denies a parked approval when the signal aborts', async () => {
     const { fn, getCanUseTool } = fakeQuery([], true)
     new ClaudeAdapter(fn).start({ cwd: '/repo' })

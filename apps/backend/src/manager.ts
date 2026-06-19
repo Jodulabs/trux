@@ -3,13 +3,29 @@ import type { AgentName, ApprovalDecision, ImageAttachment, ServerEvent } from '
 import type { AdapterEvent, AgentAdapter, AgentSession } from './adapter/types'
 import { detectPort } from './ports'
 import type { SqliteRegistry } from './registry'
+import type { NotifyInput } from './push'
 
 type Listener = (event: ServerEvent) => void
+
+// The push seam: the manager calls this when a closed PWA should be pulled back
+// (an approval it's blocked on, a finished turn). Optional — null disables push.
+export interface Notifier {
+  notify(input: NotifyInput): Promise<void>
+}
+
+// Beyond this many missed events, a reconnecting client gets a full snapshot to
+// fold from scratch rather than a delta — cheaper than streaming a huge backlog.
+const SNAPSHOT_THRESHOLD = 200
 
 interface LiveSession {
   session: AgentSession
   currentTurnId: string | null
   lastPort: number | null
+  // client_message_ids already processed this process-lifetime, so a reconnect
+  // outbox flush can't run the same turn twice (the echo may not have reached the
+  // client before the socket dropped). Persisted user_text is also checked, so
+  // this survives a process restart via the transcript.
+  seenMessageIds: Set<string>
 }
 
 // Stamp an adapter event (no turn_id) into a wire ServerEvent for the open turn.
@@ -55,6 +71,7 @@ export class ConversationManager {
   constructor(
     private readonly registry: SqliteRegistry,
     private readonly adapters: Map<AgentName, AgentAdapter>,
+    private readonly notifier: Notifier | null = null,
   ) {}
 
   attach(convId: string, listener: Listener): () => void {
@@ -68,7 +85,12 @@ export class ConversationManager {
     return [...this.adapters.keys()]
   }
 
-  async handleUserMessage(convId: string, text: string, attachments?: ImageAttachment[]): Promise<void> {
+  async handleUserMessage(
+    convId: string,
+    text: string,
+    attachments?: ImageAttachment[],
+    clientMessageId?: string,
+  ): Promise<void> {
     const live = this.ensureSession(convId)
     if (!live) {
       this.emit(convId, {
@@ -78,6 +100,11 @@ export class ConversationManager {
       })
       return
     }
+    // Idempotency: a reconnect outbox flush can replay a message the server
+    // already ran (the user_text echo may not have reached the client before the
+    // socket dropped). Drop the duplicate; the original is replayed via resume.
+    if (clientMessageId && live.seenMessageIds.has(clientMessageId)) return
+    if (clientMessageId) live.seenMessageIds.add(clientMessageId)
     const turnId = `t_${randomUUID().slice(0, 8)}`
     live.currentTurnId = turnId
     this.emit(convId, {
@@ -85,6 +112,7 @@ export class ConversationManager {
       turn_id: turnId,
       text,
       ...(attachments && attachments.length > 0 ? { attachments } : {}),
+      ...(clientMessageId ? { client_message_id: clientMessageId } : {}),
     })
     this.emit(convId, { type: 'turn_started', turn_id: turnId })
     this.emit(convId, { type: 'status', state: 'thinking' })
@@ -107,6 +135,46 @@ export class ConversationManager {
     this.emit(convId, { type: 'status', state: 'thinking' })
   }
 
+  // Replay what a reconnecting client missed. Normally a history_delta of events
+  // with seq > sinceSeq; if the gap is large (or the client is far behind / fresh)
+  // send a history_snapshot the client folds from scratch instead.
+  replaySince(convId: string, sinceSeq: number, listener: Listener): void {
+    const missed = this.registry
+      .loadTranscriptSince(convId, sinceSeq)
+      .map((s) => ({ ...s.event, seq: s.seq }))
+    if (missed.length > SNAPSHOT_THRESHOLD) {
+      const all = this.registry.loadTranscript(convId).map((s) => ({ ...s.event, seq: s.seq }))
+      listener({ type: 'history_snapshot', events: all })
+      return
+    }
+    listener({ type: 'history_delta', events: missed })
+  }
+
+  // Fire a push for a conversation, tagging the payload with convId so the SW can
+  // deep-link. Swallows errors — a push failure must never break the turn pump.
+  private async pushNotify(convId: string, input: Omit<NotifyInput, 'conversationId'>): Promise<void> {
+    if (!this.notifier) return
+    try {
+      await this.notifier.notify({ conversationId: convId, ...input })
+    } catch {
+      // best-effort
+    }
+  }
+
+  private convTitle(convId: string): string {
+    const conv = this.registry.getConversation(convId)
+    return conv?.title ?? 'trux'
+  }
+
+  // A short, human one-liner for the notification body (the command / file path).
+  private approvalBody(tool: string, input: unknown): string {
+    if (!input || typeof input !== 'object') return ''
+    const o = input as Record<string, unknown>
+    const str = (v: unknown): string => (typeof v === 'string' ? v : '')
+    const raw = str(o.command) || str(o.file_path) || str(o.path) || str(o.pattern) || str(o.url) || tool
+    return raw.length > 120 ? `${raw.slice(0, 117)}…` : raw
+  }
+
   private ensureSession(convId: string): LiveSession | null {
     const existing = this.live.get(convId)
     if (existing) return existing
@@ -118,7 +186,13 @@ export class ConversationManager {
       cwd: conv.cwd,
       resume: conv.native_session_id ?? undefined,
     })
-    const live: LiveSession = { session, currentTurnId: null, lastPort: null }
+    const live: LiveSession = {
+      session,
+      currentTurnId: null,
+      lastPort: null,
+      // Seed from persisted history so idempotency survives a process restart.
+      seenMessageIds: new Set(this.registry.seenMessageIds(convId)),
+    }
     this.live.set(convId, live)
     void this.pump(convId, live)
     return live
@@ -131,6 +205,12 @@ export class ConversationManager {
         this.emit(convId, wire)
         if (wire.type === 'approval_request') {
           this.emit(convId, { type: 'status', state: 'awaiting_approval' })
+          void this.pushNotify(convId, {
+            kind: 'approval',
+            dedupeKey: `approval:${wire.request_id}`,
+            title: this.convTitle(convId),
+            body: `${wire.tool}: ${this.approvalBody(wire.tool, wire.input)}`,
+          })
         }
         if (wire.type === 'tool_result' || wire.type === 'text') {
           const port = detectPort(wire.type === 'tool_result' ? wire.output : wire.text)
@@ -142,6 +222,12 @@ export class ConversationManager {
         if (wire.type === 'turn_complete') {
           const sid = live.session.nativeSessionId()
           if (sid) this.registry.setNativeSessionId(convId, sid)
+          void this.pushNotify(convId, {
+            kind: 'turn',
+            dedupeKey: `turn:${wire.turn_id}`,
+            title: this.convTitle(convId),
+            body: 'Turn complete',
+          })
           this.emit(convId, { type: 'status', state: 'idle' })
           live.currentTurnId = null
         }
@@ -152,12 +238,16 @@ export class ConversationManager {
     }
   }
 
-  // Persist (everything but text_delta) then broadcast to attached sockets.
+  // Persist (everything but text_delta) then broadcast to attached sockets. The
+  // persisted seq is stamped onto the broadcast event so clients can track what
+  // they've seen and ask for deltas on reconnect (text_delta stays unsequenced).
   private emit(convId: string, event: ServerEvent): void {
+    let wire = event
     if (event.type !== 'text_delta') {
-      this.registry.appendEvent(convId, event)
+      const { seq } = this.registry.appendEvent(convId, event)
+      wire = { ...event, seq }
       if (event.type === 'status') this.registry.setStatus(convId, event.state)
     }
-    for (const listener of this.listeners.get(convId) ?? []) listener(event)
+    for (const listener of this.listeners.get(convId) ?? []) listener(wire)
   }
 }

@@ -49,3 +49,27 @@ export interface ConversationDetail {
 export interface AgentsResponse {
   agents: AgentName[]
 }
+
+export interface GitFileStatus {
+  path: string
+  index: string
+  work: string
+  staged: boolean
+}
+
+export interface GitStatus {
+  repo: true
+  branch: string | null
+  ahead: number
+  behind: number
+  dirty: boolean
+  files: GitFileStatus[]
+}
+
+export type GitStatusResult = GitStatus | { repo: false }
+
+export interface CommitResult {
+  ok: boolean
+  hash?: string
+  error?: string
+}

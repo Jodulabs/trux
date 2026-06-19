@@ -49,6 +49,40 @@ describe('foldEvent approvals', () => {
   })
 })
 
+describe('foldEvent optimistic reconciliation', () => {
+  it('replaces a pending optimistic bubble with the server echo by client_message_id', () => {
+    const optimistic: TranscriptItem = {
+      type: 'user_text', turn_id: '', text: 'hi', client_message_id: 'm1', pending: true,
+    } as TranscriptItem
+    const items = foldEvent([optimistic], {
+      type: 'user_text', turn_id: 't1', text: 'hi', client_message_id: 'm1',
+    })
+    expect(items).toHaveLength(1)
+    expect(items[0]).toEqual({ type: 'user_text', turn_id: 't1', text: 'hi', client_message_id: 'm1' })
+  })
+
+  it('appends a user_text with no matching optimistic id', () => {
+    const items = foldEvent([], { type: 'user_text', turn_id: 't1', text: 'hi', client_message_id: 'm9' })
+    expect(items).toHaveLength(1)
+  })
+})
+
+describe('applyEvent history_delta', () => {
+  it('folds a delta batch in order and tracks lastSeq', () => {
+    useStore.setState({ transcript: [], lastSeq: -1, status: 'idle' })
+    useStore.getState().applyEvent({
+      type: 'history_delta',
+      events: [
+        { type: 'user_text', turn_id: 't1', text: 'hi', seq: 3 },
+        { type: 'text', turn_id: 't1', text: 'yo', seq: 4 },
+        { type: 'status', state: 'idle', seq: 5 },
+      ],
+    })
+    expect(useStore.getState().transcript.map((i) => i.type)).toEqual(['user_text', 'text'])
+    expect(useStore.getState().lastSeq).toBe(5)
+  })
+})
+
 describe('recordApproval', () => {
   it('records the decision for a request id', () => {
     useStore.getState().recordApproval('tu_1', 'allow')
@@ -56,9 +90,52 @@ describe('recordApproval', () => {
   })
 })
 
+describe('failPending', () => {
+  it('marks pending optimistic bubbles failed and returns their ids', () => {
+    useStore.setState({
+      transcript: [
+        { type: 'user_text', turn_id: '', text: 'hi', client_message_id: 'm1', pending: true },
+        { type: 'text', turn_id: 't1', text: 'reply' },
+      ] as TranscriptItem[],
+    })
+    const ids = useStore.getState().failPending()
+    expect(ids).toEqual(['m1'])
+    const bubble = useStore.getState().transcript[0] as { pending?: boolean; failed?: boolean }
+    expect(bubble.pending).toBe(false)
+    expect(bubble.failed).toBe(true)
+  })
+})
+
 describe('previewPort', () => {
   it('sets previewPort from a port_detected event', () => {
     useStore.getState().applyEvent({ type: 'port_detected', port: 5173 })
     expect(useStore.getState().previewPort).toBe(5173)
+  })
+})
+
+describe('convMeta', () => {
+  it('setConvMeta creates a new entry with defaults merged in', () => {
+    useStore.setState({ convMeta: {} })
+    useStore.getState().setConvMeta('c1', { status: 'thinking' })
+    expect(useStore.getState().convMeta['c1']).toMatchObject({ status: 'thinking', unread: 0, lastSeq: -1 })
+  })
+
+  it('bumpUnread increments unread for a background conversation', () => {
+    useStore.setState({ convMeta: {} })
+    useStore.getState().bumpUnread('c1')
+    useStore.getState().bumpUnread('c1')
+    expect(useStore.getState().convMeta['c1']?.unread).toBe(2)
+  })
+
+  it('clearUnread resets the unread counter to 0', () => {
+    useStore.setState({ convMeta: { c1: { status: 'idle', unread: 5, connState: 'connected', lastSeq: 3, totalCost: 0 } } })
+    useStore.getState().clearUnread('c1')
+    expect(useStore.getState().convMeta['c1']?.unread).toBe(0)
+  })
+
+  it('setConvMeta patches without clobbering other fields', () => {
+    useStore.setState({ convMeta: { c1: { status: 'thinking', unread: 3, connState: 'connected', lastSeq: 7, totalCost: 0.5 } } })
+    useStore.getState().setConvMeta('c1', { status: 'idle' })
+    expect(useStore.getState().convMeta['c1']).toEqual({ status: 'idle', unread: 3, connState: 'connected', lastSeq: 7, totalCost: 0.5 })
   })
 })

@@ -31,16 +31,30 @@ describe('Composer', () => {
 })
 
 describe('Transcript', () => {
-  it('renders user, assistant, and tool items', () => {
+  it('renders user and assistant items, and folds tool activity', () => {
     const items: TranscriptItem[] = [
       { type: 'user_text', turn_id: 't1', text: 'hello' },
       { type: 'text', turn_id: 't1', text: 'hi back' },
       { type: 'tool_call', turn_id: 't1', tool_id: 'x', name: 'Bash', input: { command: 'ls' } },
     ]
-    render(<Transcript items={items} approvalDecisions={{}} onRespond={() => {}} />)
+    // running → the activity group is open, so the tool name shows
+    render(<Transcript items={items} approvalDecisions={{}} onRespond={() => {}} status="thinking" />)
     expect(screen.getByText('hello')).toBeInTheDocument()
     expect(screen.getByText('hi back')).toBeInTheDocument()
-    expect(screen.getByText(/Bash/)).toBeInTheDocument()
+    expect(screen.getByTestId('activity-group')).toBeInTheDocument()
+    expect(screen.getAllByText(/Bash/).length).toBeGreaterThan(0)
+  })
+
+  it('collapses a settled tool group and expands it on tap', () => {
+    const items: TranscriptItem[] = [
+      { type: 'tool_call', turn_id: 't1', tool_id: 'x', name: 'Bash', input: { command: 'ls' } },
+      { type: 'tool_result', turn_id: 't1', tool_id: 'x', status: 'ok', output: 'file.txt' },
+    ]
+    // not running → collapsed: output hidden until the header is tapped
+    render(<Transcript items={items} approvalDecisions={{}} onRespond={() => {}} status="idle" />)
+    expect(screen.queryByText('file.txt')).toBeNull()
+    fireEvent.click(screen.getByTestId('activity-toggle'))
+    expect(screen.getByText('file.txt')).toBeInTheDocument()
   })
 
   it('renders an inline image for a tool_result with images', () => {
@@ -50,7 +64,8 @@ describe('Transcript', () => {
         images: [{ kind: 'image', media_type: 'image/png', data: 'AAAA' }],
       },
     ]
-    render(<Transcript items={items} approvalDecisions={{}} onRespond={() => {}} />)
+    // running → open, so the image renders
+    render(<Transcript items={items} approvalDecisions={{}} onRespond={() => {}} status="thinking" />)
     const img = screen.getByTestId('tool-image') as HTMLImageElement
     expect(img.src).toContain('data:image/png;base64,AAAA')
   })
@@ -61,17 +76,36 @@ describe('ApprovalCard', () => {
     type: 'approval_request', turn_id: 't1', request_id: 'tu_1', tool: 'Bash', input: { command: 'ls' },
   }
 
-  it('renders Allow/Deny/Always and calls onRespond', () => {
+  it('renders graduated Bash actions and calls onRespond', () => {
     const onRespond = vi.fn()
     render(<ApprovalCard event={event} onRespond={onRespond} />)
+    // Bash gets Allow once / Allow this command / Deny.
+    expect(screen.getByTestId('approve-command')).toBeInTheDocument()
     fireEvent.click(screen.getByTestId('approve-allow'))
     expect(onRespond).toHaveBeenCalledWith('tu_1', 'allow')
+    fireEvent.click(screen.getByTestId('approve-command'))
+    expect(onRespond).toHaveBeenCalledWith('tu_1', 'allow_command')
   })
 
-  it('shows the decided state instead of buttons', () => {
+  it('renders "Allow all edits" for an Edit tool', () => {
+    const editEvent: ApprovalRequestEvent = {
+      type: 'approval_request', turn_id: 't1', request_id: 'tu_2', tool: 'Write', input: { file_path: 'a.ts' },
+    }
+    const onRespond = vi.fn()
+    render(<ApprovalCard event={editEvent} onRespond={onRespond} />)
+    fireEvent.click(screen.getByTestId('approve-edits'))
+    expect(onRespond).toHaveBeenCalledWith('tu_2', 'allow_edits')
+    // The one approved thing is surfaced structurally, not as JSON only.
+    expect(screen.getByTestId('approval-subject')).toHaveTextContent('a.ts')
+  })
+
+  it('shows the chosen decision and disables the buttons (decision history)', () => {
     render(<ApprovalCard event={event} decision="deny" onRespond={() => {}} />)
     expect(screen.getByTestId('approval-decided')).toHaveTextContent('deny')
-    expect(screen.queryByTestId('approve-allow')).toBeNull()
+    // Buttons stay rendered (lit/dimmed) but are disabled.
+    const allow = screen.getByTestId('approve-allow')
+    expect(allow).toBeDisabled()
+    expect(screen.getByTestId('approve-deny')).toHaveClass('chosen')
   })
 })
 

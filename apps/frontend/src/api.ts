@@ -1,9 +1,11 @@
 import type {
   AgentsResponse,
+  CommitResult,
   Conversation,
   ConversationDetail,
   CreateConversationRequest,
   DiscoveredSession,
+  GitStatusResult,
   Workspace,
 } from '@trux/protocol'
 
@@ -32,9 +34,46 @@ export const api = {
       body: JSON.stringify(body),
     }).then(json<Conversation>),
   getRemoteConfig: () =>
-    fetch('/config').then(json<{ tailscaleHost: string | null }>),
+    fetch('/config').then(json<{ tailscaleHost: string | null; vapidPublicKey: string | null }>),
+  subscribePush: (sub: PushSubscriptionJSON) =>
+    fetch('/push/subscribe', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...authHeaders() },
+      body: JSON.stringify(sub),
+    }).then(json<{ ok: boolean }>),
+  searchConversations: (q: string) =>
+    fetch(`/conversations/search?q=${encodeURIComponent(q)}`, { headers: authHeaders() }).then(json<Conversation[]>),
   discoverSessions: (agent: string, cwd: string) =>
     fetch(`/sessions/discover?agent=${encodeURIComponent(agent)}&cwd=${encodeURIComponent(cwd)}`, {
       headers: authHeaders(),
     }).then(json<DiscoveredSession[]>),
+  gitStatus: (id: string) =>
+    fetch(`/conversations/${id}/git`, { headers: authHeaders() }).then(json<GitStatusResult>),
+  gitDiff: (id: string, opts?: { path?: string; staged?: boolean }) => {
+    const p = new URLSearchParams()
+    if (opts?.path) p.set('path', opts.path)
+    if (opts?.staged) p.set('staged', '1')
+    const qs = p.toString()
+    return fetch(`/conversations/${id}/git/diff${qs ? `?${qs}` : ''}`, {
+      headers: authHeaders(),
+    }).then(json<{ diff: string }>)
+  },
+  gitStage: (id: string, path: string) =>
+    fetch(`/conversations/${id}/git/stage`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ path }),
+    }).then(json<{ ok: boolean }>),
+  gitUnstage: (id: string, path: string) =>
+    fetch(`/conversations/${id}/git/unstage`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ path }),
+    }).then(json<{ ok: boolean }>),
+  gitCommit: (id: string, message: string) =>
+    fetch(`/conversations/${id}/git/commit`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ message }),
+    }).then(json<CommitResult>),
 }

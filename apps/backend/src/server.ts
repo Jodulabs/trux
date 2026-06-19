@@ -16,6 +16,7 @@ export async function buildServer(
   db: TruxDatabase,
   registry: SqliteRegistry,
   manager: ConversationManager,
+  opts?: { vapidPublicKey?: string | null },
 ): Promise<FastifyInstance> {
   const app = Fastify({ logger: false })
   await app.register(websocket)
@@ -25,7 +26,11 @@ export async function buildServer(
     return { ok: true, conversations: n }
   })
 
-  app.get('/config', async () => ({ tailscaleHost: config.tailscaleHost }))
+  app.get('/config', async () => ({
+    tailscaleHost: config.tailscaleHost,
+    // null when push is disabled (no VAPID keys) → the client skips subscribing.
+    vapidPublicKey: opts?.vapidPublicKey ?? null,
+  }))
 
   // REST routes get their own encapsulated scope so the bearer preHandler hook
   // stays off /health, /config, or the WS upgrade.

@@ -73,4 +73,20 @@ describe('SqliteRegistry', () => {
     registry.appendEvent(conv.id, { type: 'user_text', turn_id: 't1', text: 'hello world' })
     expect(registry.searchConversations('xyzzy')).toEqual([])
   })
+
+  it('stores, lists, upserts, and removes push subscriptions', () => {
+    registry.addPushSubscription({ endpoint: 'https://push/a', p256dh: 'k1', auth: 'a1' })
+    registry.addPushSubscription({ endpoint: 'https://push/b', p256dh: 'k2', auth: 'a2' })
+    expect(registry.listPushSubscriptions().map((s) => s.endpoint).sort()).toEqual([
+      'https://push/a',
+      'https://push/b',
+    ])
+    // Re-subscribing the same endpoint upserts (no duplicate, refreshed keys).
+    registry.addPushSubscription({ endpoint: 'https://push/a', p256dh: 'k1b', auth: 'a1b' })
+    const subs = registry.listPushSubscriptions()
+    expect(subs).toHaveLength(2)
+    expect(subs.find((s) => s.endpoint === 'https://push/a')?.p256dh).toBe('k1b')
+    registry.removePushSubscription('https://push/a')
+    expect(registry.listPushSubscriptions().map((s) => s.endpoint)).toEqual(['https://push/b'])
+  })
 })

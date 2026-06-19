@@ -40,6 +40,31 @@ class FakeSession implements AgentSession {
   }
 }
 
+// A turn that parks on an approval_request and resumes (tool_result + complete)
+// once the response arrives — needed to exercise both push notifications.
+class ApprovalScriptAdapter implements AgentAdapter {
+  readonly name = 'claude' as const
+  start(): AgentSession {
+    const outbox = new PushQueue<AdapterEvent>()
+    let answered: (() => void) | null = null
+    return {
+      send: () => {
+        outbox.push({ type: 'approval_request', request_id: 'tu_1', tool: 'Bash', input: { command: 'ls' } })
+        void new Promise<void>((r) => (answered = r)).then(() => {
+          outbox.push({ type: 'tool_result', tool_id: 'tu_1', status: 'ok', output: 'done' })
+          outbox.push({ type: 'turn_complete', cost: 0 })
+          outbox.end()
+        })
+      },
+      events: () => outbox.iterable(),
+      interrupt: async () => {},
+      close: async () => {},
+      nativeSessionId: () => 'sess_fake',
+      respondApproval: () => answered?.(),
+    }
+  }
+}
+
 let db: TruxDatabase
 let registry: SqliteRegistry
 
@@ -231,6 +256,36 @@ describe('ConversationManager', () => {
     await settle()
     const userTexts = seen.filter((e) => e.type === 'user_text')
     expect(userTexts).toHaveLength(1) // the duplicate was dropped
+  })
+
+  it('pushes a notification on approval_request and turn_complete, deduped', async () => {
+    const conv = registry.createConversation({ agent: 'claude', cwd: '/repo', title: 'My repo' })
+    const adapter = new ApprovalScriptAdapter()
+    const notes: Array<{ kind: string; dedupeKey: string; title: string; body: string; conversationId: string }> = []
+    const notifier = { notify: async (n: typeof notes[number]) => { notes.push(n) } }
+    const manager = new ConversationManager(registry, new Map([['claude', adapter]]), notifier)
+    manager.attach(conv.id, () => {})
+    await manager.handleUserMessage(conv.id, 'go')
+    await settle()
+    await manager.handleApprovalResponse(conv.id, 'tu_1', 'allow', null)
+    await settle()
+    // One approval push + one turn push, both tagged with the conversation.
+    expect(notes.map((n) => n.kind)).toEqual(['approval', 'turn'])
+    expect(notes[0]).toMatchObject({ conversationId: conv.id, title: 'My repo' })
+    expect(notes[0].body).toContain('Bash')
+    expect(notes[0].dedupeKey).toBe('approval:tu_1')
+    expect(notes[1].dedupeKey).toMatch(/^turn:/)
+  })
+
+  it('runs without a notifier (push disabled) just fine', async () => {
+    const conv = registry.createConversation({ agent: 'claude', cwd: '/repo' })
+    const adapter = new FakeAdapter([{ type: 'text', text: 'hi' }, { type: 'turn_complete', cost: 0 }])
+    const manager = new ConversationManager(registry, new Map([['claude', adapter]]))
+    const seen: ServerEvent[] = []
+    manager.attach(conv.id, (e) => seen.push(e))
+    await manager.handleUserMessage(conv.id, 'go')
+    await settle()
+    expect(seen.some((e) => e.type === 'turn_complete')).toBe(true)
   })
 
   it('idempotency survives a fresh manager via persisted history', async () => {

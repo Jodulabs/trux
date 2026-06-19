@@ -11,6 +11,9 @@ export interface Config {
   authRequired: boolean
   workspaceRoots: string[]
   tailscaleHost: string | null
+  // When true, push bodies are genericized ("Approval required") so a lockscreen
+  // preview can't leak a command or path.
+  pushPrivacy: boolean
 }
 
 // Only an explicit '1'/'true' is true. Note this is fail-OPEN for TRUX_AUTH: a typo or unset
@@ -36,5 +39,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     authRequired: bool(env.TRUX_AUTH),
     workspaceRoots: env.TRUX_WORKSPACES ? env.TRUX_WORKSPACES.split(':').filter(Boolean) : [],
     tailscaleHost: env.TRUX_TAILSCALE_HOST ?? null,
+    pushPrivacy: bool(env.TRUX_PUSH_PRIVACY),
   }
 }

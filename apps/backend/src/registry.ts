@@ -162,6 +162,29 @@ export class SqliteRegistry {
     return ids
   }
 
+  // --- Web-push subscriptions ---
+
+  // Upsert by endpoint so a device re-subscribing refreshes its keys in place.
+  addPushSubscription(sub: { endpoint: string; p256dh: string; auth: string }): void {
+    this.db
+      .prepare(
+        `INSERT INTO push_subscriptions (endpoint, p256dh, auth, created_at)
+         VALUES (@endpoint, @p256dh, @auth, @created_at)
+         ON CONFLICT(endpoint) DO UPDATE SET p256dh = excluded.p256dh, auth = excluded.auth`,
+      )
+      .run({ ...sub, created_at: Date.now() })
+  }
+
+  listPushSubscriptions(): Array<{ endpoint: string; p256dh: string; auth: string }> {
+    return this.db
+      .prepare('SELECT endpoint, p256dh, auth FROM push_subscriptions')
+      .all() as Array<{ endpoint: string; p256dh: string; auth: string }>
+  }
+
+  removePushSubscription(endpoint: string): void {
+    this.db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').run(endpoint)
+  }
+
   searchConversations(q: string): Array<{ conversation: Conversation; snippet: string }> {
     // snippet() is an FTS5 auxiliary function — cannot be used with GROUP BY.
     // Fetch up to 100 raw matches, then deduplicate by conversation_id in JS.

@@ -9,6 +9,7 @@ import { OpencodeAdapter } from './adapter/opencode'
 import { ConversationManager } from './manager'
 import type { AgentAdapter } from './adapter/types'
 import { buildServer } from './server'
+import { loadOrCreateVapid, WebPushNotifier } from './push'
 
 loadEnvFiles()
 
@@ -25,8 +26,15 @@ async function main(): Promise<void> {
     ['codex', new CodexAdapter()],
     ['opencode', new OpencodeAdapter()],
   ])
-  const manager = new ConversationManager(registry, adapters)
-  const app = await buildServer(config, db, registry, manager)
+  // Web-push: establish VAPID keys (env, persisted file, or freshly generated).
+  // If keys can't be set up, push is disabled and the rest of trux runs unchanged.
+  const vapid = loadOrCreateVapid()
+  const notifier = vapid
+    ? new WebPushNotifier(registry, vapid, { privacy: config.pushPrivacy })
+    : null
+  if (!vapid) console.log('trux: web-push disabled (no VAPID keys)')
+  const manager = new ConversationManager(registry, adapters, notifier)
+  const app = await buildServer(config, db, registry, manager, { vapidPublicKey: vapid?.publicKey ?? null })
   await app.listen({ host: config.host, port: config.port })
   console.log(`trux backend listening on http://${config.host}:${config.port} (db: ${config.dbPath})`)
   printStartBanner(config)

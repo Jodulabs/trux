@@ -32,7 +32,13 @@ export const api = {
       body: JSON.stringify(body),
     }).then(json<Conversation>),
   getRemoteConfig: () =>
-    fetch('/config').then(json<{ tailscaleHost: string | null }>),
+    fetch('/config').then(json<{ tailscaleHost: string | null; vapidPublicKey: string | null }>),
+  subscribePush: (sub: PushSubscriptionJSON) =>
+    fetch('/push/subscribe', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...authHeaders() },
+      body: JSON.stringify(sub),
+    }).then(json<{ ok: boolean }>),
   discoverSessions: (agent: string, cwd: string) =>
     fetch(`/sessions/discover?agent=${encodeURIComponent(agent)}&cwd=${encodeURIComponent(cwd)}`, {
       headers: authHeaders(),

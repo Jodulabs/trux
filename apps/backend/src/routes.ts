@@ -159,6 +159,29 @@ export function registerRoutes(
     return detail
   })
 
+  // A browser PushSubscription, stored so the manager can push to this device
+  // while the PWA is closed. Body is the JSON the SW's pushManager produced.
+  app.post('/push/subscribe', async (req, reply) => {
+    const body = req.body as { endpoint?: string; keys?: { p256dh?: string; auth?: string } }
+    const endpoint = body?.endpoint
+    const p256dh = body?.keys?.p256dh
+    const auth = body?.keys?.auth
+    if (typeof endpoint !== 'string' || typeof p256dh !== 'string' || typeof auth !== 'string') {
+      return reply.code(400).send({ error: 'endpoint and keys.{p256dh,auth} are required' })
+    }
+    registry.addPushSubscription({ endpoint, p256dh, auth })
+    return { ok: true }
+  })
+
+  app.post('/push/unsubscribe', async (req, reply) => {
+    const body = req.body as { endpoint?: string }
+    if (typeof body?.endpoint !== 'string') {
+      return reply.code(400).send({ error: 'endpoint is required' })
+    }
+    registry.removePushSubscription(body.endpoint)
+    return { ok: true }
+  })
+
   app.patch('/conversations/:id', async (req, reply) => {
     const { id } = req.params as { id: string }
     const body = (req.body ?? {}) as { archived?: boolean; title?: string }

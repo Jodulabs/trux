@@ -77,6 +77,7 @@ interface TruxState {
   approvalDecisions: Record<string, ApprovalDecision>
   previewPort: number | null
   tailscaleHost: string | null
+  vapidPublicKey: string | null
   loadConversations: () => Promise<void>
   loadRemoteConfig: () => Promise<void>
   selectConversation: (id: string) => Promise<void>
@@ -97,12 +98,13 @@ export const useStore = create<TruxState>((set, get) => ({
   approvalDecisions: {},
   previewPort: null,
   tailscaleHost: null,
+  vapidPublicKey: null,
   async loadConversations() {
     set({ conversations: await api.listConversations() })
   },
   async loadRemoteConfig() {
     const cfg = await api.getRemoteConfig()
-    set({ tailscaleHost: cfg.tailscaleHost })
+    set({ tailscaleHost: cfg.tailscaleHost, vapidPublicKey: cfg.vapidPublicKey })
   },
   async selectConversation(id) {
     const detail = await api.getConversation(id)

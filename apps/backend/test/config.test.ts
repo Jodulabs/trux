@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { loadConfig, assertConfig } from '../src/config'
 
-const KEYS = ['TRUX_HOST', 'TRUX_PORT', 'TRUX_DB_PATH', 'TRUX_SECRET', 'TRUX_AUTH', 'TRUX_WORKSPACES', 'TRUX_TAILSCALE_HOST']
+const KEYS = ['TRUX_HOST', 'TRUX_PORT', 'TRUX_DB_PATH', 'TRUX_SECRET', 'TRUX_AUTH', 'TRUX_WORKSPACES', 'TRUX_TAILSCALE_HOST', 'TRUX_PUSH_PRIVACY']
 
 describe('loadConfig', () => {
   let saved: Record<string, string | undefined>
@@ -44,7 +44,13 @@ describe('loadConfig', () => {
       authRequired: true,
       workspaceRoots: ['/a', '/b'],
       tailscaleHost: null,
+      pushPrivacy: false,
     })
+  })
+
+  it('reads TRUX_PUSH_PRIVACY', () => {
+    process.env.TRUX_PUSH_PRIVACY = '1'
+    expect(loadConfig().pushPrivacy).toBe(true)
   })
 
   it('reads TRUX_TAILSCALE_HOST', () => {
@@ -55,22 +61,22 @@ describe('loadConfig', () => {
 
 describe('assertConfig', () => {
   it('throws when authRequired is true and secret is null', () => {
-    expect(() => assertConfig({ host: '127.0.0.1', port: 4317, dbPath: '', secret: null, authRequired: true, workspaceRoots: [], tailscaleHost: null }))
+    expect(() => assertConfig({ host: '127.0.0.1', port: 4317, dbPath: '', secret: null, authRequired: true, workspaceRoots: [], tailscaleHost: null, pushPrivacy: false }))
       .toThrow('TRUX_AUTH=1 requires TRUX_SECRET')
   })
 
   it('throws when authRequired is true and secret is empty string', () => {
-    expect(() => assertConfig({ host: '127.0.0.1', port: 4317, dbPath: '', secret: '', authRequired: true, workspaceRoots: [], tailscaleHost: null }))
+    expect(() => assertConfig({ host: '127.0.0.1', port: 4317, dbPath: '', secret: '', authRequired: true, workspaceRoots: [], tailscaleHost: null, pushPrivacy: false }))
       .toThrow('TRUX_AUTH=1 requires TRUX_SECRET')
   })
 
   it('does not throw when auth is off', () => {
-    expect(() => assertConfig({ host: '127.0.0.1', port: 4317, dbPath: '', secret: null, authRequired: false, workspaceRoots: [], tailscaleHost: null }))
+    expect(() => assertConfig({ host: '127.0.0.1', port: 4317, dbPath: '', secret: null, authRequired: false, workspaceRoots: [], tailscaleHost: null, pushPrivacy: false }))
       .not.toThrow()
   })
 
   it('does not throw when auth is on and secret is set', () => {
-    expect(() => assertConfig({ host: '127.0.0.1', port: 4317, dbPath: '', secret: 'abc', authRequired: true, workspaceRoots: [], tailscaleHost: null }))
+    expect(() => assertConfig({ host: '127.0.0.1', port: 4317, dbPath: '', secret: 'abc', authRequired: true, workspaceRoots: [], tailscaleHost: null, pushPrivacy: false }))
       .not.toThrow()
   })
 })

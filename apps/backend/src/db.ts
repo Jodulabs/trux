@@ -34,6 +34,16 @@ CREATE INDEX IF NOT EXISTS idx_events_conversation
 
 CREATE VIRTUAL TABLE IF NOT EXISTS fts_events
   USING fts5(conversation_id UNINDEXED, text, tokenize='unicode61');
+
+-- Web-push subscriptions. Endpoint is the device's unique push URL (PRIMARY KEY
+-- so a re-subscribe upserts rather than duplicates). A subscription is owner-wide,
+-- not per-conversation: the device receives all of this owner's pushes.
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  endpoint    TEXT PRIMARY KEY,
+  p256dh      TEXT NOT NULL,
+  auth        TEXT NOT NULL,
+  created_at  INTEGER NOT NULL
+);
 `
 
 export function openDb(path: string): TruxDatabase {

@@ -17,7 +17,7 @@ import { cwdToClaudeFolder, discoverCodexSessions } from '../src/routes'
 
 const baseConfig: Config = {
   host: '127.0.0.1', port: 0, dbPath: ':memory:', secret: 'test-secret',
-  authRequired: false, workspaceRoots: [], tailscaleHost: null,
+  authRequired: false, workspaceRoots: [], tailscaleHost: null, pushPrivacy: false,
 }
 
 class FakeAdapter implements AgentAdapter {
@@ -168,6 +168,36 @@ describe('REST', () => {
     const { port } = await start()
     const res = await (await fetch(`http://127.0.0.1:${port}/agents`)).json()
     expect(res).toEqual({ agents: ['claude'] })
+  })
+
+  it('stores and removes a push subscription', async () => {
+    const { port, registry } = await start()
+    const sub = { endpoint: 'https://push/x', keys: { p256dh: 'k', auth: 'a' } }
+    const ok = await fetch(`http://127.0.0.1:${port}/push/subscribe`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(sub),
+    })
+    expect(ok.status).toBe(200)
+    expect(registry.listPushSubscriptions().map((s) => s.endpoint)).toEqual(['https://push/x'])
+
+    const gone = await fetch(`http://127.0.0.1:${port}/push/unsubscribe`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ endpoint: 'https://push/x' }),
+    })
+    expect(gone.status).toBe(200)
+    expect(registry.listPushSubscriptions()).toEqual([])
+  })
+
+  it('rejects a malformed push subscription with 400', async () => {
+    const { port } = await start()
+    const res = await fetch(`http://127.0.0.1:${port}/push/subscribe`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ endpoint: 'https://push/x' }),
+    })
+    expect(res.status).toBe(400)
   })
 })
 

@@ -57,10 +57,11 @@
       code { font-family: var(--font-mono); }
       ::selection { background: var(--accent-soft); color: var(--accent-bright); }
 
+      /* Centered narrow column for the hero text only. */
       .wrap { max-width: 46rem; margin: 0 auto; padding: 0 1.5rem; width: 100%; position: relative; z-index: 1; }
-      /* Header and footer span the full page width with comfortable gutters,
-         so the brand sits near the left edge and nav near the right edge on desktop. */
-      .wrap-wide { max-width: 72rem; }
+      /* Full-width rail for the header/footer bars: brand hugs the left edge of
+         the browser, nav hugs the right edge, with a comfortable gutter. */
+      .bar { width: 100%; padding: 0 2rem; position: relative; z-index: 1; }
 
       /* Top bar */
       .topbar {
@@ -165,7 +166,7 @@
   </head>
   <body>
     <header class="topbar">
-      <div class="wrap wrap-wide topbar-inner">
+      <div class="bar topbar-inner">
         <a class="brand" href="#" aria-label="Trux home">
           <span class="brand-mark">T</span>
           <span>trux</span>
@@ -215,7 +216,7 @@
     </main>
 
     <footer>
-      <div class="wrap wrap-wide foot">
+      <div class="bar foot">
         <div class="foot-brand">
           <span class="brand-mark">T</span>
           <span class="foot-tag">trux — self-hosted · open source (MIT)</span>

@@ -1,15 +1,19 @@
-import { useEffect, useState } from 'react'
-import type { AgentCapabilities, AgentName, DiscoveredSession, TurnConfig, Workspace } from '@trux/protocol'
+import { useEffect, useMemo, useState } from 'react'
+import type { AgentCapabilities, AgentName, DiscoveredSession, Workspace } from '@trux/protocol'
 import { api } from '../api'
-import { ControlPicker } from './ControlPicker'
+import { useStore } from '../store'
 
 interface Props {
   onCreated: (id: string) => void
 }
 
-function formatSession(s: DiscoveredSession): string {
-  const date = new Date(s.updatedAt).toLocaleString()
-  return `${date}  (${s.sessionId.slice(0, 8)}…)`
+// A single selectable destination: one git worktree of one project (repo).
+interface FolderEntry {
+  project: string
+  root: string
+  path: string
+  branch: string | null
+  multi: boolean
 }
 
 function basename(path: string): string {
@@ -17,23 +21,23 @@ function basename(path: string): string {
   return p || path
 }
 
+function formatSession(s: DiscoveredSession): string {
+  const date = new Date(s.updatedAt).toLocaleString()
+  return `${date}  (${s.sessionId.slice(0, 8)}…)`
+}
+
 export function NewConversationDialog({ onCreated }: Props): React.ReactElement {
+  const conversations = useStore((s) => s.conversations)
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [agents, setAgents] = useState<AgentCapabilities[]>([])
-  const [repoRoot, setRepoRoot] = useState('')
-  const [cwd, setCwd] = useState('')
   const [agent, setAgent] = useState<AgentName>('claude')
-  const [config, setConfig] = useState<TurnConfig>({ model: null, options: {} })
+  const [cwd, setCwd] = useState('')
+  const [query, setQuery] = useState('')
   const [sessions, setSessions] = useState<DiscoveredSession[]>([])
   const [sessionId, setSessionId] = useState('')
 
   useEffect(() => {
-    void api.listWorkspaces().then((ws) => {
-      setWorkspaces(ws)
-      const first = ws[0]
-      setRepoRoot(first?.root ?? '')
-      setCwd(first?.worktrees[0]?.path ?? '')
-    })
+    void api.listWorkspaces().then(setWorkspaces)
     void api.listAgents().then((r) => {
       const list = r.agents ?? []
       setAgents(list)
@@ -41,22 +45,46 @@ export function NewConversationDialog({ onCreated }: Props): React.ReactElement 
     })
   }, [])
 
-  // Picking a project resets the worktree to that repo's first (its main checkout).
-  const selectRepo = (root: string): void => {
-    setRepoRoot(root)
-    const repo = workspaces.find((w) => w.root === root)
-    setCwd(repo?.worktrees[0]?.path ?? '')
-  }
-  const worktrees = workspaces.find((w) => w.root === repoRoot)?.worktrees ?? []
-  const caps = agents.find((a) => a.agent === agent)
+  // Every selectable folder, flattened from project → worktree, in project order.
+  const folders = useMemo<FolderEntry[]>(
+    () =>
+      workspaces.flatMap((w) =>
+        w.worktrees.map((t) => ({
+          project: w.name,
+          root: w.root,
+          path: t.path,
+          branch: t.branch,
+          multi: w.worktrees.length > 1,
+        })),
+      ),
+    [workspaces],
+  )
+  const byPath = useMemo(() => new Map(folders.map((f) => [f.path, f])), [folders])
 
-  // Reset the selection whenever the agent changes so the controls match the
-  // new manifest (an effort key from claude is meaningless on an empty manifest).
+  // Recent destinations come from past conversations (most-recent cwd first),
+  // so the common case — "the folder I was just in" — is one tap, not a hunt.
+  const recents = useMemo<FolderEntry[]>(() => {
+    const seen = new Set<string>()
+    const out: FolderEntry[] = []
+    for (const c of [...conversations].sort((a, b) => b.updated_at - a.updated_at)) {
+      if (seen.has(c.cwd)) continue
+      seen.add(c.cwd)
+      out.push(
+        byPath.get(c.cwd) ?? { project: basename(c.cwd), root: c.cwd, path: c.cwd, branch: null, multi: false },
+      )
+      if (out.length >= 5) break
+    }
+    return out
+  }, [conversations, byPath])
+
+  // Default to the most recent folder, else the first project's first worktree.
   useEffect(() => {
-    setConfig({ model: null, options: {} })
-  }, [agent])
+    if (cwd) return
+    const first = recents[0]?.path ?? folders[0]?.path ?? ''
+    if (first) setCwd(first)
+  }, [recents, folders, cwd])
 
-  // Re-discover sessions whenever agent or cwd changes.
+  // Re-discover resumable sessions whenever the agent or folder changes.
   useEffect(() => {
     if (!cwd || !agent) return
     setSessions([])
@@ -64,47 +92,110 @@ export function NewConversationDialog({ onCreated }: Props): React.ReactElement 
     void api.discoverSessions(agent, cwd).then(setSessions).catch(() => setSessions([]))
   }, [agent, cwd])
 
+  const q = query.trim().toLowerCase()
+  const matches = (f: FolderEntry): boolean =>
+    !q ||
+    f.project.toLowerCase().includes(q) ||
+    f.path.toLowerCase().includes(q) ||
+    (f.branch?.toLowerCase().includes(q) ?? false)
+
+  // Group filtered folders by project, preserving project order, for nested display.
+  const groups = useMemo(() => {
+    const map = new Map<string, FolderEntry[]>()
+    for (const f of folders) {
+      if (!matches(f)) continue
+      const arr = map.get(f.root) ?? []
+      arr.push(f)
+      map.set(f.root, arr)
+    }
+    return [...map.values()]
+  }, [folders, q])
+
   const create = async (): Promise<void> => {
     if (!cwd) return
     const conv = await api.createConversation({
       agent,
       cwd,
       native_session_id: sessionId || undefined,
-      model: config.model,
-      options: config.options,
+      model: null,
+      options: {},
     })
     onCreated(conv.id)
   }
 
+  // A plain render helper, not a nested component — a nested component is a new
+  // type on every render, so React would remount the rows and drop clicks.
+  const renderRow = (f: FolderEntry, primary: string, key: string): React.ReactElement => (
+    <button
+      key={key}
+      type="button"
+      className={`folder-row${cwd === f.path ? ' selected' : ''}`}
+      data-testid={`folder-${f.path}`}
+      onClick={() => setCwd(f.path)}
+    >
+      <span className="folder-name">{primary}</span>
+      <span className="folder-meta">{f.path}</span>
+    </button>
+  )
+
   return (
-    <div className="new-conversation">
-      <select data-testid="agent-select" value={agent} onChange={(e) => setAgent(e.target.value as AgentName)}>
-        {agents.map((a) => (
-          <option key={a.agent} value={a.agent}>{a.agent}</option>
-        ))}
-      </select>
-      {caps && <ControlPicker caps={caps} value={config} onChange={setConfig} />}
-      <select data-testid="repo-select" value={repoRoot} onChange={(e) => selectRepo(e.target.value)}>
-        {workspaces.map((w) => (
-          <option key={w.root} value={w.root}>{w.name}</option>
-        ))}
-      </select>
-      {worktrees.length > 1 && (
-        <select data-testid="cwd-select" value={cwd} onChange={(e) => setCwd(e.target.value)}>
-          {worktrees.map((t) => (
-            <option key={t.path} value={t.path}>{t.branch ?? basename(t.path)}</option>
-          ))}
-        </select>
-      )}
-      {sessions.length > 0 && (
-        <select data-testid="session-select" value={sessionId} onChange={(e) => setSessionId(e.target.value)}>
-          <option value="">— new session —</option>
-          {sessions.map((s) => (
-            <option key={s.sessionId} value={s.sessionId}>{formatSession(s)}</option>
-          ))}
-        </select>
-      )}
-      <button className="create" data-testid="create" onClick={() => void create()}>+ New conversation</button>
+    <div className="start-panel" data-testid="new-conversation">
+      <div className="folder-picker">
+        <input
+          className="folder-search"
+          data-testid="folder-search"
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search projects and folders…"
+        />
+        <div className="folder-list" data-testid="folder-list">
+          {!q && recents.length > 0 && (
+            <>
+              <div className="folder-section">Recent</div>
+              {recents.map((f) => renderRow(f, f.branch ? `${f.project} · ${f.branch}` : f.project, `recent-${f.path}`))}
+              <div className="folder-section">Projects</div>
+            </>
+          )}
+          {groups.length === 0 ? (
+            <p className="folder-empty">No matching folders.</p>
+          ) : (
+            groups.map((items) => {
+              const head = items[0]
+              if (!head.multi) {
+                return renderRow(head, head.branch ? `${head.project} · ${head.branch}` : head.project, head.root)
+              }
+              return (
+                <div key={head.root} className="folder-group">
+                  <div className="folder-group-label">{head.project}</div>
+                  {items.map((f) => renderRow(f, f.branch ?? basename(f.path), f.path))}
+                </div>
+              )
+            })
+          )}
+        </div>
+      </div>
+
+      <div className="start-controls">
+        {agents.length > 1 && (
+          <select data-testid="agent-select" value={agent} onChange={(e) => setAgent(e.target.value as AgentName)}>
+            {agents.map((a) => (
+              <option key={a.agent} value={a.agent}>{a.agent}</option>
+            ))}
+          </select>
+        )}
+        {sessions.length > 0 && (
+          <select data-testid="session-select" value={sessionId} onChange={(e) => setSessionId(e.target.value)}>
+            <option value="">— new session —</option>
+            {sessions.map((s) => (
+              <option key={s.sessionId} value={s.sessionId}>{formatSession(s)}</option>
+            ))}
+          </select>
+        )}
+        <button className="create" data-testid="create" disabled={!cwd} onClick={() => void create()}>
+          + New conversation
+        </button>
+      </div>
     </div>
   )
 }

@@ -11,7 +11,6 @@ import {
 import { enqueue, newMessageId } from '../outbox'
 import { Transcript } from './Transcript'
 import { Composer } from './Composer'
-import { ControlPicker } from './ControlPicker'
 import { ApprovalCard } from './ApprovalCard'
 import { GitPanel } from './GitPanel'
 import { Icon } from './Icon'
@@ -291,12 +290,12 @@ export function ConversationView({ id }: { id: string }): React.ReactElement {
           pinned
         />
       ) : null}
-      {caps && (caps.models.length > 0 || caps.controls.length > 0) ? (
-        <ControlPicker caps={caps} value={config} onChange={setConfig} />
-      ) : null}
       <Composer
         conversationId={id}
         busy={busy}
+        caps={caps}
+        config={config}
+        onConfigChange={setConfig}
         onSend={onSend}
         onInterrupt={() => {
           getConnection(id)?.interrupt()

@@ -286,21 +286,94 @@ main > [data-testid="empty"] {
 .greeting-mark { color: var(--accent); font-size: 1.6rem; }
 .greeting h1 { font-family: var(--font-display); font-weight: 500; font-size: 1.8rem; }
 
-/* ── New conversation ───────────────────────────────────────── */
-.new-conversation {
+/* ── New conversation (folder-first start screen) ───────────────
+   "Where" is the prominent choice: a searchable, project→folder list,
+   not a flat dropdown. Agent + create sit quietly underneath; model and
+   effort moved to the composer footer. */
+.start-panel {
   display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  justify-content: center;
-  align-items: center;
-  gap: 0.5rem;
+  flex-direction: column;
+  gap: 0.9rem;
   width: 100%;
 }
 
-.new-conversation select {
-  width: auto;
-  min-width: 140px;
-  padding: 0.5rem 0.6rem;
+.folder-picker {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.folder-search {
+  width: 100%;
+  padding: 0.7rem 0.85rem;
+  background: var(--surface-1);
+  color: var(--text);
+  border: none;
+  border-bottom: 1px solid var(--line);
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  outline: none;
+}
+.folder-search::placeholder { color: var(--text-faint); }
+.folder-search:focus { border-bottom-color: var(--accent); }
+
+.folder-list {
+  max-height: 44vh;
+  overflow-y: auto;
+  padding: 0.35rem;
+}
+.folder-section {
+  padding: 0.5rem 0.55rem 0.3rem;
+  font-size: 0.7rem;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+}
+.folder-group { margin-bottom: 0.1rem; }
+.folder-group-label {
+  padding: 0.45rem 0.55rem 0.2rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+.folder-group .folder-row { padding-left: 1.4rem; }
+
+.folder-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.4rem 0.55rem;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--text);
+  transition: background 0.1s ease, box-shadow 0.1s ease;
+}
+.folder-row:hover { background: var(--surface-3); }
+.folder-row.selected { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+.folder-name { font-size: 0.9rem; }
+.folder-meta {
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.folder-empty { padding: 1rem 0.6rem; color: var(--text-faint); font-size: 0.85rem; text-align: center; }
+
+.start-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.start-controls select {
+  padding: 0.5rem 1.6rem 0.5rem 0.6rem;
   background: var(--surface-2);
   color: var(--text);
   border: 1px solid var(--line);
@@ -313,10 +386,9 @@ main > [data-testid="empty"] {
   background-size: 5px 5px, 5px 5px;
   background-repeat: no-repeat;
 }
-.new-conversation select:focus { outline: none; border-color: var(--accent); }
-
-.new-conversation .create {
-  width: auto;
+.start-controls select:focus { outline: none; border-color: var(--accent); }
+.start-controls .create {
+  margin-left: auto;
   min-height: 40px;
   padding: 0.55rem 1.1rem;
   background: var(--accent);
@@ -328,16 +400,16 @@ main > [data-testid="empty"] {
   cursor: pointer;
   transition: background 0.12s ease;
 }
-.new-conversation .create:hover { background: var(--accent-bright); }
+.start-controls .create:hover { background: var(--accent-bright); }
+.start-controls .create:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* Phones: the pickers can't sit side-by-side in ~340px without clipping, so
-   stack them full-width and shrink the greeting. Placed after the base
-   .new-conversation rules so the cascade picks these on a narrow screen. */
+/* Phones: stack the controls full-width and give the list more room. */
 @media (max-width: 640px) {
   .greeting h1 { font-size: 1.5rem; }
-  .new-conversation { flex-direction: column; align-items: stretch; }
-  .new-conversation select,
-  .new-conversation .create { width: 100%; min-width: 0; }
+  .start-controls { flex-direction: column; align-items: stretch; }
+  .start-controls select,
+  .start-controls .create { width: 100%; margin-left: 0; }
+  .folder-list { max-height: 50vh; }
 }
 
 /* ── Conversation ───────────────────────────────────────────── */
@@ -910,6 +982,32 @@ main > [data-testid="empty"] {
 .composer-actions { display: flex; align-items: center; gap: 0.15rem; }
 .composer-spacer { flex: 1 1 auto; }
 
+/* Model + effort live in the composer footer (claude.ai), not floating above it.
+   Rendered as quiet text buttons with a chevron, sitting just left of send. */
+.composer .control-picker { display: flex; align-items: center; gap: 0.1rem; min-width: 0; }
+.composer .control-picker select {
+  appearance: none;
+  -webkit-appearance: none;
+  max-width: 8.5rem;
+  border: none;
+  background-color: transparent;
+  color: var(--text-dim);
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
+  line-height: 1;
+  padding: 0.35rem 1.15rem 0.35rem 0.5rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-overflow: ellipsis;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239aa1ab' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.35rem center;
+  transition: color 0.12s ease, background-color 0.12s ease;
+}
+.composer .control-picker select:hover { color: var(--text); background-color: var(--surface-3); }
+.composer .control-picker select:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 1px; }
+.composer .control-picker option { background: var(--surface-2); color: var(--text); }
+
 .icon-btn {
   display: grid;
   place-items: center;
@@ -942,33 +1040,7 @@ main > [data-testid="empty"] {
 .send-btn:active { transform: scale(0.92); }
 .send-btn.stop { background: var(--surface-3); color: var(--text); }
 
-/* snippet panel + attachments */
-.snippet-panel {
-  background: var(--surface-2);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  margin-bottom: 0.5rem;
-  overflow: hidden;
-}
-.snippet-panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.5rem 0.7rem;
-  font-size: 0.78rem;
-  font-family: var(--font-mono);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-faint);
-  border-bottom: 1px solid var(--line-soft);
-}
-.snippet-panel-header button { background: none; border: none; color: var(--text-faint); cursor: pointer; }
-.snippet-empty { padding: 0.7rem; font-size: 0.82rem; color: var(--text-faint); }
-.snippet-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.2rem 0.4rem; }
-.snippet-insert { flex: 1 1 auto; text-align: left; background: none; border: none; color: var(--text-dim); padding: 0.4rem; border-radius: 5px; cursor: pointer; font-size: 0.85rem; }
-.snippet-insert:hover { background: var(--surface-3); color: var(--text); }
-.snippet-delete { background: none; border: none; color: var(--text-faint); cursor: pointer; padding: 0.4rem; }
-
+/* attachments */
 .attachment-previews { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
 .attachment-thumb { position: relative; width: 56px; height: 56px; }
 .attachment-thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: var(--radius-sm); border: 1px solid var(--line); }

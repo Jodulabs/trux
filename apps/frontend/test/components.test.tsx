@@ -141,6 +141,7 @@ describe('NewConversationDialog', () => {
         { agent: 'opencode', models: [], defaultModel: null, controls: [] },
       ],
     })
+    vi.spyOn(api, 'discoverSessions').mockResolvedValue([])
     const created = vi.spyOn(api, 'createConversation').mockResolvedValue({
       id: 'c1', agent: 'opencode', cwd: '/repo', title: null, status: 'idle',
       native_session_id: null, archived: false, created_at: 1, updated_at: 1,
@@ -155,7 +156,8 @@ describe('NewConversationDialog', () => {
     vi.restoreAllMocks()
   })
 
-  it('hides the worktree picker for a single-worktree repo, shows it for many', async () => {
+  it('shows a single-worktree repo as one row and nests a multi-worktree repo', async () => {
+    useStore.setState({ conversations: [] })
     vi.spyOn(api, 'listWorkspaces').mockResolvedValue([
       { name: 'solo', root: '/solo', worktrees: [{ path: '/solo', branch: 'main' }] },
       {
@@ -170,19 +172,21 @@ describe('NewConversationDialog', () => {
     vi.spyOn(api, 'listAgents').mockResolvedValue({
       agents: [{ agent: 'claude', models: [], defaultModel: null, controls: [] }],
     })
+    vi.spyOn(api, 'discoverSessions').mockResolvedValue([])
     const created = vi.spyOn(api, 'createConversation').mockResolvedValue({
       id: 'c2', agent: 'claude', cwd: '/multi/.worktrees/feat', title: null, status: 'idle',
       native_session_id: null, archived: false, created_at: 1, updated_at: 1,
       model: null, options: {},
     })
     render(<NewConversationDialog onCreated={vi.fn()} />)
-    // First repo ('solo') has one worktree → no worktree picker.
-    const repoSelect = await screen.findByTestId('repo-select')
-    expect(screen.queryByTestId('cwd-select')).toBeNull()
-    // Switch to the multi-worktree repo → the worktree picker appears.
-    fireEvent.change(repoSelect, { target: { value: '/multi' } })
-    const cwdSelect = await screen.findByTestId('cwd-select')
-    fireEvent.change(cwdSelect, { target: { value: '/multi/.worktrees/feat' } })
+    // 'solo' has one worktree → a single selectable row, no separate header.
+    await screen.findByTestId('folder-/solo')
+    expect(screen.getByText('multi')).toBeTruthy() // 'multi' renders as a group header
+    // 'multi' nests its worktrees → the feat worktree is directly selectable.
+    fireEvent.click(screen.getByTestId('folder-/multi/.worktrees/feat'))
+    await waitFor(() =>
+      expect(screen.getByTestId('folder-/multi/.worktrees/feat').className).toContain('selected'),
+    )
     fireEvent.click(screen.getByTestId('create'))
     await waitFor(() =>
       expect(created).toHaveBeenCalledWith(expect.objectContaining({ agent: 'claude', cwd: '/multi/.worktrees/feat' })),

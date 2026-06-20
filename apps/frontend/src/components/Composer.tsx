@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import type { ImageAttachment } from '@trux/protocol'
-import { addSnippet, deleteSnippet, loadSnippets, type Snippet } from '../snippets'
+import type { AgentCapabilities, ImageAttachment, TurnConfig } from '@trux/protocol'
 import { Icon } from './Icon'
+import { ControlPicker } from './ControlPicker'
 
 function draftKey(id: string): string { return `trux-draft-${id}` }
 function loadDraft(id: string): string {
@@ -25,12 +25,11 @@ const coarsePointer =
 interface ComposerProps {
   conversationId?: string
   busy: boolean
+  caps?: AgentCapabilities
+  config?: TurnConfig
+  onConfigChange?: (next: TurnConfig) => void
   onSend: (text: string, attachments?: ImageAttachment[]) => void
   onInterrupt: () => void
-}
-
-function formatSession(s: Snippet): string {
-  return s.label
 }
 
 function readFileAsDataUrl(file: File): Promise<{ media_type: string; data: string }> {
@@ -68,10 +67,8 @@ const SpeechRecognitionClass = typeof SpeechRecognition !== 'undefined' ? Speech
   : typeof webkitSpeechRecognition !== 'undefined' ? webkitSpeechRecognition
   : null
 
-export function Composer({ conversationId, busy, onSend, onInterrupt }: ComposerProps): React.ReactElement {
+export function Composer({ conversationId, busy, caps, config, onConfigChange, onSend, onInterrupt }: ComposerProps): React.ReactElement {
   const [text, setText] = useState(() => conversationId ? loadDraft(conversationId) : '')
-  const [showSnippets, setShowSnippets] = useState(false)
-  const [snippets, setSnippets] = useState<Snippet[]>([])
   const [attachments, setAttachments] = useState<ImageAttachment[]>([])
   const [listening, setListening] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -110,28 +107,6 @@ export function Composer({ conversationId, busy, onSend, onInterrupt }: Composer
     setAttachments([])
     if (conversationId) saveDraft(conversationId, '')
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
-  }
-
-  const openSnippets = (): void => {
-    setSnippets(loadSnippets())
-    setShowSnippets(true)
-  }
-
-  const insertSnippet = (snippet: Snippet): void => {
-    setText((prev) => (prev ? `${prev}\n${snippet.text}` : snippet.text))
-    setShowSnippets(false)
-    textareaRef.current?.focus()
-  }
-
-  const saveSnippet = (): void => {
-    const trimmed = text.trim()
-    if (!trimmed) return
-    addSnippet(trimmed)
-  }
-
-  const removeSnippet = (id: string): void => {
-    deleteSnippet(id)
-    setSnippets((prev) => prev.filter((s) => s.id !== id))
   }
 
   const handleFiles = async (files: FileList | null): Promise<void> => {
@@ -174,28 +149,10 @@ export function Composer({ conversationId, busy, onSend, onInterrupt }: Composer
     setListening(true)
   }
 
+  const hasControls = !!caps && (caps.models.length > 0 || caps.controls.length > 0) && !!config && !!onConfigChange
+
   return (
     <div className="composer">
-      {showSnippets && (
-        <div className="snippet-panel" data-testid="snippet-panel">
-          <div className="snippet-panel-header">
-            <span>Snippets</span>
-            <button data-testid="snippet-panel-close" onClick={() => setShowSnippets(false)}>✕</button>
-          </div>
-          {snippets.length === 0 ? (
-            <p className="snippet-empty">No saved snippets yet. Save the current message with the bookmark.</p>
-          ) : (
-            snippets.map((s) => (
-              <div key={s.id} className="snippet-row">
-                <button className="snippet-insert" data-testid={`snippet-insert-${s.id}`} onClick={() => insertSnippet(s)}>
-                  {formatSession(s)}
-                </button>
-                <button className="snippet-delete" data-testid={`snippet-delete-${s.id}`} onClick={() => removeSnippet(s.id)} aria-label="Delete snippet">✕</button>
-              </div>
-            ))
-          )}
-        </div>
-      )}
       {attachments.length > 0 && (
         <div className="attachment-previews" data-testid="attachment-previews">
           {attachments.map((a, i) => (
@@ -228,12 +185,6 @@ export function Composer({ conversationId, busy, onSend, onInterrupt }: Composer
           placeholder="Message…"
         />
         <div className="composer-actions">
-          <button className="icon-btn" data-testid="snippet-save" title="Save as snippet" aria-label="Save as snippet" onClick={saveSnippet}>
-            <Icon name="bookmark" size={18} />
-          </button>
-          <button className="icon-btn" data-testid="snippet-open" title="Insert snippet" aria-label="Insert snippet" onClick={openSnippets}>
-            <Icon name="list" size={18} />
-          </button>
           <button className="icon-btn" data-testid="attach-image" title="Attach image" aria-label="Attach image" onClick={() => fileInputRef.current?.click()}>
             <Icon name="attach" size={18} />
           </button>
@@ -246,6 +197,10 @@ export function Composer({ conversationId, busy, onSend, onInterrupt }: Composer
             data-testid="file-input"
             onChange={(e) => void handleFiles(e.target.files)}
           />
+          <span className="composer-spacer" />
+          {hasControls ? (
+            <ControlPicker caps={caps!} value={config!} onChange={onConfigChange!} />
+          ) : null}
           {SpeechRecognitionClass ? (
             <button
               className={`icon-btn${listening ? ' listening' : ''}`}
@@ -257,7 +212,6 @@ export function Composer({ conversationId, busy, onSend, onInterrupt }: Composer
               <Icon name="mic" size={18} />
             </button>
           ) : null}
-          <span className="composer-spacer" />
           {busy ? (
             <button className="send-btn stop" data-testid="interrupt" title="Stop" aria-label="Stop" onClick={onInterrupt}>
               <Icon name="stop" size={16} />

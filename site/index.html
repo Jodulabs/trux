@@ -16,7 +16,6 @@
         --ink: #0c0d10;
         --surface-1: #14161b;
         --surface-2: #1b1e25;
-        --surface-3: #20242c;
         --line: #2a2f39;
         --line-soft: #1f232b;
         --text: #e7e4dd;
@@ -26,7 +25,7 @@
         --accent-bright: #f6a05a;
         --accent-soft: rgba(232, 132, 61, 0.13);
         --radius: 12px;
-        --maxw: 80rem;
+        --maxw: 76rem;
         --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
         --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
         --font-display: 'Georgia', 'Times New Roman', ui-serif, serif;
@@ -34,7 +33,6 @@
 
       *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-      html { scroll-behavior: smooth; }
       body {
         font-family: var(--font-sans);
         background: var(--ink);
@@ -63,14 +61,12 @@
       code { font-family: var(--font-mono); }
       ::selection { background: var(--accent-soft); color: var(--accent-bright); }
 
-      /* Containers ----------------------------------------------------------- */
-      /* Full-width rail for the header/footer bars: brand hugs the left edge of
-         the browser, nav hugs the right edge. */
+      /* Full-width rail for the header/footer bars. */
       .bar { width: 100%; padding: 0 2rem; position: relative; z-index: 1; }
-      /* Centered content rail for hero + sections. */
+      /* Centered content rail for the hero. */
       .container { width: 100%; max-width: var(--maxw); margin: 0 auto; padding: 0 2rem; position: relative; z-index: 1; }
 
-      /* Top bar -------------------------------------------------------------- */
+      /* Top bar */
       .topbar {
         position: sticky; top: 0; z-index: 50;
         backdrop-filter: blur(12px);
@@ -94,16 +90,14 @@
       .nav .gh svg { width: 17px; height: 17px; }
 
       main { flex: 1; display: flex; flex-direction: column; }
-
-      /* Hero ----------------------------------------------------------------- */
-      .hero { padding: 5.5rem 0 5rem; }
+      .hero { display: flex; align-items: center; padding: 4rem 0 3.5rem; }
       .hero-grid {
         display: grid;
         grid-template-columns: 1.05fr 0.95fr;
         gap: 4.5rem;
         align-items: center;
+        width: 100%;
       }
-      /* Allow tracks to shrink below the no-wrap install command's min-content. */
       .hero-grid > * { min-width: 0; }
       .eyebrow {
         font-family: var(--font-mono); font-size: 0.74rem; letter-spacing: 0.18em;
@@ -170,7 +164,7 @@
       .note { font-family: var(--font-mono); font-size: 0.76rem; line-height: 1.7; color: var(--text-faint); margin-top: 1.5rem; }
       .note code { color: var(--text-dim); }
 
-      /* Hero visual: phone mockup ------------------------------------------- */
+      /* Hero visual: app preview on a phone */
       .hero-visual { display: flex; justify-content: center; position: relative; }
       .hero-visual::before {
         content: ""; position: absolute; inset: -10% -5%;
@@ -241,66 +235,49 @@
       }
       .composer .send svg { width: 13px; height: 13px; }
 
-      /* Generic section ------------------------------------------------------ */
-      .section { padding: 5.5rem 0; }
-      .band { background: var(--surface-1); border-top: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft); }
-      .sec-head { max-width: 40rem; margin: 0 auto 3.2rem; text-align: center; }
-      .sec-head .eyebrow { justify-content: center; }
-      .sec-head .eyebrow::after { content: ""; width: 1.6rem; height: 1px; background: var(--accent); opacity: 0.6; }
-      h2 {
-        font-family: var(--font-display); font-weight: 400;
-        font-size: clamp(1.9rem, 3vw, 2.5rem); line-height: 1.1; letter-spacing: -0.015em;
+      /* Install & use — the actual commands, on the page */
+      .usage { border-top: 1px solid var(--line-soft); padding: 4rem 0 4.5rem; background: var(--surface-1); }
+      .usage-inner { max-width: 62rem; }
+      .usage-title { font-family: var(--font-mono); font-size: 0.78rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); margin-bottom: 2.5rem; }
+      .steps { display: grid; gap: 2.4rem; }
+      .step { display: grid; grid-template-columns: 2.2rem 1fr; gap: 1rem 1.1rem; align-items: start; }
+      .step .num { font-family: var(--font-mono); font-size: 0.85rem; font-weight: 500; color: #1a1206; background: var(--accent); width: 1.9rem; height: 1.9rem; border-radius: 7px; display: grid; place-items: center; }
+      .step-body { min-width: 0; }
+      .step h3 { font-size: 1.05rem; font-weight: 600; margin-bottom: 0.5rem; }
+      .step p { font-size: 0.92rem; color: var(--text-dim); margin: 0 0 0.7rem; }
+      .step p.muted { color: var(--text-faint); font-size: 0.86rem; margin: 0.7rem 0 0; }
+      .step code, .reqs code { color: var(--text); background: var(--surface-2); border-radius: 5px; padding: 0.05rem 0.35rem; font-size: 0.85em; }
+
+      /* Command block: read-only multi-line reference */
+      .cmd-list {
+        font-family: var(--font-mono); font-size: 0.82rem; line-height: 1.85;
+        background: #0a0b0e; border: 1px solid var(--line); border-radius: var(--radius);
+        padding: 0.9rem 1.1rem; overflow-x: auto; color: var(--text);
       }
-      h2 .accent { color: var(--accent-bright); font-style: italic; }
-      .sec-head p { color: var(--text-dim); margin-top: 0.9rem; font-size: 1.02rem; }
+      .cmd-list .c { color: var(--accent-bright); }
+      .cmd-list .cm { color: var(--text-faint); }
 
-      /* Feature cards -------------------------------------------------------- */
-      .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem; }
-      .card {
-        background: var(--ink); border: 1px solid var(--line);
-        border-radius: var(--radius); padding: 1.8rem 1.7rem;
-        transition: transform 0.2s, border-color 0.2s;
-      }
-      .card:hover { transform: translateY(-3px); border-color: #3a4150; }
-      .card-icon {
-        width: 42px; height: 42px; border-radius: 11px; display: grid; place-items: center;
-        background: var(--accent-soft); color: var(--accent-bright);
-        border: 1px solid rgba(232,132,61,0.22); margin-bottom: 1.1rem;
-      }
-      .card-icon svg { width: 21px; height: 21px; }
-      .card h3 { font-size: 1.05rem; font-weight: 600; margin-bottom: 0.5rem; }
-      .card p { font-size: 0.92rem; color: var(--text-dim); }
+      .reqs { margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--line-soft); }
+      .reqs h3 { font-family: var(--font-mono); font-size: 0.78rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 1rem; }
+      .reqs ul { list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem 2rem; }
+      .reqs li { font-size: 0.9rem; color: var(--text-dim); padding-left: 1.1rem; position: relative; }
+      .reqs li::before { content: "›"; position: absolute; left: 0; color: var(--accent); }
 
-      /* Steps ---------------------------------------------------------------- */
-      .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2.2rem; }
-      .step { position: relative; padding-top: 1rem; border-top: 1px solid var(--line); }
-      .step .num { font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent); letter-spacing: 0.1em; }
-      .step h3 { font-size: 1.1rem; font-weight: 600; margin: 0.7rem 0 0.5rem; }
-      .step p { font-size: 0.92rem; color: var(--text-dim); }
-      .step code { color: var(--text); background: var(--surface-2); border-radius: 5px; padding: 0.05rem 0.35rem; font-size: 0.84rem; }
-
-      /* Closing CTA ---------------------------------------------------------- */
-      .cta { text-align: center; }
-      .cta .container { display: flex; flex-direction: column; align-items: center; }
-      .cta h2 { max-width: 22rem; margin-bottom: 2rem; }
-      .cta .install { margin: 0 auto 1.6rem; width: 100%; }
-      .cta .links { justify-content: center; margin-top: 0; }
-
-      /* Footer --------------------------------------------------------------- */
-      footer { border-top: 1px solid var(--line-soft); padding: 2.5rem 0 3rem; margin-top: auto; }
+      /* Footer */
+      footer { border-top: 1px solid var(--line-soft); padding: 2.5rem 0 3rem; }
       .foot { display: flex; justify-content: space-between; align-items: center; gap: 1.5rem; flex-wrap: wrap; }
       .foot-brand { display: flex; align-items: center; gap: 0.6rem; }
       .foot-tag { color: var(--text-faint); font-family: var(--font-mono); font-size: 0.8rem; }
       .foot-links { display: flex; gap: 1.4rem; font-family: var(--font-mono); font-size: 0.82rem; color: var(--text-dim); }
       .foot-links a:hover { color: var(--accent-bright); }
 
-      /* Motion --------------------------------------------------------------- */
+      /* Motion */
       @keyframes rise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
       .rise { opacity: 0; animation: rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) forwards; }
 
-      /* Responsive ----------------------------------------------------------- */
+      /* Responsive */
       @media (max-width: 880px) {
-        .hero { padding: 3.5rem 0 4rem; }
+        .hero { padding: 3rem 0 3.5rem; }
         .hero-grid { grid-template-columns: 1fr; gap: 3rem; }
         .hero-copy { text-align: center; }
         .hero-copy .eyebrow { justify-content: center; }
@@ -308,18 +285,15 @@
         .install { margin-left: auto; margin-right: auto; }
         .links { justify-content: center; }
         .hero-visual { order: 2; }
-        .grid-3 { grid-template-columns: 1fr; }
-        .steps { grid-template-columns: 1fr; gap: 1.6rem; }
-        .section { padding: 4rem 0; }
+        .reqs ul { grid-template-columns: 1fr; }
       }
       @media (max-width: 520px) {
         .bar, .container { padding: 0 1.25rem; }
         .nav { gap: 1.1rem; }
       }
       @media (prefers-reduced-motion: reduce) {
-        html { scroll-behavior: auto; }
         .rise { opacity: 1; animation: none; }
-        .btn, .card { transition: none; }
+        .btn { transition: none; }
       }
     </style>
   </head>
@@ -341,7 +315,6 @@
     </header>
 
     <main>
-      <!-- Hero -->
       <section class="hero">
         <div class="container hero-grid">
           <div class="hero-copy">
@@ -404,80 +377,62 @@
         </div>
       </section>
 
-      <!-- Features -->
-      <section class="section band">
-        <div class="container">
-          <div class="sec-head">
-            <div class="eyebrow">Why trux</div>
-            <h2>Your machine. <span class="accent">Your rules.</span></h2>
-            <p>No cloud middleman, no per-seat markup, nothing exposed to the public internet.</p>
-          </div>
-          <div class="grid-3">
-            <div class="card">
-              <div class="card-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><line x1="7" y1="7.5" x2="7.01" y2="7.5"/><line x1="7" y1="16.5" x2="7.01" y2="16.5"/></svg>
-              </div>
-              <h3>Self-hosted</h3>
-              <p>Runs as a systemd service on your own Linux box, working against your real checkout. Your code never leaves your hardware.</p>
-            </div>
-            <div class="card">
-              <div class="card-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4"/><path d="M10.5 12.5 20 3"/><path d="M16 5l3 3"/><path d="M13.5 7.5l2.5 2.5"/></svg>
-              </div>
-              <h3>Your subscriptions</h3>
-              <p>Drives the Claude, Codex, and opencode CLIs you're already logged into. Your plans, your keys — no extra billing in between.</p>
-            </div>
-            <div class="card">
-              <div class="card-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>
-              </div>
-              <h3>Private by default</h3>
-              <p>Reachable only over your tailnet via <code>tailscale serve</code>. The installer prints a URL and token — nothing public to lock down.</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- How it works -->
-      <section class="section">
-        <div class="container">
-          <div class="sec-head">
-            <div class="eyebrow">Setup</div>
-            <h2>Up and running in <span class="accent">one command.</span></h2>
-          </div>
+      <section class="usage">
+        <div class="container usage-inner">
+          <div class="usage-title">Install &amp; use</div>
           <div class="steps">
             <div class="step">
-              <div class="num">01</div>
-              <h3>Install</h3>
-              <p>Run the one-line installer on your Linux box. It sets up the <code>trux</code> systemd service and a Node 22 runtime.</p>
+              <span class="num">1</span>
+              <div class="step-body">
+                <h3>Install</h3>
+                <p>On the box where your code lives (Linux + systemd):</p>
+                <div class="install">
+                  <span class="prompt">$</span>
+                  <code><span class="tok">curl</span> -fsSL https://raw.githubusercontent.com/Jodulabs/trux/main/install.sh | bash</code>
+                  <button type="button" aria-label="Copy install command">Copy</button>
+                </div>
+                <p class="muted">Clones trux into <code>~/.local/share/trux</code>, builds it, writes <code>~/.trux/.env</code> with your token, installs a systemd user service that auto-starts on boot, and configures <code>tailscale serve</code>. Prints your URL and token at the end.</p>
+              </div>
             </div>
-            <div class="step">
-              <div class="num">02</div>
-              <h3>Connect</h3>
-              <p>It prints your URL and access token, then configures <code>tailscale serve</code> so the box is reachable across your tailnet.</p>
-            </div>
-            <div class="step">
-              <div class="num">03</div>
-              <h3>Drive</h3>
-              <p>Open the URL on your phone, pick an agent, and start shipping — from the couch, the train, or anywhere.</p>
-            </div>
-          </div>
-        </div>
-      </section>
 
-      <!-- Closing CTA -->
-      <section class="section band cta">
-        <div class="container">
-          <div class="eyebrow" style="justify-content:center">Get started</div>
-          <h2>Drive your agents from <span class="accent">anywhere.</span></h2>
-          <div class="install">
-            <span class="prompt">$</span>
-            <code><span class="tok">curl</span> -fsSL https://raw.githubusercontent.com/Jodulabs/trux/main/install.sh | bash</code>
-            <button type="button" aria-label="Copy install command">Copy</button>
+            <div class="step">
+              <span class="num">2</span>
+              <div class="step-body">
+                <h3>Connect your phone</h3>
+                <p>Phone on the same tailnet — print the pairing QR and scan it:</p>
+                <div class="install">
+                  <span class="prompt">$</span>
+                  <code><span class="tok">trux</span> pair</code>
+                  <button type="button" aria-label="Copy pair command">Copy</button>
+                </div>
+                <p class="muted">trux opens already signed in. Browser menu → <strong>Add to Home Screen</strong> to install the PWA.</p>
+              </div>
+            </div>
+
+            <div class="step">
+              <span class="num">3</span>
+              <div class="step-body">
+                <h3>Manage</h3>
+                <p>Everything runs behind the <code>trux</code> command:</p>
+                <pre class="cmd-list"><span class="c">trux</span> status      <span class="cm"># service status</span>
+<span class="c">trux</span> logs        <span class="cm"># follow logs</span>
+<span class="c">trux</span> restart     <span class="cm"># restart the backend</span>
+<span class="c">trux</span> update      <span class="cm"># pull latest, rebuild, restart</span>
+<span class="c">trux</span> url         <span class="cm"># print your access URL</span>
+<span class="c">trux</span> token       <span class="cm"># print your auth token</span>
+<span class="c">trux</span> uninstall   <span class="cm"># remove service + code (keeps ~/.trux)</span></pre>
+              </div>
+            </div>
           </div>
-          <div class="links">
-            <a class="btn btn-primary" href="https://github.com/Jodulabs/trux#install" target="_blank" rel="noopener">Install</a>
-            <a class="btn btn-ghost" href="https://github.com/Jodulabs/trux" target="_blank" rel="noopener">View on GitHub</a>
+
+          <div class="reqs">
+            <h3>Requirements</h3>
+            <ul>
+              <li>Node.js ≥ 22 and pnpm (enabled via corepack)</li>
+              <li>git</li>
+              <li>Tailscale on this box and your phone, same tailnet</li>
+              <li>the <code>claude</code> CLI installed and logged in</li>
+            </ul>
           </div>
         </div>
       </section>

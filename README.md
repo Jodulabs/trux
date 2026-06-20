@@ -57,3 +57,6 @@ pnpm dev      # vite + backend in watch mode
 pnpm test
 ```
 See `docs/RUNBOOK.md` for the manual run/connect details.
+
+## License
+MIT — see [`LICENSE`](LICENSE).

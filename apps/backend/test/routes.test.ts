@@ -23,6 +23,9 @@ const baseConfig: Config = {
 
 class FakeAdapter implements AgentAdapter {
   readonly name = 'claude' as const
+  capabilities() {
+    return { agent: 'claude' as const, models: [], defaultModel: null, controls: [] }
+  }
   start(): AgentSession {
     const outbox = new PushQueue<AdapterEvent>()
     return {
@@ -43,6 +46,9 @@ class FakeAdapter implements AgentAdapter {
 // A fake whose turn parks on an approval_request and resumes once answered.
 class ApprovalFakeAdapter implements AgentAdapter {
   readonly name = 'claude' as const
+  capabilities() {
+    return { agent: 'claude' as const, models: [], defaultModel: null, controls: [] }
+  }
   start(): AgentSession {
     const outbox = new PushQueue<AdapterEvent>()
     let answered: (() => void) | null = null
@@ -165,10 +171,12 @@ describe('REST', () => {
     expect(res.status).toBe(400)
   })
 
-  it('lists available agents', async () => {
+  it('lists agent capability manifests', async () => {
     const { port } = await start()
     const res = await (await fetch(`http://127.0.0.1:${port}/agents`)).json()
-    expect(res).toEqual({ agents: ['claude'] })
+    expect(res).toEqual({
+      agents: [{ agent: 'claude', models: [], defaultModel: null, controls: [] }],
+    })
   })
 
   it('stores and removes a push subscription', async () => {

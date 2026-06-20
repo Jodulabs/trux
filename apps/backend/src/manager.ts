@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { AgentName, ApprovalDecision, ImageAttachment, ServerEvent } from '@trux/protocol'
+import type { AgentCapabilities, AgentName, ApprovalDecision, ImageAttachment, ServerEvent, TurnConfig } from '@trux/protocol'
 import type { AdapterEvent, AgentAdapter, AgentSession } from './adapter/types'
 import { detectPort } from './ports'
 import type { SqliteRegistry } from './registry'
@@ -85,12 +85,20 @@ export class ConversationManager {
     return [...this.adapters.keys()]
   }
 
+  capabilities(): AgentCapabilities[] {
+    return [...this.adapters.values()].map((a) => a.capabilities())
+  }
+
   async handleUserMessage(
     convId: string,
     text: string,
     attachments?: ImageAttachment[],
     clientMessageId?: string,
+    config?: TurnConfig,
   ): Promise<void> {
+    // Persist the selection first (sticky) so ensureSession reads the latest one
+    // when it creates a fresh session for this conversation.
+    if (config) this.registry.setConfig(convId, config)
     const live = this.ensureSession(convId)
     if (!live) {
       this.emit(convId, {
@@ -116,7 +124,7 @@ export class ConversationManager {
     })
     this.emit(convId, { type: 'turn_started', turn_id: turnId })
     this.emit(convId, { type: 'status', state: 'thinking' })
-    live.session.send(text, attachments)
+    live.session.send(text, attachments, config)
   }
 
   async interrupt(convId: string): Promise<void> {
@@ -185,6 +193,7 @@ export class ConversationManager {
     const session = adapter.start({
       cwd: conv.cwd,
       resume: conv.native_session_id ?? undefined,
+      config: { model: conv.model, options: conv.options },
     })
     const live: LiveSession = {
       session,

@@ -1,6 +1,9 @@
 // The Normalized Conversation Protocol (NCP). Carried over the WebSocket as JSON.
 // This is the single contract the frontend renders and every adapter translates into.
 
+// Type-only import (rest.ts also imports from here — circular type refs are fine).
+import type { TurnConfig } from './rest'
+
 export const PROTOCOL_VERSION = 1 as const
 
 // ---- Shared ----
@@ -138,6 +141,8 @@ export interface UserMessageMessage {
   // Optimistic id the client assigns so it can reconcile its locally-rendered
   // bubble with the server's user_text echo, and dedupe a re-sent queued message.
   client_message_id?: string
+  // Per-turn model/control selection. Opaque to the wire; the adapter maps it.
+  config?: TurnConfig
 }
 export interface ApprovalResponseMessage {
   type: 'approval_response'

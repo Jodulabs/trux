@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useMemo } from 'react'
-import type { ApprovalDecision, GitStatusResult, ImageAttachment } from '@trux/protocol'
+import type { AgentCapabilities, ApprovalDecision, GitStatusResult, ImageAttachment, TurnConfig } from '@trux/protocol'
 import { useStore } from '../store'
 import { api } from '../api'
 import {
@@ -11,6 +11,7 @@ import {
 import { enqueue, newMessageId } from '../outbox'
 import { Transcript } from './Transcript'
 import { Composer } from './Composer'
+import { ControlPicker } from './ControlPicker'
 import { ApprovalCard } from './ApprovalCard'
 import { GitPanel } from './GitPanel'
 import { Icon } from './Icon'
@@ -76,6 +77,24 @@ export function ConversationView({ id }: { id: string }): React.ReactElement {
   const [gitOpen, setGitOpen] = useState(false)
   const [thinkingSecs, setThinkingSecs] = useState(0)
   const thinkingStart = useRef<number | null>(null)
+
+  // Unified model/control picker state. The composer pre-fills from the
+  // conversation's sticky (last-used) selection and lets the user change it
+  // per turn. trux declares/renders/routes; the backend's native knobs decide
+  // behavior. Empty manifest → no picker rendered (codex/opencode today).
+  const [agents, setAgents] = useState<AgentCapabilities[]>([])
+  const [config, setConfig] = useState<TurnConfig>({
+    model: conv?.model ?? null,
+    options: conv?.options ?? {},
+  })
+  useEffect(() => {
+    void api.listAgents().then((r) => setAgents(r.agents ?? [])).catch(() => {})
+  }, [])
+  // Re-seed when the stored selection changes (e.g. after the conversation loads).
+  useEffect(() => {
+    setConfig({ model: conv?.model ?? null, options: conv?.options ?? {} })
+  }, [conv?.model, conv?.options])
+  const caps = agents.find((a) => a.agent === conv?.agent)
 
   const reloadGit = useCallback(async (): Promise<void> => {
     try { setGitStatus(await api.gitStatus(id)) } catch {}
@@ -149,10 +168,10 @@ export function ConversationView({ id }: { id: string }): React.ReactElement {
     // Render instantly (sending), queue durably, then put it on the wire. The
     // server echo reconciles the bubble; the queue covers a dead socket.
     addOptimistic({ type: 'user_text', turn_id: '', text, attachments, client_message_id: cid, pending: true })
-    enqueue(id, { client_message_id: cid, text, attachments })
+    enqueue(id, { client_message_id: cid, text, attachments, config })
     stuck.current = true
     setAtBottom(true)
-    getConnection(id)?.sendUserMessage(text, attachments, cid)
+    getConnection(id)?.sendUserMessage(text, attachments, cid, config)
     haptic('light')
   }
 
@@ -271,6 +290,9 @@ export function ConversationView({ id }: { id: string }): React.ReactElement {
           onRespond={onRespond}
           pinned
         />
+      ) : null}
+      {caps && (caps.models.length > 0 || caps.controls.length > 0) ? (
+        <ControlPicker caps={caps} value={config} onChange={setConfig} />
       ) : null}
       <Composer
         conversationId={id}

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import type { ServerEvent } from '@trux/protocol'
+import type { AgentCapabilities, ServerEvent, TurnConfig } from '@trux/protocol'
 import { openDb, type TruxDatabase } from '../src/db'
 import { SqliteRegistry } from '../src/registry'
 import { ConversationManager } from '../src/manager'
@@ -9,6 +9,9 @@ import { PushQueue } from '../src/adapter/queue'
 // A fake adapter whose session replays a scripted AdapterEvent stream per turn.
 class FakeAdapter implements AgentAdapter {
   readonly name = 'claude' as const
+  capabilities() {
+    return { agent: 'claude' as const, models: [], defaultModel: null, controls: [] }
+  }
   last!: FakeSession
   constructor(private readonly script: AdapterEvent[]) {}
   start(): AgentSession {
@@ -44,6 +47,9 @@ class FakeSession implements AgentSession {
 // once the response arrives — needed to exercise both push notifications.
 class ApprovalScriptAdapter implements AgentAdapter {
   readonly name = 'claude' as const
+  capabilities() {
+    return { agent: 'claude' as const, models: [], defaultModel: null, controls: [] }
+  }
   start(): AgentSession {
     const outbox = new PushQueue<AdapterEvent>()
     let answered: (() => void) | null = null
@@ -302,5 +308,62 @@ describe('ConversationManager', () => {
     await m2.handleUserMessage(conv.id, 'go', undefined, 'm1')
     await settle()
     expect(seen.filter((e) => e.type === 'user_text')).toHaveLength(0)
+  })
+})
+
+describe('manager capabilities + config threading', () => {
+  let db: TruxDatabase
+  let registry: SqliteRegistry
+  beforeEach(() => {
+    db = openDb(':memory:')
+    registry = new SqliteRegistry(db)
+  })
+  afterEach(() => db.close())
+
+  // Records the config passed to start(); session.send is a no-op that ends the turn.
+  class ConfigRecordingAdapter implements AgentAdapter {
+    readonly name = 'claude' as const
+    startConfigs: (TurnConfig | undefined)[] = []
+    capabilities(): AgentCapabilities {
+      return { agent: 'claude', models: [{ value: 'm', label: 'M' }], defaultModel: null, controls: [] }
+    }
+    start(opts: { cwd: string; resume?: string; config?: TurnConfig }): AgentSession {
+      this.startConfigs.push(opts.config)
+      const outbox = new PushQueue<AdapterEvent>()
+      return {
+        send: () => {
+          outbox.push({ type: 'turn_complete', cost: 0 })
+          outbox.end()
+        },
+        events: () => outbox.iterable(),
+        interrupt: async () => {},
+        close: async () => {},
+        nativeSessionId: () => null,
+        respondApproval: () => {},
+      }
+    }
+  }
+
+  it('aggregates adapter manifests', () => {
+    const adapter = new ConfigRecordingAdapter()
+    const mgr = new ConversationManager(registry, new Map([['claude', adapter]]))
+    const caps = mgr.capabilities()
+    expect(caps).toHaveLength(1)
+    expect(caps[0].agent).toBe('claude')
+    expect(caps[0].models[0].value).toBe('m')
+  })
+
+  it('persists per-turn config and passes it to the session at start', async () => {
+    const adapter = new ConfigRecordingAdapter()
+    const mgr = new ConversationManager(registry, new Map([['claude', adapter]]))
+    const conv = registry.createConversation({ agent: 'claude', cwd: '/x' })
+    mgr.attach(conv.id, () => {})
+    await mgr.handleUserMessage(conv.id, 'hi', undefined, undefined, {
+      model: 'm',
+      options: { effort: 'high' },
+    })
+    await settle()
+    expect(registry.getConversation(conv.id)?.model).toBe('m')
+    expect(adapter.startConfigs[0]).toEqual({ model: 'm', options: { effort: 'high' } })
   })
 })

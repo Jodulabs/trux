@@ -20,3 +20,23 @@ describe('openDb', () => {
     db.close()
   })
 })
+
+describe('conversations migration', () => {
+  const columns = (db: ReturnType<typeof openDb>): string[] =>
+    (db.prepare('PRAGMA table_info(conversations)').all() as { name: string }[]).map((r) => r.name)
+
+  it('adds model and options columns', () => {
+    const db = openDb(':memory:')
+    const cols = columns(db)
+    expect(cols).toContain('model')
+    expect(cols).toContain('options')
+    db.close()
+  })
+
+  it('is idempotent when columns already exist', () => {
+    const db = openDb(':memory:')
+    expect(() => openDb(':memory:')).not.toThrow()
+    expect(columns(db)).toContain('model')
+    db.close()
+  })
+})

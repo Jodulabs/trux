@@ -6,6 +6,7 @@ import type {
   CreateConversationRequest,
   ServerEvent,
   StoredEvent,
+  TurnConfig,
 } from '@trux/protocol'
 import type { TruxDatabase } from './db'
 
@@ -19,6 +20,8 @@ interface ConversationRow {
   archived: number
   created_at: number
   updated_at: number
+  model: string | null
+  options: string // JSON; '{}' default
 }
 
 function toConversation(row: ConversationRow): Conversation {
@@ -32,6 +35,8 @@ function toConversation(row: ConversationRow): Conversation {
     archived: row.archived === 1,
     created_at: row.created_at,
     updated_at: row.updated_at,
+    model: row.model,
+    options: row.options ? (JSON.parse(row.options) as Record<string, string>) : {},
   }
 }
 
@@ -60,12 +65,14 @@ export class SqliteRegistry {
       archived: 0,
       created_at: now,
       updated_at: now,
+      model: input.model ?? null,
+      options: JSON.stringify(input.options ?? {}),
     }
     this.db
       .prepare(
         `INSERT INTO conversations
-         (id, agent, cwd, title, status, native_session_id, archived, created_at, updated_at)
-         VALUES (@id, @agent, @cwd, @title, @status, @native_session_id, @archived, @created_at, @updated_at)`,
+         (id, agent, cwd, title, status, native_session_id, archived, created_at, updated_at, model, options)
+         VALUES (@id, @agent, @cwd, @title, @status, @native_session_id, @archived, @created_at, @updated_at, @model, @options)`,
       )
       .run(row)
     return toConversation(row)
@@ -96,6 +103,14 @@ export class SqliteRegistry {
     this.db
       .prepare('UPDATE conversations SET native_session_id = ?, updated_at = ? WHERE id = ?')
       .run(nativeSessionId, Date.now(), id)
+  }
+
+  // Sticky last-used selection for a conversation. Pure UI memory — trux's own,
+  // not a model-behavior decision.
+  setConfig(id: string, config: TurnConfig): void {
+    this.db
+      .prepare('UPDATE conversations SET model = @model, options = @options, updated_at = @now WHERE id = @id')
+      .run({ id, model: config.model ?? null, options: JSON.stringify(config.options ?? {}), now: Date.now() })
   }
 
   archiveConversation(id: string): void {

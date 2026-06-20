@@ -1,4 +1,4 @@
-import type { ImageAttachment } from '@trux/protocol'
+import type { ImageAttachment, TurnConfig } from '@trux/protocol'
 
 // A prompt the user sent while the socket was down. Persisted to localStorage so
 // it survives an app kill, deduped by client_message_id, flushed in order on
@@ -7,6 +7,7 @@ export interface QueuedMessage {
   client_message_id: string
   text: string
   attachments?: ImageAttachment[]
+  config?: TurnConfig
 }
 
 const KEY = (convId: string): string => `trux_outbox_${convId}`

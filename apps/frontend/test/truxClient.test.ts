@@ -53,4 +53,41 @@ describe('connectTrux', () => {
     socket.emit('message', { data: JSON.stringify(hello) })
     expect(onReady).toHaveBeenCalledWith(hello)
   })
+
+  it('sendUserMessage carries config on the wire when provided', () => {
+    let socket!: FakeWebSocket
+    const client = connectTrux({
+      url: 'ws://x/stream',
+      WebSocketImpl: class extends FakeWebSocket {
+        constructor(url: string) {
+          super(url)
+          socket = this
+        }
+      } as unknown as typeof WebSocket,
+    })
+    client.sendUserMessage('hi', undefined, 'cid-1', { model: 'claude-opus-4-8', options: { effort: 'high' } })
+    const frame = JSON.parse(socket.sent[0])
+    expect(frame).toMatchObject({
+      type: 'user_message',
+      text: 'hi',
+      client_message_id: 'cid-1',
+      config: { model: 'claude-opus-4-8', options: { effort: 'high' } },
+    })
+  })
+
+  it('sendUserMessage omits config when not provided', () => {
+    let socket!: FakeWebSocket
+    const client = connectTrux({
+      url: 'ws://x/stream',
+      WebSocketImpl: class extends FakeWebSocket {
+        constructor(url: string) {
+          super(url)
+          socket = this
+        }
+      } as unknown as typeof WebSocket,
+    })
+    client.sendUserMessage('hi')
+    const frame = JSON.parse(socket.sent[0])
+    expect(frame.config).toBeUndefined()
+  })
 })

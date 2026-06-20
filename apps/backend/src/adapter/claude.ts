@@ -1,5 +1,5 @@
 import { query as realQuery } from '@anthropic-ai/claude-agent-sdk'
-import type { ApprovalDecision, ImageAttachment } from '@trux/protocol'
+import type { AgentCapabilities, ApprovalDecision, ImageAttachment, TurnConfig } from '@trux/protocol'
 import type { AgentAdapter, AgentSession, AdapterEvent } from './types'
 import { PushQueue } from './queue'
 
@@ -173,7 +173,10 @@ class ClaudeSession implements AgentSession {
     }
   }
 
-  send(text: string, attachments?: ImageAttachment[]): void {
+  send(text: string, attachments?: ImageAttachment[], _config?: TurnConfig): void {
+    // _config is accepted for seam symmetry. Claude binds model/effort at query()
+    // creation (see ClaudeAdapter.start), so a changed selection takes effect when
+    // the session is next created — the SDK's own granularity, not a trux switch policy.
     if (attachments && attachments.length > 0) {
       const content: Array<{ type: string; [k: string]: unknown }> = [
         { type: 'text', text },
@@ -228,8 +231,40 @@ export class ClaudeAdapter implements AgentAdapter {
   readonly name = 'claude' as const
   constructor(private readonly queryFn: QueryFn = realQuery) {}
 
-  start({ cwd, resume }: { cwd: string; resume?: string }): AgentSession {
+  // Mirrors Claude Code's own surface. Model IDs are the bare SDK strings; effort
+  // levels are the SDK's EffortLevel union. defaultModel is null and the effort
+  // default is '' — trux does not pick; the backend's own default applies.
+  capabilities(): AgentCapabilities {
+    return {
+      agent: 'claude',
+      models: [
+        { value: 'claude-opus-4-8', label: 'Opus 4.8' },
+        { value: 'claude-sonnet-4-6', label: 'Sonnet 4.6' },
+        { value: 'claude-haiku-4-5', label: 'Haiku 4.5' },
+      ],
+      defaultModel: null,
+      controls: [
+        {
+          key: 'effort',
+          label: 'Effort',
+          options: [
+            { value: 'low', label: 'Low' },
+            { value: 'medium', label: 'Medium' },
+            { value: 'high', label: 'High' },
+            { value: 'xhigh', label: 'Extra high' },
+            { value: 'max', label: 'Max' },
+          ],
+          default: '',
+        },
+      ],
+    }
+  }
+
+  start({ cwd, resume, config }: { cwd: string; resume?: string; config?: TurnConfig }): AgentSession {
     const inbox = new PushQueue<SdkUserMessage>()
+    // Map the opaque selection onto the SDK's native knobs. Empty/absent = omit
+    // (let the backend default apply) — trux imposes no model policy.
+    const effort = config?.options?.effort
     const startQuery = (canUseTool: CanUseTool): QueryHandle =>
       this.queryFn({
         prompt: inbox.iterable() as never,
@@ -243,6 +278,8 @@ export class ClaudeAdapter implements AgentAdapter {
           includePartialMessages: true,
           resume,
           canUseTool: canUseTool as never,
+          ...(config?.model ? { model: config.model } : {}),
+          ...(effort ? { effort: effort as 'low' | 'medium' | 'high' | 'xhigh' | 'max' } : {}),
         },
       }) as unknown as QueryHandle
     return new ClaudeSession(startQuery, inbox)

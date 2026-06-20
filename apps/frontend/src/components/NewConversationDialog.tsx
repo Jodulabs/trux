@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import type { AgentName, DiscoveredSession, Workspace } from '@trux/protocol'
+import type { AgentCapabilities, AgentName, DiscoveredSession, TurnConfig, Workspace } from '@trux/protocol'
 import { api } from '../api'
+import { ControlPicker } from './ControlPicker'
 
 interface Props {
   onCreated: (id: string) => void
@@ -18,10 +19,11 @@ function basename(path: string): string {
 
 export function NewConversationDialog({ onCreated }: Props): React.ReactElement {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
-  const [agents, setAgents] = useState<AgentName[]>([])
+  const [agents, setAgents] = useState<AgentCapabilities[]>([])
   const [repoRoot, setRepoRoot] = useState('')
   const [cwd, setCwd] = useState('')
   const [agent, setAgent] = useState<AgentName>('claude')
+  const [config, setConfig] = useState<TurnConfig>({ model: null, options: {} })
   const [sessions, setSessions] = useState<DiscoveredSession[]>([])
   const [sessionId, setSessionId] = useState('')
 
@@ -35,7 +37,7 @@ export function NewConversationDialog({ onCreated }: Props): React.ReactElement 
     void api.listAgents().then((r) => {
       const list = r.agents ?? []
       setAgents(list)
-      if (list[0]) setAgent(list[0])
+      if (list[0]) setAgent(list[0].agent)
     })
   }, [])
 
@@ -46,6 +48,13 @@ export function NewConversationDialog({ onCreated }: Props): React.ReactElement 
     setCwd(repo?.worktrees[0]?.path ?? '')
   }
   const worktrees = workspaces.find((w) => w.root === repoRoot)?.worktrees ?? []
+  const caps = agents.find((a) => a.agent === agent)
+
+  // Reset the selection whenever the agent changes so the controls match the
+  // new manifest (an effort key from claude is meaningless on an empty manifest).
+  useEffect(() => {
+    setConfig({ model: null, options: {} })
+  }, [agent])
 
   // Re-discover sessions whenever agent or cwd changes.
   useEffect(() => {
@@ -61,6 +70,8 @@ export function NewConversationDialog({ onCreated }: Props): React.ReactElement 
       agent,
       cwd,
       native_session_id: sessionId || undefined,
+      model: config.model,
+      options: config.options,
     })
     onCreated(conv.id)
   }
@@ -69,9 +80,10 @@ export function NewConversationDialog({ onCreated }: Props): React.ReactElement 
     <div className="new-conversation">
       <select data-testid="agent-select" value={agent} onChange={(e) => setAgent(e.target.value as AgentName)}>
         {agents.map((a) => (
-          <option key={a} value={a}>{a}</option>
+          <option key={a.agent} value={a.agent}>{a.agent}</option>
         ))}
       </select>
+      {caps && <ControlPicker caps={caps} value={config} onChange={setConfig} />}
       <select data-testid="repo-select" value={repoRoot} onChange={(e) => selectRepo(e.target.value)}>
         {workspaces.map((w) => (
           <option key={w.root} value={w.root}>{w.name}</option>

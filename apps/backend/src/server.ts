@@ -35,7 +35,7 @@ export async function buildServer(
   // REST routes get their own encapsulated scope so the bearer preHandler hook
   // stays off /health, /config, or the WS upgrade.
   await app.register(async (scope) => {
-    registerRoutes(scope, config, registry, manager.availableAgents())
+    registerRoutes(scope, config, registry, manager.capabilities())
   })
   registerStream(app, config, registry, manager)
 

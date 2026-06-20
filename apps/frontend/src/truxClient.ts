@@ -1,4 +1,4 @@
-import type { ApprovalDecision, ClientMessage, HelloEvent, ImageAttachment, ServerEvent } from '@trux/protocol'
+import type { ApprovalDecision, ClientMessage, HelloEvent, ImageAttachment, ServerEvent, TurnConfig } from '@trux/protocol'
 
 export type ConnState = 'connecting' | 'connected' | 'reconnecting' | 'offline'
 
@@ -16,7 +16,7 @@ export interface TruxClientOptions {
 
 export interface TruxClient {
   send: (msg: ClientMessage) => void
-  sendUserMessage: (text: string, attachments?: ImageAttachment[], clientMessageId?: string) => void
+  sendUserMessage: (text: string, attachments?: ImageAttachment[], clientMessageId?: string, config?: TurnConfig) => void
   interrupt: () => void
   respondApproval: (requestId: string, decision: ApprovalDecision, note?: string | null) => void
   close: () => void
@@ -101,13 +101,14 @@ export function connectTrux(opts: TruxClientOptions): TruxClient {
 
   return {
     send: (msg) => safeSend(JSON.stringify(msg)),
-    sendUserMessage: (text, attachments, clientMessageId) =>
+    sendUserMessage: (text, attachments, clientMessageId, config) =>
       safeSend(
         JSON.stringify({
           type: 'user_message',
           text,
           ...(attachments && attachments.length > 0 ? { attachments } : {}),
           ...(clientMessageId ? { client_message_id: clientMessageId } : {}),
+          ...(config ? { config } : {}),
         }),
       ),
     interrupt: () => safeSend(JSON.stringify({ type: 'interrupt' })),

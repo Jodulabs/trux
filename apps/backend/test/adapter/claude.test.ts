@@ -188,3 +188,29 @@ describe('ClaudeAdapter mapping', () => {
     expect(await result).toEqual({ behavior: 'deny', message: 'interrupted' })
   })
 })
+
+describe('ClaudeAdapter capabilities + config routing', () => {
+  it('declares a model list and an effort control', () => {
+    const caps = new ClaudeAdapter(fakeQuery([]).fn).capabilities()
+    expect(caps.agent).toBe('claude')
+    expect(caps.models.map((m) => m.value)).toContain('claude-opus-4-8')
+    expect(caps.controls.find((c) => c.key === 'effort')).toBeTruthy()
+    expect(caps.defaultModel).toBeNull()
+  })
+
+  it('passes model + effort into the SDK query options when set', () => {
+    const { fn, getOptions } = fakeQuery([])
+    new ClaudeAdapter(fn).start({ cwd: '/x', config: { model: 'claude-opus-4-8', options: { effort: 'high' } } })
+    const options = getOptions()
+    expect(options.model).toBe('claude-opus-4-8')
+    expect(options.effort).toBe('high')
+  })
+
+  it('omits model/effort when the selection is empty (no override)', () => {
+    const { fn, getOptions } = fakeQuery([])
+    new ClaudeAdapter(fn).start({ cwd: '/x', config: { model: null, options: {} } })
+    const options = getOptions()
+    expect(options.model).toBeUndefined()
+    expect(options.effort).toBeUndefined()
+  })
+})

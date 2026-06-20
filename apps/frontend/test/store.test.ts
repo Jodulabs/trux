@@ -145,7 +145,8 @@ describe('setTitle', () => {
     useStore.setState({
       conversations: [
         { id: 'c1', agent: 'claude', cwd: '/repo/darshi', title: null, status: 'idle',
-          native_session_id: null, archived: false, created_at: 1, updated_at: 1 },
+          native_session_id: null, archived: false, created_at: 1, updated_at: 1,
+          model: null, options: {} },
       ],
       convMeta: {},
     })

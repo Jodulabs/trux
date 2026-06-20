@@ -1441,3 +1441,28 @@ main > [data-testid="empty"] {
   font-size: 0.95rem;
   cursor: pointer;
 }
+
+/* Command palette: a bottom sheet anchored to the composer, mobile-first. */
+.command-palette { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; justify-content: flex-end; }
+.command-scrim { position: absolute; inset: 0; background: rgba(0,0,0,0.4); border: 0; }
+.command-sheet {
+  position: relative; max-height: 60vh; overflow-y: auto;
+  background: var(--surface-2); border-top-left-radius: var(--radius-lg); border-top-right-radius: var(--radius-lg);
+  padding: 12px; box-shadow: 0 -8px 24px rgba(0,0,0,0.3);
+}
+.command-search { width: 100%; padding: 12px; font-size: 16px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface-1); color: inherit; font-family: var(--font-sans); outline: none; }
+.command-search:focus { border-color: var(--accent); }
+.command-section-label { text-transform: uppercase; font-size: 11px; opacity: 0.6; margin: 12px 4px 4px; font-family: var(--font-mono); letter-spacing: 0.06em; color: var(--text-faint); }
+.command-list { list-style: none; margin: 0; padding: 0; }
+.command-item { display: flex; flex-direction: column; gap: 2px; width: 100%; text-align: left; padding: 12px; min-height: 48px; border: 0; background: transparent; color: inherit; border-radius: var(--radius); cursor: pointer; }
+.command-item:hover, .command-item:active { background: var(--surface-3); }
+.command-name { font-weight: 600; color: var(--accent); font-family: var(--font-mono); }
+.command-desc { font-size: 13px; opacity: 0.7; color: var(--text-dim); }
+.command-empty { padding: 16px; opacity: 0.6; text-align: center; color: var(--text-faint); }
+.command-args { display: flex; flex-direction: column; gap: 12px; }
+.command-args-title { font-weight: 600; font-family: var(--font-mono); color: var(--accent); }
+.command-arg { display: flex; flex-direction: column; gap: 4px; }
+.command-arg input { padding: 12px; font-size: 16px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface-1); color: inherit; font-family: var(--font-sans); outline: none; }
+.command-arg input:focus { border-color: var(--accent); }
+.command-run { padding: 12px; min-height: 48px; border-radius: var(--radius); border: 0; background: var(--accent); color: #14100a; font-weight: 600; font-size: 1rem; cursor: pointer; transition: background 0.12s ease; }
+.command-run:hover { background: var(--accent-bright); }

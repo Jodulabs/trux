@@ -1,6 +1,7 @@
 import type {
   AgentsResponse,
   CommitResult,
+  CommandsResponse,
   Conversation,
   ConversationDetail,
   CreateConversationRequest,
@@ -53,6 +54,10 @@ export const api = {
     fetch(`/sessions/discover?agent=${encodeURIComponent(agent)}&cwd=${encodeURIComponent(cwd)}`, {
       headers: authHeaders(),
     }).then(json<DiscoveredSession[]>),
+  discoverCommands: (agent: string, cwd: string) =>
+    fetch(`/commands/discover?agent=${encodeURIComponent(agent)}&cwd=${encodeURIComponent(cwd)}`, {
+      headers: authHeaders(),
+    }).then(json<CommandsResponse>),
   gitStatus: (id: string) =>
     fetch(`/conversations/${id}/git`, { headers: authHeaders() }).then(json<GitStatusResult>),
   gitDiff: (id: string, opts?: { path?: string; staged?: boolean }) => {

@@ -47,6 +47,18 @@ beforeEach(() => {
   vi.spyOn(api, 'renameConversation').mockResolvedValue(claudeConv)
 })
 
+describe('ConversationView commands', () => {
+  it('fetches commands for the conversation and shows the command button', async () => {
+    vi.spyOn(api, 'discoverCommands').mockResolvedValue({
+      commands: [{ name: 'ship', description: 'Ship', body: 'Ship it', args: [], source: 'file' }],
+    })
+    useStore.setState({ conversations: [claudeConv], status: 'idle', approvalDecisions: {}, convMeta: {} })
+    render(<ConversationView id="c1" />)
+    expect(await screen.findByTestId('cmd-btn')).toBeInTheDocument()
+    expect(api.discoverCommands).toHaveBeenCalledWith('claude', expect.any(String))
+  })
+})
+
 describe('ConversationView composer picker', () => {
   it('seeds the model picker from the conversation sticky selection', async () => {
     useStore.setState({ conversations: [claudeConv], status: 'idle', approvalDecisions: {}, convMeta: {} })

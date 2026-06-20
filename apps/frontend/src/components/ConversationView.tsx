@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useMemo } from 'react'
-import type { AgentCapabilities, ApprovalDecision, GitStatusResult, ImageAttachment, TurnConfig } from '@trux/protocol'
+import type { AgentCapabilities, AgentCommand, ApprovalDecision, GitStatusResult, ImageAttachment, TurnConfig } from '@trux/protocol'
 import { useStore } from '../store'
 import { api } from '../api'
 import {
@@ -94,6 +94,12 @@ export function ConversationView({ id }: { id: string }): React.ReactElement {
     setConfig({ model: conv?.model ?? null, options: conv?.options ?? {} })
   }, [conv?.model, conv?.options])
   const caps = agents.find((a) => a.agent === conv?.agent)
+
+  const [commands, setCommands] = useState<AgentCommand[]>([])
+  useEffect(() => {
+    if (!conv) return
+    void api.discoverCommands(conv.agent, conv.cwd).then((r) => setCommands(r.commands ?? [])).catch(() => {})
+  }, [conv?.agent, conv?.cwd])
 
   const reloadGit = useCallback(async (): Promise<void> => {
     try { setGitStatus(await api.gitStatus(id)) } catch {}
@@ -294,6 +300,7 @@ export function ConversationView({ id }: { id: string }): React.ReactElement {
         conversationId={id}
         busy={busy}
         caps={caps}
+        commands={commands}
         config={config}
         onConfigChange={setConfig}
         onSend={onSend}

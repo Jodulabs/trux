@@ -183,10 +183,12 @@ describe('NewConversationDialog', () => {
     await screen.findByTestId('folder-/solo')
     expect(screen.getByText('multi')).toBeTruthy() // 'multi' renders as a group header
     // 'multi' nests its worktrees → the feat worktree is directly selectable.
-    fireEvent.click(screen.getByTestId('folder-/multi/.worktrees/feat'))
-    await waitFor(() =>
-      expect(screen.getByTestId('folder-/multi/.worktrees/feat').className).toContain('selected'),
-    )
+    // Re-click until the selection sticks: the dialog seeds a default folder
+    // asynchronously, so a single click can race that initial render.
+    await waitFor(() => {
+      fireEvent.click(screen.getByTestId('folder-/multi/.worktrees/feat'))
+      expect(screen.getByTestId('folder-/multi/.worktrees/feat').className).toContain('selected')
+    })
     fireEvent.click(screen.getByTestId('create'))
     await waitFor(() =>
       expect(created).toHaveBeenCalledWith(expect.objectContaining({ agent: 'claude', cwd: '/multi/.worktrees/feat' })),

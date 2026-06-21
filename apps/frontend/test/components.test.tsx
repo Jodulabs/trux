@@ -7,8 +7,8 @@ import { ApprovalCard } from '../src/components/ApprovalCard'
 import { ConversationView, deriveTitle } from '../src/components/ConversationView'
 import { ConversationList } from '../src/components/ConversationList'
 import { NewConversationDialog } from '../src/components/NewConversationDialog'
-import { api } from '../src/api'
-import { useStore, type TranscriptItem } from '../src/store'
+import { api } from '@trux/client/api'
+import { useStore, type TranscriptItem } from '@trux/client/store'
 
 afterEach(cleanup)
 

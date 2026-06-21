@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ServerEvent } from '@trux/protocol'
+import { configureClient } from '../src/ports'
+import { makeMemoryStorage } from './memoryStorage'
 
 // Mock truxClient so we can control events without opening real WebSockets.
 vi.mock('../src/truxClient', () => {
@@ -28,6 +30,7 @@ import { openConnection, setActiveHandlers, clearActiveHandlers, getConnection }
 import { useStore } from '../src/store'
 
 beforeEach(() => {
+  configureClient({ storage: makeMemoryStorage(), serverConfig: { httpBase: '', wsBase: 'ws://x' } })
   vi.mocked(connectTrux).mockClear()
   // Reset store state
   useStore.setState({ convMeta: {}, currentId: null })

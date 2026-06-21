@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { parseDiff } from '../diff'
+import { parseDiff } from '@trux/client/diff'
 
 interface Props {
   title?: string

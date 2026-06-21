@@ -1,7 +1,9 @@
 import type { ImageAttachment, TurnConfig } from '@trux/protocol'
+import { getStorage } from './ports'
 
-// A prompt the user sent while the socket was down. Persisted to localStorage so
-// it survives an app kill, deduped by client_message_id, flushed in order on
+// A prompt the user sent while the socket was down. Persisted to the injected
+// Storage port (localStorage on web, expo-secure-store/MMKV on native) so it
+// survives an app kill, deduped by client_message_id, flushed in order on
 // reconnect. Keyed per conversation.
 export interface QueuedMessage {
   client_message_id: string
@@ -14,7 +16,7 @@ const KEY = (convId: string): string => `trux_outbox_${convId}`
 
 export function loadQueue(convId: string): QueuedMessage[] {
   try {
-    const raw = localStorage.getItem(KEY(convId))
+    const raw = getStorage().get(KEY(convId))
     return raw ? (JSON.parse(raw) as QueuedMessage[]) : []
   } catch {
     return []
@@ -23,8 +25,8 @@ export function loadQueue(convId: string): QueuedMessage[] {
 
 function saveQueue(convId: string, q: QueuedMessage[]): void {
   try {
-    if (q.length === 0) localStorage.removeItem(KEY(convId))
-    else localStorage.setItem(KEY(convId), JSON.stringify(q))
+    if (q.length === 0) getStorage().remove(KEY(convId))
+    else getStorage().set(KEY(convId), JSON.stringify(q))
   } catch {
     // storage full / unavailable — best-effort
   }
@@ -45,7 +47,7 @@ export function dequeue(convId: string, clientMessageId: string): void {
 }
 
 export function newMessageId(): string {
-  // crypto.randomUUID exists in all PWA-capable browsers; fall back just in case.
+  // crypto.randomUUID exists in all PWA-capable browsers and RN; fall back just in case.
   try {
     return crypto.randomUUID()
   } catch {

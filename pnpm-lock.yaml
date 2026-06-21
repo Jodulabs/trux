@@ -78,6 +78,9 @@ importers:
       '@fontsource/ibm-plex-sans':
         specifier: ^5.2.8
         version: 5.2.8
+      '@trux/client':
+        specifier: workspace:*
+        version: link:../../packages/client
       '@trux/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
@@ -96,9 +99,6 @@ importers:
       remark-gfm:
         specifier: ^4.0.1
         version: 4.0.1
-      zustand:
-        specifier: ^5.0.14
-        version: 5.0.14(@types/react@19.2.17)(react@19.2.7)
     devDependencies:
       '@testing-library/jest-dom':
         specifier: ^6.9.1
@@ -124,6 +124,15 @@ importers:
       vitest:
         specifier: ^4.0.0
         version: 4.1.9(@types/node@22.19.21)(happy-dom@20.10.4)(vite@8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(tsx@4.22.4))
+
+  packages/client:
+    dependencies:
+      '@trux/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      zustand:
+        specifier: ^5.0.14
+        version: 5.0.14(@types/react@19.2.17)(react@19.2.7)
 
   packages/protocol: {}
 

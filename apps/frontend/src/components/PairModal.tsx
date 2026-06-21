@@ -1,6 +1,7 @@
 import React from 'react'
 import { QRCodeSVG } from 'qrcode.react'
-import { useStore } from '../store'
+import { useStore } from '@trux/client/store'
+import { getStorage } from '@trux/client/ports'
 
 interface Props {
   onClose: () => void
@@ -8,7 +9,7 @@ interface Props {
 
 export function PairModal({ onClose }: Props): React.ReactElement {
   const tailscaleHost = useStore((s) => s.tailscaleHost)
-  const token = localStorage.getItem('trux_token')
+  const token = getStorage().get('trux_token')
   const url =
     tailscaleHost && token
       ? `https://${tailscaleHost}/#token=${encodeURIComponent(token)}`

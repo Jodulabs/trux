@@ -9,11 +9,19 @@ import type {
   GitStatusResult,
   Workspace,
 } from '@trux/protocol'
+import { getServerConfig, getStorage } from './ports'
 
-// Optional bearer for remote; empty/absent locally (authRequired off).
+// Optional bearer for remote; empty/absent locally (authRequired off). The token
+// lives in the injected Storage port (localStorage on web, secure-store on native).
 function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem('trux_token')
+  const token = getStorage().get('trux_token')
   return token ? { authorization: `Bearer ${token}` } : {}
+}
+
+// Prefix a path with the configured HTTP base. Web binds httpBase: '' (preserves
+// today's same-origin relative fetch); native binds the paired host.
+function url(path: string): string {
+  return getServerConfig().httpBase + path
 }
 
 async function json<T>(res: Response): Promise<T> {
@@ -22,67 +30,67 @@ async function json<T>(res: Response): Promise<T> {
 }
 
 export const api = {
-  listWorkspaces: () => fetch('/workspaces', { headers: authHeaders() }).then(json<Workspace[]>),
-  listAgents: () => fetch('/agents', { headers: authHeaders() }).then(json<AgentsResponse>),
+  listWorkspaces: () => fetch(url('/workspaces'), { headers: authHeaders() }).then(json<Workspace[]>),
+  listAgents: () => fetch(url('/agents'), { headers: authHeaders() }).then(json<AgentsResponse>),
   listConversations: () =>
-    fetch('/conversations', { headers: authHeaders() }).then(json<Conversation[]>),
+    fetch(url('/conversations'), { headers: authHeaders() }).then(json<Conversation[]>),
   getConversation: (id: string) =>
-    fetch(`/conversations/${id}`, { headers: authHeaders() }).then(json<ConversationDetail>),
+    fetch(url(`/conversations/${id}`), { headers: authHeaders() }).then(json<ConversationDetail>),
   createConversation: (body: CreateConversationRequest) =>
-    fetch('/conversations', {
+    fetch(url('/conversations'), {
       method: 'POST',
       headers: { 'content-type': 'application/json', ...authHeaders() },
       body: JSON.stringify(body),
     }).then(json<Conversation>),
   renameConversation: (id: string, title: string) =>
-    fetch(`/conversations/${id}`, {
+    fetch(url(`/conversations/${id}`), {
       method: 'PATCH',
       headers: { 'content-type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ title }),
     }).then(json<Conversation>),
   getRemoteConfig: () =>
-    fetch('/config').then(json<{ tailscaleHost: string | null; vapidPublicKey: string | null }>),
+    fetch(url('/config')).then(json<{ tailscaleHost: string | null; vapidPublicKey: string | null }>),
   subscribePush: (sub: PushSubscriptionJSON) =>
-    fetch('/push/subscribe', {
+    fetch(url('/push/subscribe'), {
       method: 'POST',
       headers: { 'content-type': 'application/json', ...authHeaders() },
       body: JSON.stringify(sub),
     }).then(json<{ ok: boolean }>),
   searchConversations: (q: string) =>
-    fetch(`/conversations/search?q=${encodeURIComponent(q)}`, { headers: authHeaders() }).then(json<Conversation[]>),
+    fetch(url(`/conversations/search?q=${encodeURIComponent(q)}`), { headers: authHeaders() }).then(json<Conversation[]>),
   discoverSessions: (agent: string, cwd: string) =>
-    fetch(`/sessions/discover?agent=${encodeURIComponent(agent)}&cwd=${encodeURIComponent(cwd)}`, {
+    fetch(url(`/sessions/discover?agent=${encodeURIComponent(agent)}&cwd=${encodeURIComponent(cwd)}`), {
       headers: authHeaders(),
     }).then(json<DiscoveredSession[]>),
   discoverCommands: (agent: string, cwd: string) =>
-    fetch(`/commands/discover?agent=${encodeURIComponent(agent)}&cwd=${encodeURIComponent(cwd)}`, {
+    fetch(url(`/commands/discover?agent=${encodeURIComponent(agent)}&cwd=${encodeURIComponent(cwd)}`), {
       headers: authHeaders(),
     }).then(json<CommandsResponse>),
   gitStatus: (id: string) =>
-    fetch(`/conversations/${id}/git`, { headers: authHeaders() }).then(json<GitStatusResult>),
+    fetch(url(`/conversations/${id}/git`), { headers: authHeaders() }).then(json<GitStatusResult>),
   gitDiff: (id: string, opts?: { path?: string; staged?: boolean }) => {
     const p = new URLSearchParams()
     if (opts?.path) p.set('path', opts.path)
     if (opts?.staged) p.set('staged', '1')
     const qs = p.toString()
-    return fetch(`/conversations/${id}/git/diff${qs ? `?${qs}` : ''}`, {
+    return fetch(url(`/conversations/${id}/git/diff${qs ? `?${qs}` : ''}`), {
       headers: authHeaders(),
     }).then(json<{ diff: string }>)
   },
   gitStage: (id: string, path: string) =>
-    fetch(`/conversations/${id}/git/stage`, {
+    fetch(url(`/conversations/${id}/git/stage`), {
       method: 'POST',
       headers: { 'content-type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ path }),
     }).then(json<{ ok: boolean }>),
   gitUnstage: (id: string, path: string) =>
-    fetch(`/conversations/${id}/git/unstage`, {
+    fetch(url(`/conversations/${id}/git/unstage`), {
       method: 'POST',
       headers: { 'content-type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ path }),
     }).then(json<{ ok: boolean }>),
   gitCommit: (id: string, message: string) =>
-    fetch(`/conversations/${id}/git/commit`, {
+    fetch(url(`/conversations/${id}/git/commit`), {
       method: 'POST',
       headers: { 'content-type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ message }),

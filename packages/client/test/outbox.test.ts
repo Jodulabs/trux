@@ -1,10 +1,10 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
+import { configureClient } from '../src/ports'
+import { makeMemoryStorage } from './memoryStorage'
 import { enqueue, loadQueue, dequeue, newMessageId } from '../src/outbox'
 
-afterEach(() => {
-  for (const k of Object.keys(localStorage)) {
-    if (k.startsWith('trux_outbox_')) localStorage.removeItem(k)
-  }
+beforeEach(() => {
+  configureClient({ storage: makeMemoryStorage(), serverConfig: { httpBase: '', wsBase: 'ws://x' } })
 })
 
 describe('outbox', () => {

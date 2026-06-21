@@ -2,6 +2,7 @@ import type { ServerEvent } from '@trux/protocol'
 import { connectTrux, type ConnState, type TruxClient } from './truxClient'
 import { useStore } from './store'
 import { dequeue, enqueue, loadQueue } from './outbox'
+import { getServerConfig, getStorage } from './ports'
 
 // Module-level map: one TruxClient per conversation, kept alive across switches.
 const connections = new Map<string, TruxClient>()
@@ -27,14 +28,14 @@ export function getConnection(id: string): TruxClient | undefined {
   return connections.get(id)
 }
 
-// Open a persistent connection for `id`. No-op if already open. Token comes from
-// localStorage so callers don't need to pass it explicitly.
+// Open a persistent connection for `id`. No-op if already open. Token + WS base
+// come from the injected ports so callers don't need to pass them explicitly.
 export function openConnection(id: string): void {
   if (connections.has(id)) return
-  const token = localStorage.getItem('trux_token') ?? ''
-  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
+  const token = getStorage().get('trux_token') ?? ''
+  const wsBase = getServerConfig().wsBase
   const client = connectTrux({
-    url: `${proto}//${location.host}/conversations/${id}/stream`,
+    url: `${wsBase}/conversations/${id}/stream`,
     token,
     resumeSeq: () => useStore.getState().convMeta[id]?.lastSeq ?? -1,
     onConnState(state) {

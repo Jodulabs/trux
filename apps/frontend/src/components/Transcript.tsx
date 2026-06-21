@@ -1,5 +1,5 @@
 import type { ApprovalDecision } from '@trux/protocol'
-import type { TranscriptItem } from '../store'
+import type { TranscriptItem } from '@trux/client/store'
 import { ApprovalCard } from './ApprovalCard'
 import { Markdown } from './Markdown'
 import { ActivityGroup } from './ActivityGroup'

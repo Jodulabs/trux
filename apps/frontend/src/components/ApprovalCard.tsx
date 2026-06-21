@@ -1,5 +1,5 @@
 import type { ApprovalDecision, ApprovalRequestEvent } from '@trux/protocol'
-import { toolSummary } from '../tools'
+import { toolSummary } from '@trux/client/tools'
 
 interface Props {
   event: ApprovalRequestEvent

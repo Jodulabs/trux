@@ -1,4 +1,5 @@
 import React from 'react'
+import { getStorage } from '@trux/client/ports'
 
 interface Props {
   onSaved: () => void
@@ -10,7 +11,7 @@ export function TokenGate({ onSaved }: Props): React.ReactElement {
   const save = (): void => {
     const trimmed = value.trim()
     if (!trimmed) return
-    localStorage.setItem('trux_token', trimmed)
+    getStorage().set('trux_token', trimmed)
     onSaved()
   }
 

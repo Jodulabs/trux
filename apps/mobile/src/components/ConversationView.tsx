@@ -1,7 +1,8 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { View, Text, StyleSheet } from 'react-native'
-import type { ApprovalDecision } from '@trux/protocol'
+import type { AgentCapabilities, ApprovalDecision, TurnConfig } from '@trux/protocol'
 import { useStore } from '@trux/client/store'
+import { api } from '@trux/client/api'
 import { openConnection, setActiveHandlers, clearActiveHandlers, getConnection, enqueue } from '@trux/client/connectionManager'
 import { newMessageId, dequeue } from '@trux/client/outbox'
 import { theme } from '../theme'
@@ -20,15 +21,17 @@ const CONN_LABEL: Record<string, string> = {
   offline: 'Offline — will retry',
 }
 
-// Phase B: opens a persistent WS connection for `id` via the shared
+// Phase C: opens a persistent WS connection for `id` via the shared
 // connectionManager, routes streamed events into the shared store, and renders
 // the Transcript (with happy tool-view cards) + Composer with the
 // connection-state banner. Approvals route through respondApproval via the WS.
+// ControlPicker (model/effort) is wired when the agent exposes controls.
 export function ConversationView({ id }: Props): React.ReactElement {
   const transcript = useStore((s) => s.transcript)
   const status = useStore((s) => s.status)
   const connState = useStore((s) => s.connState)
   const approvalDecisions = useStore((s) => s.approvalDecisions)
+  const conversations = useStore((s) => s.conversations)
   const applyEvent = useStore((s) => s.applyEvent)
   const setConnState = useStore((s) => s.setConnState)
   const addOptimistic = useStore((s) => s.addOptimistic)
@@ -36,8 +39,25 @@ export function ConversationView({ id }: Props): React.ReactElement {
   const recordApproval = useStore((s) => s.recordApproval)
   const reloaded = useRef(false)
 
-  // Open the connection once and register as the active conversation so events
-  // for `id` route here (transcript, haptics). Mirrors the PWA's ConversationView.
+  const conv = conversations.find((c) => c.id === id)
+  const [caps, setCaps] = useState<AgentCapabilities | undefined>()
+  const [config, setConfig] = useState<TurnConfig>({ model: null, options: {} })
+
+  // Seed config from the conversation's sticky selection (model/options).
+  useEffect(() => {
+    if (!conv) return
+    setConfig({ model: conv.model, options: { ...conv.options } })
+  }, [conv?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fetch agent capabilities for the ControlPicker.
+  useEffect(() => {
+    if (!conv?.agent) return
+    void api.listAgents().then((r) => {
+      const found = r.agents.find((a) => a.agent === conv.agent)
+      setCaps(found)
+    }).catch(() => {})
+  }, [conv?.agent])
+
   useEffect(() => {
     openConnection(id)
     setActiveHandlers({
@@ -60,11 +80,11 @@ export function ConversationView({ id }: Props): React.ReactElement {
 
   void reloaded
 
-  const onSend = (text: string): void => {
+  const onSend = (text: string, cfg?: TurnConfig): void => {
     const cid = newMessageId()
     addOptimistic({ type: 'user_text', turn_id: '', text, client_message_id: cid, pending: true })
-    enqueue(id, { client_message_id: cid, text })
-    getConnection(id)?.sendUserMessage(text, undefined, cid)
+    enqueue(id, { client_message_id: cid, text, config: cfg })
+    getConnection(id)?.sendUserMessage(text, undefined, cid, cfg)
     haptic('light')
   }
 
@@ -94,6 +114,9 @@ export function ConversationView({ id }: Props): React.ReactElement {
         busy={status === 'thinking' || status === 'awaiting_approval'}
         onSend={onSend}
         onInterrupt={() => getConnection(id)?.interrupt()}
+        caps={caps}
+        config={config}
+        onConfigChange={setConfig}
       />
     </View>
   )

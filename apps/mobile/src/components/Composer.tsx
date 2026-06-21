@@ -1,72 +1,83 @@
 import { useState } from 'react'
 import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native'
+import type { AgentCapabilities, TurnConfig } from '@trux/protocol'
 import { theme } from '../theme'
 import { haptic } from '../haptics'
+import { ControlPicker } from './ControlPicker'
 
 interface Props {
   busy: boolean
-  onSend: (text: string) => void
+  onSend: (text: string, config?: TurnConfig) => void
   onInterrupt: () => void
+  caps?: AgentCapabilities
+  config?: TurnConfig
+  onConfigChange?: (next: TurnConfig) => void
 }
 
-// Phase A4 composer: auto-grow-ish single-line input with a send button that
-// flips to interrupt while the agent is thinking. Keyboard avoidance is handled
-// by the parent (the session screen wraps us in KeyboardAvoidingView) so the
-// composer stays sticky above the keyboard. No model picker / commands yet —
-// those land in Phase B/C with the control picker and command palette.
-export function Composer({ busy, onSend, onInterrupt }: Props): React.ReactElement {
+// Native composer: auto-grow-ish input with send/interrupt. Optional
+// ControlPicker (model/effort) renders above the input when the agent exposes
+// controls. Keyboard avoidance is handled by the parent.
+export function Composer({ busy, onSend, onInterrupt, caps, config, onConfigChange }: Props): React.ReactElement {
   const [text, setText] = useState('')
+  const hasControls = !!(caps && config && onConfigChange && (caps.models.length > 0 || caps.controls.length > 0))
 
   const submit = (): void => {
     const trimmed = text.trim()
     if (!trimmed || busy) return
-    onSend(trimmed)
+    onSend(trimmed, config)
     setText('')
     haptic('light')
   }
 
   return (
     <View style={styles.shell}>
-      <TextInput
-        style={styles.input}
-        value={text}
-        onChangeText={setText}
-        placeholder="Message trux…"
-        placeholderTextColor={theme.textFaint}
-        multiline
-        editable={!busy}
-        autoCapitalize="none"
-        autoCorrect={false}
-        onSubmitEditing={submit}
-      />
-      {busy ? (
-        <Pressable style={styles.interruptBtn} onPress={() => { onInterrupt(); haptic('medium') }} hitSlop={8}>
-          <Text style={styles.interruptText}>■</Text>
-        </Pressable>
-      ) : (
-        <Pressable
-          style={({ pressed }) => [styles.sendBtn, pressed && styles.sendBtnPressed, !text.trim() && styles.sendBtnDisabled]}
-          onPress={submit}
-          disabled={!text.trim()}
-          hitSlop={8}
-        >
-          <Text style={styles.sendMark}>↑</Text>
-        </Pressable>
-      )}
+      {hasControls && caps && config && onConfigChange ? (
+        <ControlPicker caps={caps} value={config} onChange={onConfigChange} />
+      ) : null}
+      <View style={styles.inputRow}>
+        <TextInput
+          style={styles.input}
+          value={text}
+          onChangeText={setText}
+          placeholder="Message trux…"
+          placeholderTextColor={theme.textFaint}
+          multiline
+          editable={!busy}
+          autoCapitalize="none"
+          autoCorrect={false}
+          onSubmitEditing={submit}
+        />
+        {busy ? (
+          <Pressable style={styles.interruptBtn} onPress={() => { onInterrupt(); haptic('medium') }} hitSlop={8}>
+            <Text style={styles.interruptText}>■</Text>
+          </Pressable>
+        ) : (
+          <Pressable
+            style={({ pressed }) => [styles.sendBtn, pressed && styles.sendBtnPressed, !text.trim() && styles.sendBtnDisabled]}
+            onPress={submit}
+            disabled={!text.trim()}
+            hitSlop={8}
+          >
+            <Text style={styles.sendMark}>↑</Text>
+          </Pressable>
+        )}
+      </View>
     </View>
   )
 }
 
 const styles = StyleSheet.create({
   shell: {
+    borderTopWidth: 1,
+    borderTopColor: theme.lineSoft,
+    backgroundColor: theme.ink,
+  },
+  inputRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     gap: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: theme.lineSoft,
-    backgroundColor: theme.ink,
   },
   input: {
     flex: 1,

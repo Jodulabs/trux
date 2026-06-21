@@ -45,7 +45,7 @@ describe('ConversationView', () => {
     await fireEvent.press(screen.getByText('↑'))
     // The optimistic bubble appears immediately.
     expect(screen.getByText('hello world')).toBeTruthy()
-    expect(mockSendUserMessage).toHaveBeenCalledWith('hello world', undefined, 'cid-1')
+    expect(mockSendUserMessage).toHaveBeenCalledWith('hello world', undefined, 'cid-1', { model: null, options: {} })
   })
 
   it('folds a streamed text_delta into the transcript via the active handler', async () => {

@@ -9,7 +9,84 @@ What's already in the repo (no account needed):
 - `apps/mobile/app.json` — `version` 1.0.0, `runtimeVersion` policy, `scheme` `trux`, bundle id / package `com.trux.mobile`, `expo-notifications` plugin, iOS `UIBackgroundModes: [remote-notification]`, Android `VIBRATE` permission.
 - `src/notifications.ts` already reads `Constants.expoConfig.extra.eas.projectId` — so once `eas init` writes that id, native push token registration lights up automatically.
 
-Everything below needs **your** credentials and runs against Expo's cloud, so it is not automatable from here.
+> **Two build paths.** You do **not** need EAS cloud to produce binaries.
+> - **Local builds** (§A below) — compile on your own machine with `expo run:android` / `expo run:ios`. No Expo cloud, no per-build cost. **This is the chosen path for trux.**
+> - **EAS cloud builds** (§§0–6 below) — Expo's hosted build/sign/submit. Kept as reference; use only if you later want hosted CI or don't have a Mac for iOS.
+>
+> The `eas init` step (§1) is still worth doing once regardless: it mints the `projectId` that native push needs — already linked here as `e628dfbb-…`.
+
+---
+
+## A. Local builds (no EAS cloud) — the chosen path
+
+Build on your own machine; nothing runs against Expo's cloud and no build quota
+is consumed. **Android only for now — iOS is deferred** (iOS binaries require
+macOS, which we don't have; revisit via EAS cloud once an Apple account exists).
+You do **not** need the React Native Community CLI — Expo CLI / EAS CLI wrap the
+native build. Run from `apps/mobile`.
+
+**Prerequisites (Android)**
+- JDK 17 + Android Studio (Android SDK + platform-tools), `ANDROID_HOME` set.
+- An emulator or a USB device with USB debugging. No paid account to build; the
+  Play Console account is only needed to *upload* (in progress).
+
+**Two local options**
+
+1. **`npx expo run:android`** — Expo CLI. Local prebuild (`ios/`+`android/` from
+   `app.json` + plugins) → Gradle → installs a **debug** APK. Best for
+   day-to-day iteration; afterwards iterate JS over Metro
+   (`pnpm --filter @trux/mobile dev`) and only re-run when native deps/config
+   change.
+   ```bash
+   cd apps/mobile
+   npx expo run:android
+   ```
+
+2. **`eas build --local`** — EAS CLI building **on your machine** (the `--local`
+   flag; *does not* use the cloud or burn build quota). Reads `eas.json` and
+   produces a signed, release-grade artifact — the one you upload to Play.
+   ```bash
+   cd apps/mobile
+   eas build --local --profile preview    --platform android   # → installable .apk
+   eas build --local --profile production --platform android   # → store .aab
+   ```
+   Needs the same JDK + Android SDK. Signing: on first run it can generate an
+   upload keystore (or pull EAS-managed credentials if logged in / use a local
+   `credentials.json`). Keep the keystore safe — Play requires the same one for
+   every update.
+
+**Play Store path (account in progress)**
+1. `eas build --local --profile production --platform android` → `.aab`.
+2. Upload to the Play Console internal track manually, or `eas submit
+   --profile production --platform android` (that's a Google upload, not an EAS
+   cloud build).
+
+**iOS (deferred).** When ready: EAS **cloud** build (§§2–4) is the no-Mac route,
+or a borrowed Mac with `npx expo run:ios`. Needs the $99/yr Apple membership.
+
+**Native push, locally.** A local debug build can receive push: it uses the
+`projectId` already in `app.json`, and `getExpoPushTokenAsync` mints a token if
+the device has network + permission. Delivery still needs FCM credentials —
+drop the Firebase `google-services.json` in and register the FCM key (see §5);
+the Expo Push Service relays once the token is registered.
+
+**`.gitignore`.** Prebuild writes `ios/` and `android/`; both are already
+ignored (`apps/mobile/.gitignore` lines 8–9), so the generated native projects
+won't land in git — they're regenerated on demand.
+
+> ⚠️ **Version alignment still applies to local builds.** Prebuild + autolinking
+> use the **Expo SDK 56** templates (RN 0.85.3 + its module set). The repo
+> currently runs ahead (RN 0.86, gesture-handler 3, async-storage 3 — see
+> expo-doctor). If `expo run:android` / `eas build --local` fails at the
+> Gradle/native step, that mismatch is the first suspect; align with
+> `npx expo install --check` (downgrades to the SDK 56 matrix) and re-run the
+> JS suite.
+
+---
+
+## EAS cloud reference (optional — not the chosen path)
+
+Everything below runs against Expo's cloud and needs **your** credentials. Skip if building locally; kept for reference / future hosted CI.
 
 ---
 

@@ -21,4 +21,20 @@ config.resolver.nodeModulesPaths = [
 config.resolver.unstable_enableSymlinks = true
 config.resolver.unstable_enablePackageExports = true
 
+// Keep co-located test files out of the app bundle. Expo Router's require.context
+// globs the entire app/ tree and would otherwise pull `app/**/*.test.tsx` into
+// the bundle, dragging in @testing-library/react-native (which imports Node's
+// `console`/`util`, absent in the RN runtime). Jest uses its own config, so it
+// still discovers and runs these tests.
+const testFileBlocklist = [/.*\.test\.[jt]sx?$/, /.*\.spec\.[jt]sx?$/]
+const existingBlockList = config.resolver.blockList
+config.resolver.blockList = [
+  ...(Array.isArray(existingBlockList)
+    ? existingBlockList
+    : existingBlockList
+      ? [existingBlockList]
+      : []),
+  ...testFileBlocklist,
+]
+
 module.exports = config

@@ -58,6 +58,11 @@ EOF
   [ "$out" = "deadbeef" ] || fail "trux token returned '$out'"
   out="$(HOME="$sandbox" bash "$REPO/bin/trux" url)"
   [ "$out" = "https://box.tail1234.ts.net/" ] || fail "trux url returned '$out'"
+  # TRUX_PUBLIC_HOST takes precedence over the tailnet host (Fly driver).
+  echo 'TRUX_PUBLIC_HOST=myapp.fly.dev' >> "$sandbox/.trux/.env"
+  out="$(HOME="$sandbox" bash "$REPO/bin/trux" url)"
+  [ "$out" = "https://myapp.fly.dev/" ] || fail "trux url should prefer TRUX_PUBLIC_HOST, got '$out'"
+  sed -i '/TRUX_PUBLIC_HOST/d' "$sandbox/.trux/.env"
   # No tailnet host -> local URL
   sed -i '/TRUX_TAILSCALE_HOST/d' "$sandbox/.trux/.env"
   out="$(HOME="$sandbox" bash "$REPO/bin/trux" url)"

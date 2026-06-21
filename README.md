@@ -41,6 +41,34 @@ trux pair        # show the phone-pairing QR
 trux update
 ```
 
+## Run in the cloud (Fly.io)
+
+Don't want to leave your computer on? Stand trux up on **your own** Fly.io account — an
+always-on box that sleeps when idle and wakes the instant your phone reconnects. Your Fly
+account, your credit, your keys; trux runs no server in between.
+
+**Prerequisites**
+- A [Fly.io](https://fly.io) account with billing enabled, and [`flyctl`](https://fly.io/docs/flyctl/install/) installed + `fly auth login`
+- Your Claude key in `ANTHROPIC_API_KEY`
+- (Optional) the repo to work on in `TRUX_REPO_URL`, plus `GITHUB_TOKEN` if it's private
+
+**Stand it up** (one time):
+
+```sh
+export ANTHROPIC_API_KEY=sk-ant-...
+export TRUX_REPO_URL=https://github.com/you/yourrepo.git   # optional
+export GITHUB_TOKEN=ghp_...                                # only if private
+trux fly trux-yourname                                     # a globally-unique app name
+```
+
+This creates the app + a persistent `/data` volume, stores your secrets on Fly, deploys the
+image, and prints a **pairing QR**. Scan it on your phone — same flow as a local box, but the
+URL is `https://trux-yourname.fly.dev`.
+
+**Cost:** the machine scales to zero when idle (`min_machines_running = 0`) and Fly's proxy
+auto-starts it on the next request, so you mostly pay for the small volume. Manage it with
+`fly machine list -a trux-yourname`, `fly logs -a trux-yourname`, `fly apps destroy trux-yourname`.
+
 ## Uninstall
 ```sh
 trux uninstall            # stop+remove service, shim, and code; keeps ~/.trux

@@ -3,7 +3,10 @@
     "name": "trux",
     "slug": "trux",
     "scheme": "trux",
-    "version": "0.0.0",
+    "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { View, Text, StyleSheet } from 'react-native'
-import type { AgentCapabilities, ApprovalDecision, TurnConfig } from '@trux/protocol'
+import type { AgentCapabilities, AgentCommand, ApprovalDecision, TurnConfig } from '@trux/protocol'
 import { useStore } from '@trux/client/store'
 import { api } from '@trux/client/api'
 import { openConnection, setActiveHandlers, clearActiveHandlers, getConnection, enqueue } from '@trux/client/connectionManager'
@@ -42,6 +42,7 @@ export function ConversationView({ id }: Props): React.ReactElement {
   const conv = conversations.find((c) => c.id === id)
   const [caps, setCaps] = useState<AgentCapabilities | undefined>()
   const [config, setConfig] = useState<TurnConfig>({ model: null, options: {} })
+  const [commands, setCommands] = useState<AgentCommand[]>([])
 
   // Seed config from the conversation's sticky selection (model/options).
   useEffect(() => {
@@ -57,6 +58,15 @@ export function ConversationView({ id }: Props): React.ReactElement {
       setCaps(found)
     }).catch(() => {})
   }, [conv?.agent])
+
+  // Discover the agent's slash commands for the CommandPalette (per-project,
+  // keyed on agent + cwd). Best-effort — no commands just hides the palette.
+  useEffect(() => {
+    if (!conv?.agent || !conv?.cwd) return
+    void api.discoverCommands(conv.agent, conv.cwd)
+      .then((r) => setCommands(r.commands ?? []))
+      .catch(() => setCommands([]))
+  }, [conv?.agent, conv?.cwd])
 
   useEffect(() => {
     openConnection(id)
@@ -117,6 +127,7 @@ export function ConversationView({ id }: Props): React.ReactElement {
         caps={caps}
         config={config}
         onConfigChange={setConfig}
+        commands={commands}
       />
     </View>
   )

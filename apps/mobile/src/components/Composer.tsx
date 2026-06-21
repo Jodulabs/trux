@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native'
-import type { AgentCapabilities, TurnConfig } from '@trux/protocol'
+import type { AgentCapabilities, AgentCommand, TurnConfig } from '@trux/protocol'
 import { theme } from '../theme'
 import { haptic } from '../haptics'
 import { ControlPicker } from './ControlPicker'
+import { CommandPalette } from './CommandPalette'
 
 interface Props {
   busy: boolean
@@ -12,14 +13,28 @@ interface Props {
   caps?: AgentCapabilities
   config?: TurnConfig
   onConfigChange?: (next: TurnConfig) => void
+  commands?: AgentCommand[]
 }
 
 // Native composer: auto-grow-ish input with send/interrupt. Optional
 // ControlPicker (model/effort) renders above the input when the agent exposes
-// controls. Keyboard avoidance is handled by the parent.
-export function Composer({ busy, onSend, onInterrupt, caps, config, onConfigChange }: Props): React.ReactElement {
+// controls. A "/" button (and typing a lone "/") opens the CommandPalette
+// bottom sheet. Keyboard avoidance is handled by the parent.
+export function Composer({ busy, onSend, onInterrupt, caps, config, onConfigChange, commands }: Props): React.ReactElement {
   const [text, setText] = useState('')
+  const [paletteOpen, setPaletteOpen] = useState(false)
   const hasControls = !!(caps && config && onConfigChange && (caps.models.length > 0 || caps.controls.length > 0))
+  const hasCommands = !!(commands && commands.length > 0)
+
+  const onChangeText = (val: string): void => {
+    // Typing a lone "/" into an empty composer opens the palette (mirrors PWA).
+    if (val === '/' && hasCommands) {
+      setText('')
+      setPaletteOpen(true)
+      return
+    }
+    setText(val)
+  }
 
   const submit = (): void => {
     const trimmed = text.trim()
@@ -35,10 +50,20 @@ export function Composer({ busy, onSend, onInterrupt, caps, config, onConfigChan
         <ControlPicker caps={caps} value={config} onChange={onConfigChange} />
       ) : null}
       <View style={styles.inputRow}>
+        {hasCommands ? (
+          <Pressable
+            style={styles.slashBtn}
+            onPress={() => { setPaletteOpen(true); haptic('light') }}
+            hitSlop={8}
+            accessibilityLabel="Open commands"
+          >
+            <Text style={styles.slashText}>/</Text>
+          </Pressable>
+        ) : null}
         <TextInput
           style={styles.input}
           value={text}
-          onChangeText={setText}
+          onChangeText={onChangeText}
           placeholder="Message trux…"
           placeholderTextColor={theme.textFaint}
           multiline
@@ -62,6 +87,15 @@ export function Composer({ busy, onSend, onInterrupt, caps, config, onConfigChan
           </Pressable>
         )}
       </View>
+      {hasCommands && caps ? (
+        <CommandPalette
+          agent={caps.agent}
+          commands={commands ?? []}
+          visible={paletteOpen}
+          onPick={(resolved) => setText(resolved)}
+          onClose={() => setPaletteOpen(false)}
+        />
+      ) : null}
     </View>
   )
 }
@@ -115,4 +149,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   interruptText: { color: theme.text, fontSize: 14, fontFamily: theme.fontMono },
+  slashBtn: {
+    width: 36,
+    height: 44,
+    borderRadius: theme.radius,
+    backgroundColor: theme.surface2,
+    borderWidth: 1,
+    borderColor: theme.line,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  slashText: { color: theme.accentBright, fontSize: 18, fontFamily: theme.fontMono },
 })

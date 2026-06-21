@@ -6,6 +6,7 @@ import { toolSummary } from '@trux/client/tools'
 import { theme } from '../theme'
 import { ToolView } from '../tools/ToolView'
 import { pairTools, toToolCall } from '../toolView'
+import { Markdown } from './Markdown'
 import type { ToolCall, Metadata } from '../tools/types'
 
 interface Props {
@@ -104,7 +105,7 @@ export function Transcript({ items, status, approvalDecisions, onRespond, sessio
           )
         }
         if (r.kind === 'assistant') {
-          return <Text style={styles.assistantText}>{r.text}</Text>
+          return <Markdown text={r.text} />
         }
         if (r.kind === 'approval') {
           const isEdit = EDIT_TOOLS.has(r.tool)

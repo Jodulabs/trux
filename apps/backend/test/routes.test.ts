@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import WebSocket from 'ws'
 import type { FastifyInstance } from 'fastify'
-import type { Conversation, ConversationDetail, ServerEvent } from '@trux/protocol'
+import type { CommandsResponse, Conversation, ConversationDetail, ServerEvent } from '@trux/protocol'
 import { buildServer } from '../src/server'
 import { openDb, type TruxDatabase } from '../src/db'
 import { SqliteRegistry } from '../src/registry'
@@ -365,6 +365,42 @@ describe('git routes', () => {
       `http://127.0.0.1:${port}/conversations/${conv.id}/git/diff?path=${encodeURIComponent('../escape')}`,
     )
     expect(res.status).toBe(400)
+  })
+})
+
+import { mkdtempSync as mkdtmp, mkdirSync as mkdir, writeFileSync as writeF } from 'node:fs'
+
+describe('GET /commands/discover', () => {
+  function buildApp(): Promise<FastifyInstance> {
+    const db = openDb(':memory:')
+    const registry = new SqliteRegistry(db)
+    const manager = new ConversationManager(registry, new Map([['claude', new FakeAdapter()]]))
+    return buildServer(baseConfig, db, registry, manager)
+  }
+
+  it('returns discovered commands for claude', async () => {
+    const cwd = mkdtmp(join(tmpdir(), 'trux-route-cmd-'))
+    mkdir(join(cwd, '.claude', 'commands'), { recursive: true })
+    writeF(join(cwd, '.claude', 'commands', 'review.md'), 'Review $ARGUMENTS')
+    const app = await buildApp()
+    const res = await app.inject({ method: 'GET', url: `/commands/discover?agent=claude&cwd=${encodeURIComponent(cwd)}` })
+    expect(res.statusCode).toBe(200)
+    expect((res.json() as CommandsResponse).commands.some((c) => c.name === 'review')).toBe(true)
+    await app.close()
+  })
+
+  it('400s when agent or cwd is missing', async () => {
+    const app = await buildApp()
+    const res = await app.inject({ method: 'GET', url: '/commands/discover?agent=claude' })
+    expect(res.statusCode).toBe(400)
+    await app.close()
+  })
+
+  it('returns an empty list for a non-claude agent', async () => {
+    const app = await buildApp()
+    const res = await app.inject({ method: 'GET', url: '/commands/discover?agent=codex&cwd=/tmp' })
+    expect((res.json() as CommandsResponse).commands).toEqual([])
+    await app.close()
   })
 })
 

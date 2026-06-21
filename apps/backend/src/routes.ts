@@ -8,6 +8,7 @@ import type { SqliteRegistry } from './registry'
 import { listWorkspaces } from './workspaces'
 import { tokenAccepted } from './auth'
 import { gitCommit, gitDiff, gitStage, gitStatus, gitUnstage } from './git'
+import { discoverClaudeCommands } from './commands'
 
 // Convert an absolute cwd to the Claude project folder name.
 // e.g. /home/gp/foo → -home-gp-foo  (leading slash → hyphen, each subsequent / → -)
@@ -126,6 +127,13 @@ export function registerRoutes(
     if (agent === 'claude') return discoverClaudeSessions(cwd)
     if (agent === 'codex') return discoverCodexSessions(cwd)
     return reply.code(400).send({ error: `session discovery not supported for agent: ${agent}` })
+  })
+
+  app.get('/commands/discover', async (req, reply) => {
+    const { agent, cwd } = req.query as { agent?: string; cwd?: string }
+    if (!agent || !cwd) return reply.code(400).send({ error: 'agent and cwd are required' })
+    if (agent === 'claude') return { commands: discoverClaudeCommands(cwd) }
+    return { commands: [] }
   })
 
   app.get('/conversations', async () => registry.listConversations())

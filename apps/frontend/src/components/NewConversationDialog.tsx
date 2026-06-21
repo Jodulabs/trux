@@ -99,6 +99,8 @@ export function NewConversationDialog({ onCreated }: Props): React.ReactElement 
     f.path.toLowerCase().includes(q) ||
     (f.branch?.toLowerCase().includes(q) ?? false)
 
+  const filteredRecents = q ? recents.filter(matches) : recents
+
   // Group filtered folders by project, preserving project order, for nested display.
   const groups = useMemo(() => {
     const map = new Map<string, FolderEntry[]>()
@@ -150,28 +152,31 @@ export function NewConversationDialog({ onCreated }: Props): React.ReactElement 
           placeholder="Search projects and folders…"
         />
         <div className="folder-list" data-testid="folder-list">
-          {!q && recents.length > 0 && (
+          {filteredRecents.length > 0 && (
             <>
               <div className="folder-section">Recent</div>
-              {recents.map((f) => renderRow(f, f.branch ? `${f.project} · ${f.branch}` : f.project, `recent-${f.path}`))}
-              <div className="folder-section">Projects</div>
+              {filteredRecents.map((f) => renderRow(f, f.branch ? `${f.project} · ${f.branch}` : f.project, `recent-${f.path}`))}
             </>
           )}
-          {groups.length === 0 ? (
-            <p className="folder-empty">No matching folders.</p>
-          ) : (
-            groups.map((items) => {
-              const head = items[0]
-              if (!head.multi) {
-                return renderRow(head, head.branch ? `${head.project} · ${head.branch}` : head.project, head.root)
-              }
-              return (
-                <div key={head.root} className="folder-group">
-                  <div className="folder-group-label">{head.project}</div>
-                  {items.map((f) => renderRow(f, f.branch ?? basename(f.path), f.path))}
-                </div>
-              )
-            })
+          {groups.length > 0 && (
+            <>
+              <div className="folder-section">Projects</div>
+              {groups.map((items) => {
+                const head = items[0]
+                if (!head.multi) {
+                  return renderRow(head, head.branch ? `${head.project} · ${head.branch}` : head.project, head.root)
+                }
+                return (
+                  <div key={head.root} className="folder-group">
+                    <div className="folder-group-label">{head.project}</div>
+                    {items.map((f) => renderRow(f, f.branch ?? basename(f.path), f.path))}
+                  </div>
+                )
+              })}
+            </>
+          )}
+          {filteredRecents.length === 0 && groups.length === 0 && (
+            <p className="folder-empty">{q ? 'No matching folders.' : 'No projects configured.'}</p>
           )}
         </div>
       </div>

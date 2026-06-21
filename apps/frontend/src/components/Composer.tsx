@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import type { AgentCapabilities, ImageAttachment, TurnConfig } from '@trux/protocol'
+import type { AgentCapabilities, AgentCommand, ImageAttachment, TurnConfig } from '@trux/protocol'
 import { Icon } from './Icon'
 import { ControlPicker } from './ControlPicker'
+import { CommandPalette } from './CommandPalette'
 
 function draftKey(id: string): string { return `trux-draft-${id}` }
 function loadDraft(id: string): string {
@@ -26,6 +27,7 @@ interface ComposerProps {
   conversationId?: string
   busy: boolean
   caps?: AgentCapabilities
+  commands?: AgentCommand[]
   config?: TurnConfig
   onConfigChange?: (next: TurnConfig) => void
   onSend: (text: string, attachments?: ImageAttachment[]) => void
@@ -67,10 +69,11 @@ const SpeechRecognitionClass = typeof SpeechRecognition !== 'undefined' ? Speech
   : typeof webkitSpeechRecognition !== 'undefined' ? webkitSpeechRecognition
   : null
 
-export function Composer({ conversationId, busy, caps, config, onConfigChange, onSend, onInterrupt }: ComposerProps): React.ReactElement {
+export function Composer({ conversationId, busy, caps, commands, config, onConfigChange, onSend, onInterrupt }: ComposerProps): React.ReactElement {
   const [text, setText] = useState(() => conversationId ? loadDraft(conversationId) : '')
   const [attachments, setAttachments] = useState<ImageAttachment[]>([])
   const [listening, setListening] = useState(false)
+  const [paletteOpen, setPaletteOpen] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const speechRef = useRef<SpeechRecognitionInstance | null>(null)
@@ -88,11 +91,29 @@ export function Composer({ conversationId, busy, caps, config, onConfigChange, o
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>): void => {
     const val = e.target.value
+    if (val === '/' && commands && commands.length > 0) {
+      setPaletteOpen(true)
+      setText('')
+      if (conversationId) saveDraft(conversationId, '')
+      e.target.style.height = 'auto'
+      return
+    }
     setText(val)
     if (conversationId) saveDraft(conversationId, val)
     const el = e.target
     el.style.height = 'auto'
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`
+  }
+
+  const insertFromCommand = (resolved: string): void => {
+    setText(resolved)
+    if (conversationId) saveDraft(conversationId, resolved)
+    const el = textareaRef.current
+    if (el) {
+      el.style.height = 'auto'
+      el.style.height = `${Math.min(el.scrollHeight, 160)}px`
+      el.focus()
+    }
   }
 
   const submit = (): void => {
@@ -153,6 +174,14 @@ export function Composer({ conversationId, busy, caps, config, onConfigChange, o
 
   return (
     <div className="composer">
+      {paletteOpen && commands ? (
+        <CommandPalette
+          agent={caps?.agent ?? 'agent'}
+          commands={commands}
+          onPick={insertFromCommand}
+          onClose={() => setPaletteOpen(false)}
+        />
+      ) : null}
       {attachments.length > 0 && (
         <div className="attachment-previews" data-testid="attachment-previews">
           {attachments.map((a, i) => (
@@ -197,6 +226,15 @@ export function Composer({ conversationId, busy, caps, config, onConfigChange, o
             data-testid="file-input"
             onChange={(e) => void handleFiles(e.target.files)}
           />
+          {commands && commands.length > 0 ? (
+            <button
+              className="icon-btn"
+              data-testid="cmd-btn"
+              title="Commands"
+              aria-label="Commands"
+              onClick={() => setPaletteOpen(true)}
+            >/</button>
+          ) : null}
           <span className="composer-spacer" />
           {hasControls ? (
             <ControlPicker caps={caps!} value={config!} onChange={onConfigChange!} />

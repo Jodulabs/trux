@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ApprovalRequestEvent } from '@trux/protocol'
+import type { ApprovalRequestEvent, AgentCommand } from '@trux/protocol'
 import { Composer } from '../src/components/Composer'
 import { Transcript } from '../src/components/Transcript'
 import { ApprovalCard } from '../src/components/ApprovalCard'
@@ -28,6 +28,35 @@ describe('Composer', () => {
     render(<Composer busy onSend={() => {}} onInterrupt={onInterrupt} />)
     fireEvent.click(screen.getByTestId('interrupt'))
     expect(onInterrupt).toHaveBeenCalled()
+  })
+
+  it('opens the palette when "/" is typed on an empty box and inserts a picked command', () => {
+    const onSend = vi.fn()
+    const commands: AgentCommand[] = [
+      { name: 'ship', description: 'Ship it', body: 'Ship to prod', args: [], source: 'file' as const },
+    ]
+    render(
+      <Composer
+        busy={false}
+        onSend={onSend}
+        onInterrupt={() => {}}
+        caps={{ agent: 'claude', models: [], defaultModel: null, controls: [] }}
+        commands={commands}
+      />,
+    )
+    const input = screen.getByTestId('composer-input') as HTMLTextAreaElement
+    fireEvent.change(input, { target: { value: '/' } })
+    expect(screen.getByTestId('command-palette')).toBeInTheDocument()
+    fireEvent.click(screen.getByTestId('command-ship'))
+    expect(input.value).toBe('Ship to prod')
+    expect(screen.queryByTestId('command-palette')).toBeNull()
+  })
+
+  it('does not open the palette for "/" typed mid-text', () => {
+    render(<Composer busy={false} onSend={() => {}} onInterrupt={() => {}} commands={[]} />)
+    const input = screen.getByTestId('composer-input') as HTMLTextAreaElement
+    fireEvent.change(input, { target: { value: 'path/to' } })
+    expect(screen.queryByTestId('command-palette')).toBeNull()
   })
 })
 
@@ -183,10 +212,12 @@ describe('NewConversationDialog', () => {
     await screen.findByTestId('folder-/solo')
     expect(screen.getByText('multi')).toBeTruthy() // 'multi' renders as a group header
     // 'multi' nests its worktrees → the feat worktree is directly selectable.
-    fireEvent.click(screen.getByTestId('folder-/multi/.worktrees/feat'))
-    await waitFor(() =>
-      expect(screen.getByTestId('folder-/multi/.worktrees/feat').className).toContain('selected'),
-    )
+    // Re-click until the selection sticks: the dialog seeds a default folder
+    // asynchronously, so a single click can race that initial render.
+    await waitFor(() => {
+      fireEvent.click(screen.getByTestId('folder-/multi/.worktrees/feat'))
+      expect(screen.getByTestId('folder-/multi/.worktrees/feat').className).toContain('selected')
+    })
     fireEvent.click(screen.getByTestId('create'))
     await waitFor(() =>
       expect(created).toHaveBeenCalledWith(expect.objectContaining({ agent: 'claude', cwd: '/multi/.worktrees/feat' })),

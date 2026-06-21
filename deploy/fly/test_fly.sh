@@ -66,7 +66,43 @@ GIT
   pass "ensure_repo clones a private repo using GITHUB_TOKEN"
 }
 
+test_app_url() {
+  # shellcheck disable=SC1090
+  source "$REPO/deploy/fly/provision-fly.sh"
+  [ "$(app_url trux-demo)" = "https://trux-demo.fly.dev" ] || fail "app_url wrong: $(app_url trux-demo)"
+  pass "app_url builds the fly hostname"
+}
+
+test_provision_flow_stubbed() {
+  local sandbox stub log; sandbox="$(mktemp -d)"; stub="$sandbox/bin"; log="$sandbox/calls.log"; mkdir -p "$stub"
+  # Stub fly: record every call; pretend no app/volume exists yet so create runs.
+  cat > "$stub/fly" <<FLY
+#!/usr/bin/env bash
+echo "fly \$*" >> "$log"
+exit 0
+FLY
+  # Stub pnpm: record the pairing invocation + that it saw the fly host + a token.
+  cat > "$stub/pnpm" <<PNPM
+#!/usr/bin/env bash
+echo "pnpm \$* HOST=\${TRUX_PUBLIC_HOST:-} TOKEN=\${TRUX_SECRET:+set}" >> "$log"
+PNPM
+  chmod +x "$stub/fly" "$stub/pnpm"
+  if ! (
+    export PATH="$stub:$PATH" ANTHROPIC_API_KEY="sk-test" TRUX_REPO_URL="https://github.com/me/app.git"
+    bash "$REPO/deploy/fly/provision-fly.sh" trux-demo >/dev/null
+  ); then rm -rf "$sandbox"; fail "provision-fly.sh errored"; fi
+  grep -q "fly apps create trux-demo" "$log" || fail "app not created"
+  grep -q "fly volumes create data --size .* -r .* -a trux-demo" "$log" || fail "volume not created"
+  grep -q "fly secrets set -a trux-demo --stage" "$log" || fail "secrets not staged"
+  grep -q "fly deploy --config deploy/fly/fly.toml --dockerfile Dockerfile -a trux-demo ." "$log" || fail "deploy not invoked"
+  grep -q "pnpm .* --filter @trux/backend pair HOST=trux-demo.fly.dev TOKEN=set" "$log" || fail "pairing QR not invoked with fly host + token"
+  rm -rf "$sandbox"
+  pass "provision-fly.sh creates app/volume, stages secrets, deploys, prints QR"
+}
+
 test_materialize_env
 test_ensure_repo_idempotent
 test_ensure_repo_clones
+test_app_url
+test_provision_flow_stubbed
 echo "ALL FLY TESTS PASSED"

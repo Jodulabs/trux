@@ -14,6 +14,7 @@ export default defineConfig({
       },
       '/workspaces': { target: 'http://127.0.0.1:4317' },
       '/agents': { target: 'http://127.0.0.1:4317' },
+      '/commands': { target: 'http://127.0.0.1:4317' },
       '/sessions': { target: 'http://127.0.0.1:4317' },
       '/config': { target: 'http://127.0.0.1:4317' },
       '/push': { target: 'http://127.0.0.1:4317' },

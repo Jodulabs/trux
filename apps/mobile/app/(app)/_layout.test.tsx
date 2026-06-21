@@ -18,6 +18,14 @@ jest.mock('../../src/ports', () => ({
   getStoredToken: jest.fn(() => null),
 }))
 
+// Stub native push so the authed shell's registration effect is inert in tests.
+jest.mock('../../src/notifications', () => ({
+  configureNotificationHandler: jest.fn(),
+  registerForPushAsync: jest.fn(() => Promise.resolve(null)),
+  addNotificationResponseListener: jest.fn(() => () => {}),
+  consumeInitialNotificationResponse: jest.fn(() => Promise.resolve()),
+}))
+
 import AppLayout from './_layout'
 import { getStoredHost, getStoredToken } from '../../src/ports'
 

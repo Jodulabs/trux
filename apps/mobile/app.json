@@ -22,6 +22,7 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
+      "expo-notifications",
       [
         "expo-camera",
         { "cameraPermission": "Scan the QR from `trux pair` to sign into your trux box." }

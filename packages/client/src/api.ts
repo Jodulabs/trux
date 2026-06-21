@@ -56,6 +56,14 @@ export const api = {
       headers: { 'content-type': 'application/json', ...authHeaders() },
       body: JSON.stringify(sub),
     }).then(json<{ ok: boolean }>),
+  // Native (Expo) devices register a push token instead of a web-push
+  // subscription; same route, the backend branches on the body shape.
+  subscribeExpoPush: (expoPushToken: string) =>
+    fetch(url('/push/subscribe'), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ expoPushToken }),
+    }).then(json<{ ok: boolean }>),
   searchConversations: (q: string) =>
     fetch(url(`/conversations/search?q=${encodeURIComponent(q)}`), { headers: authHeaders() }).then(json<Conversation[]>),
   discoverSessions: (agent: string, cwd: string) =>

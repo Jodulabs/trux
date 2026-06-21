@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { mkdtempSync, rmSync, existsSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { loadOrCreateVapid, WebPushNotifier, type PushSender } from '../src/push'
+import { loadOrCreateVapid, WebPushNotifier, ExpoPushNotifier, CompositeNotifier, type PushSender, type ExpoPushSender, type ExpoPushMessage, type ExpoPushTicket } from '../src/push'
 
 const dirs: string[] = []
 afterEach(() => {
@@ -106,5 +106,116 @@ describe('WebPushNotifier', () => {
     const notifier = new WebPushNotifier(reg, vapid, { sender })
     await notifier.notify({ conversationId: 'c1', kind: 'turn', dedupeKey: 't1', title: 'T', body: 'done' })
     expect(reg.removed).toEqual(['https://push/gone'])
+  })
+})
+
+describe('ExpoPushNotifier', () => {
+  function fakeStore(tokens: string[]) {
+    const removed: string[] = []
+    return {
+      removed,
+      listExpoPushTokens: () => tokens,
+      removeExpoPushToken: (t: string) => removed.push(t),
+    }
+  }
+
+  it('sends one message per token with the conversation payload', async () => {
+    const sent: ExpoPushMessage[][] = []
+    const sender: ExpoPushSender = async (messages) => {
+      sent.push(messages)
+      return messages.map(() => ({ status: 'ok' }) as ExpoPushTicket)
+    }
+    const store = fakeStore(['ExponentPushToken[a]', 'ExponentPushToken[b]'])
+    const notifier = new ExpoPushNotifier(store, { sender })
+    await notifier.notify({ conversationId: 'c1', kind: 'approval', dedupeKey: 'r1', title: 'T', body: 'rm -rf' })
+    expect(sent).toHaveLength(1)
+    expect(sent[0].map((m) => m.to)).toEqual(['ExponentPushToken[a]', 'ExponentPushToken[b]'])
+    expect(sent[0][0]).toMatchObject({
+      title: 'T',
+      body: 'rm -rf',
+      data: { conversationId: 'c1', kind: 'approval' },
+    })
+  })
+
+  it('is a no-op when there are no tokens', async () => {
+    let called = 0
+    const sender: ExpoPushSender = async (messages) => {
+      called++
+      return messages.map(() => ({ status: 'ok' }) as ExpoPushTicket)
+    }
+    const notifier = new ExpoPushNotifier(fakeStore([]), { sender })
+    await notifier.notify({ conversationId: 'c1', kind: 'turn', dedupeKey: 't1', title: 'T', body: 'done' })
+    expect(called).toBe(0)
+  })
+
+  it('dedupes repeated notifications by dedupeKey', async () => {
+    let calls = 0
+    const sender: ExpoPushSender = async (messages) => {
+      calls++
+      return messages.map(() => ({ status: 'ok' }) as ExpoPushTicket)
+    }
+    const notifier = new ExpoPushNotifier(fakeStore(['ExponentPushToken[a]']), { sender })
+    await notifier.notify({ conversationId: 'c1', kind: 'turn', dedupeKey: 't1', title: 'T', body: 'done' })
+    await notifier.notify({ conversationId: 'c1', kind: 'turn', dedupeKey: 't1', title: 'T', body: 'done' })
+    expect(calls).toBe(1)
+  })
+
+  it('genericizes the body in privacy mode', async () => {
+    const sent: ExpoPushMessage[][] = []
+    const sender: ExpoPushSender = async (messages) => {
+      sent.push(messages)
+      return messages.map(() => ({ status: 'ok' }) as ExpoPushTicket)
+    }
+    const notifier = new ExpoPushNotifier(fakeStore(['ExponentPushToken[a]']), { sender, privacy: true })
+    await notifier.notify({ conversationId: 'c1', kind: 'approval', dedupeKey: 'r1', title: 'T', body: 'rm -rf /' })
+    expect(sent[0][0].body).toBe('Approval required')
+    expect(sent[0][0].body).not.toContain('rm -rf')
+  })
+
+  it('prunes a token the Expo service reports as DeviceNotRegistered', async () => {
+    const sender: ExpoPushSender = async (messages) =>
+      messages.map((_m, i) =>
+        i === 0
+          ? ({ status: 'error', details: { error: 'DeviceNotRegistered' } } as ExpoPushTicket)
+          : ({ status: 'ok' } as ExpoPushTicket),
+      )
+    const store = fakeStore(['ExponentPushToken[dead]', 'ExponentPushToken[live]'])
+    const notifier = new ExpoPushNotifier(store, { sender })
+    await notifier.notify({ conversationId: 'c1', kind: 'turn', dedupeKey: 't1', title: 'T', body: 'done' })
+    expect(store.removed).toEqual(['ExponentPushToken[dead]'])
+  })
+
+  it('swallows sender errors so a delivery failure never breaks the turn pump', async () => {
+    const sender: ExpoPushSender = async () => {
+      throw new Error('network down')
+    }
+    const notifier = new ExpoPushNotifier(fakeStore(['ExponentPushToken[a]']), { sender })
+    await expect(
+      notifier.notify({ conversationId: 'c1', kind: 'turn', dedupeKey: 't1', title: 'T', body: 'done' }),
+    ).resolves.toBeUndefined()
+  })
+})
+
+describe('CompositeNotifier', () => {
+  it('fans one notification out to every transport', async () => {
+    const hitA: string[] = []
+    const hitB: string[] = []
+    const a = { notify: async (i: { dedupeKey: string }) => { hitA.push(i.dedupeKey) } }
+    const b = { notify: async (i: { dedupeKey: string }) => { hitB.push(i.dedupeKey) } }
+    const composite = new CompositeNotifier([a, b])
+    await composite.notify({ conversationId: 'c1', kind: 'turn', dedupeKey: 't1', title: 'T', body: 'done' })
+    expect(hitA).toEqual(['t1'])
+    expect(hitB).toEqual(['t1'])
+  })
+
+  it('isolates a throwing transport from the others', async () => {
+    const hit: string[] = []
+    const bad = { notify: async () => { throw new Error('boom') } }
+    const good = { notify: async (i: { dedupeKey: string }) => { hit.push(i.dedupeKey) } }
+    const composite = new CompositeNotifier([bad, good])
+    await expect(
+      composite.notify({ conversationId: 'c1', kind: 'turn', dedupeKey: 't1', title: 'T', body: 'done' }),
+    ).resolves.toBeUndefined()
+    expect(hit).toEqual(['t1'])
   })
 })

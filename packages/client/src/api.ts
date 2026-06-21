@@ -49,7 +49,7 @@ export const api = {
       body: JSON.stringify({ title }),
     }).then(json<Conversation>),
   getRemoteConfig: () =>
-    fetch(url('/config')).then(json<{ tailscaleHost: string | null; vapidPublicKey: string | null }>),
+    fetch(url('/config')).then(json<{ tailscaleHost: string | null; vapidPublicKey: string | null; cwd: string }>),
   subscribePush: (sub: PushSubscriptionJSON) =>
     fetch(url('/push/subscribe'), {
       method: 'POST',

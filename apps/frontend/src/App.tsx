@@ -29,7 +29,11 @@ function titleOf(c: Conversation): string {
 }
 
 export function App(): React.ReactElement {
-  const conversations = useStore((s) => s.conversations)
+  const allConversations = useStore((s) => s.conversations)
+  const serverCwd = useStore((s) => s.serverCwd)
+  const conversations = serverCwd
+    ? allConversations.filter((c) => c.cwd === serverCwd)
+    : allConversations
   const currentId = useStore((s) => s.currentId)
   const loadConversations = useStore((s) => s.loadConversations)
   const loadRemoteConfig = useStore((s) => s.loadRemoteConfig)

@@ -87,6 +87,7 @@ interface TruxState {
   previewPort: number | null
   tailscaleHost: string | null
   vapidPublicKey: string | null
+  serverCwd: string | null
   // Per-conversation lightweight state for background connections.
   convMeta: Record<string, ConvMeta>
   loadConversations: () => Promise<void>
@@ -114,13 +115,14 @@ export const useStore = create<TruxState>((set, get) => ({
   previewPort: null,
   tailscaleHost: null,
   vapidPublicKey: null,
+  serverCwd: null,
   convMeta: {},
   async loadConversations() {
     set({ conversations: await api.listConversations() })
   },
   async loadRemoteConfig() {
     const cfg = await api.getRemoteConfig()
-    set({ tailscaleHost: cfg.tailscaleHost, vapidPublicKey: cfg.vapidPublicKey })
+    set({ tailscaleHost: cfg.tailscaleHost, vapidPublicKey: cfg.vapidPublicKey, serverCwd: cfg.cwd ?? null })
   },
   async selectConversation(id) {
     // A falsy id means "show the empty state" (e.g. the rail's New button).

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useMemo } from 'react'
-import type { AgentCapabilities, AgentCommand, ApprovalDecision, GitStatusResult, ImageAttachment, TurnConfig } from '@trux/protocol'
+import type { AgentCapabilities, AgentCommand, ApprovalDecision, ImageAttachment, TurnConfig } from '@trux/protocol'
 import { useStore } from '@trux/client/store'
 import { api } from '@trux/client/api'
 import {
@@ -12,7 +12,6 @@ import { enqueue, newMessageId, dequeue } from '@trux/client/outbox'
 import { Transcript } from './Transcript'
 import { Composer } from './Composer'
 import { ApprovalCard } from './ApprovalCard'
-import { GitPanel } from './GitPanel'
 import { Icon } from './Icon'
 import { haptic } from '../haptics'
 
@@ -71,8 +70,6 @@ export function ConversationView({ id }: { id: string }): React.ReactElement {
   // Whether the view is currently pinned to the bottom (following the stream).
   const stuck = useRef(true)
   const [atBottom, setAtBottom] = useState(true)
-  const [gitStatus, setGitStatus] = useState<GitStatusResult | null>(null)
-  const [gitOpen, setGitOpen] = useState(false)
   const [thinkingSecs, setThinkingSecs] = useState(0)
   const thinkingStart = useRef<number | null>(null)
 
@@ -100,10 +97,6 @@ export function ConversationView({ id }: { id: string }): React.ReactElement {
     void api.discoverCommands(conv.agent, conv.cwd).then((r) => setCommands(r.commands ?? [])).catch(() => {})
   }, [conv?.agent, conv?.cwd])
 
-  const reloadGit = useCallback(async (): Promise<void> => {
-    try { setGitStatus(await api.gitStatus(id)) } catch {}
-  }, [id])
-
   // Register active-conversation event handlers with the connection manager.
   // The manager calls these when events arrive for `id`, regardless of which
   // component created the underlying TruxClient.
@@ -117,7 +110,7 @@ export function ConversationView({ id }: { id: string }): React.ReactElement {
       onEvent(event) {
         // Physical taps for the moments you're not looking at the screen.
         if (event.type === 'approval_request') haptic('notify')
-        if (event.type === 'turn_complete') { haptic('success'); void reloadGit() }
+        if (event.type === 'turn_complete') { haptic('success') }
         // A non-recoverable error means the turn won't echo — stop the pending
         // bubble spinning forever and drop it from the outbox so it can't retry.
         if (event.type === 'error' && !event.recoverable) {
@@ -128,7 +121,7 @@ export function ConversationView({ id }: { id: string }): React.ReactElement {
       },
     })
     return () => clearActiveHandlers()
-  }, [id, applyEvent, setConnState, failPending, reloadGit])
+  }, [id, applyEvent, setConnState, failPending])
 
   const onScroll = useCallback((): void => {
     const el = scrollRef.current
@@ -199,8 +192,7 @@ export function ConversationView({ id }: { id: string }): React.ReactElement {
     }
   }, [status])
 
-  // Poll git status on open and on each turn_complete.
-  useEffect(() => { void reloadGit() }, [reloadGit])
+
 
   const busy = status === 'thinking' || status === 'awaiting_approval'
   const connNote = connState !== 'connected' ? CONN_LABEL[connState] : null
@@ -228,15 +220,8 @@ export function ConversationView({ id }: { id: string }): React.ReactElement {
 
   const totalCost = useStore((s) => s.convMeta[id]?.totalCost ?? 0)
 
-  const gitDirty = gitStatus?.repo && gitStatus.dirty
-  const gitAhead = gitStatus?.repo ? gitStatus.ahead : 0
-  const gitBehind = gitStatus?.repo ? gitStatus.behind : 0
-
   return (
     <section className="conversation">
-      {gitOpen ? (
-        <GitPanel conversationId={id} onClose={() => { setGitOpen(false); void reloadGit() }} />
-      ) : null}
       <div className="conversation-bar">
         {convTitle ? (
           <span className="conv-title" data-testid="conv-title">{convTitle}</span>
@@ -247,19 +232,6 @@ export function ConversationView({ id }: { id: string }): React.ReactElement {
         ) : null}
         {totalCost > 0 ? (
           <span className="cost-badge" data-testid="cost-badge">${totalCost.toFixed(4)}</span>
-        ) : null}
-        {gitStatus?.repo ? (
-          <button
-            className={`git-badge${gitDirty ? ' dirty' : ''}`}
-            data-testid="git-badge"
-            onClick={() => setGitOpen(true)}
-            aria-label="Open git panel"
-          >
-            {gitStatus.branch ?? 'HEAD'}
-            {gitAhead > 0 ? <span className="git-ahead">↑{gitAhead}</span> : null}
-            {gitBehind > 0 ? <span className="git-behind">↓{gitBehind}</span> : null}
-            {gitDirty ? ' ●' : ''}
-          </button>
         ) : null}
         {previewUrl !== null ? (
           <button

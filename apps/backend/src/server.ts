@@ -30,6 +30,7 @@ export async function buildServer(
     tailscaleHost: config.tailscaleHost,
     // null when push is disabled (no VAPID keys) → the client skips subscribing.
     vapidPublicKey: opts?.vapidPublicKey ?? null,
+    cwd: process.cwd(),
   }))
 
   // REST routes get their own encapsulated scope so the bearer preHandler hook

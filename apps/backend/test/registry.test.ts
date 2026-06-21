@@ -89,6 +89,20 @@ describe('SqliteRegistry', () => {
     registry.removePushSubscription('https://push/a')
     expect(registry.listPushSubscriptions().map((s) => s.endpoint)).toEqual(['https://push/b'])
   })
+
+  it('stores, lists, upserts, and removes Expo push tokens', () => {
+    registry.addExpoPushToken('ExponentPushToken[aaa]')
+    registry.addExpoPushToken('ExponentPushToken[bbb]')
+    expect(registry.listExpoPushTokens().sort()).toEqual([
+      'ExponentPushToken[aaa]',
+      'ExponentPushToken[bbb]',
+    ])
+    // Re-registering the same token upserts (no duplicate).
+    registry.addExpoPushToken('ExponentPushToken[aaa]')
+    expect(registry.listExpoPushTokens()).toHaveLength(2)
+    registry.removeExpoPushToken('ExponentPushToken[aaa]')
+    expect(registry.listExpoPushTokens()).toEqual(['ExponentPushToken[bbb]'])
+  })
 })
 
 describe('registry model/options persistence', () => {

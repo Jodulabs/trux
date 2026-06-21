@@ -172,22 +172,40 @@ export function registerRoutes(
 
   // A browser PushSubscription, stored so the manager can push to this device
   // while the PWA is closed. Body is the JSON the SW's pushManager produced.
+  // Register a device for push. Two transports share this route: a browser sends
+  // a web-push PushSubscription ({endpoint, keys:{p256dh,auth}}); a native app
+  // sends an Expo push token ({expoPushToken}). The manager fans notifications
+  // to both, so the device just registers whichever it has.
   app.post('/push/subscribe', async (req, reply) => {
-    const body = req.body as { endpoint?: string; keys?: { p256dh?: string; auth?: string } }
+    const body = req.body as {
+      endpoint?: string
+      keys?: { p256dh?: string; auth?: string }
+      expoPushToken?: string
+    }
+    if (typeof body?.expoPushToken === 'string') {
+      registry.addExpoPushToken(body.expoPushToken)
+      return { ok: true }
+    }
     const endpoint = body?.endpoint
     const p256dh = body?.keys?.p256dh
     const auth = body?.keys?.auth
     if (typeof endpoint !== 'string' || typeof p256dh !== 'string' || typeof auth !== 'string') {
-      return reply.code(400).send({ error: 'endpoint and keys.{p256dh,auth} are required' })
+      return reply
+        .code(400)
+        .send({ error: 'expoPushToken, or endpoint and keys.{p256dh,auth}, are required' })
     }
     registry.addPushSubscription({ endpoint, p256dh, auth })
     return { ok: true }
   })
 
   app.post('/push/unsubscribe', async (req, reply) => {
-    const body = req.body as { endpoint?: string }
+    const body = req.body as { endpoint?: string; expoPushToken?: string }
+    if (typeof body?.expoPushToken === 'string') {
+      registry.removeExpoPushToken(body.expoPushToken)
+      return { ok: true }
+    }
     if (typeof body?.endpoint !== 'string') {
-      return reply.code(400).send({ error: 'endpoint is required' })
+      return reply.code(400).send({ error: 'expoPushToken or endpoint is required' })
     }
     registry.removePushSubscription(body.endpoint)
     return { ok: true }

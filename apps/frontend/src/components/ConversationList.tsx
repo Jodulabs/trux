@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Conversation } from '@trux/protocol'
 import { PairModal } from './PairModal'
-import { useStore } from '../store'
-import { api } from '../api'
+import { useStore } from '@trux/client/store'
+import { api } from '@trux/client/api'
+import { getStorage } from '@trux/client/ports'
 import { Icon } from './Icon'
 
 function hasDraft(id: string): boolean {
@@ -48,7 +49,7 @@ export function ConversationList({ conversations, currentId, onSelect }: Props):
   const displayList = searchResults ?? conversations
   // Only useful on the desktop, and only when pairing can actually produce a QR:
   // it needs both the tailnet host and a token (PairModal gates the QR on both).
-  const hasToken = Boolean(localStorage.getItem('trux_token'))
+  const hasToken = Boolean(getStorage().get('trux_token'))
   const canPair = finePointer && Boolean(tailscaleHost) && hasToken
   return (
     <aside className="conv-list" data-testid="conversation-list-panel">

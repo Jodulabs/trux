@@ -1,21 +1,20 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useMemo } from 'react'
 import type { AgentCapabilities, AgentCommand, ApprovalDecision, GitStatusResult, ImageAttachment, TurnConfig } from '@trux/protocol'
-import { useStore } from '../store'
-import { api } from '../api'
+import { useStore } from '@trux/client/store'
+import { api } from '@trux/client/api'
 import {
   clearActiveHandlers,
   getConnection,
   openConnection,
   setActiveHandlers,
-} from '../connectionManager'
-import { enqueue, newMessageId } from '../outbox'
+} from '@trux/client/connectionManager'
+import { enqueue, newMessageId, dequeue } from '@trux/client/outbox'
 import { Transcript } from './Transcript'
 import { Composer } from './Composer'
 import { ApprovalCard } from './ApprovalCard'
 import { GitPanel } from './GitPanel'
 import { Icon } from './Icon'
 import { haptic } from '../haptics'
-import { dequeue } from '../outbox'
 
 function elapsedLabel(secs: number): string {
   if (secs < 60) return `${secs}s`

@@ -1,0 +1,42 @@
+{
+  "expo": {
+    "name": "trux",
+    "slug": "trux",
+    "scheme": "trux",
+    "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.trux.mobile",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Scan the QR from `trux pair` to sign into your trux box.",
+        "UIBackgroundModes": ["remote-notification"]
+      }
+    },
+    "android": {
+      "package": "com.trux.mobile",
+      "permissions": ["android.permission.CAMERA", "android.permission.VIBRATE"]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-notifications",
+      [
+        "expo-camera",
+        { "cameraPermission": "Scan the QR from `trux pair` to sign into your trux box." }
+      ]
+    ],
+    "experiments": {
+      "tsconfigPaths": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "e628dfbb-ff8b-4bc6-aa3e-991a06910dc4"
+      }
+    }
+  }
+}

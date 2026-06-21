@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { PairModal } from '../src/components/PairModal'
-import { useStore } from '../src/store'
+import { useStore } from '@trux/client/store'
 
 afterEach(() => {
   cleanup()

@@ -1,0 +1,25 @@
+{
+  "name": "@trux/client",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./ports": "./src/ports.ts",
+    "./truxClient": "./src/truxClient.ts",
+    "./connectionManager": "./src/connectionManager.ts",
+    "./outbox": "./src/outbox.ts",
+    "./store": "./src/store.ts",
+    "./api": "./src/api.ts",
+    "./tools": "./src/tools.ts",
+    "./diff": "./src/diff.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@trux/protocol": "workspace:*",
+    "zustand": "^5.0.14"
+  }
+}

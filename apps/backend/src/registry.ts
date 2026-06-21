@@ -200,6 +200,29 @@ export class SqliteRegistry {
     this.db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').run(endpoint)
   }
 
+  // --- Native (Expo) push tokens ---
+
+  // Upsert by token so a device re-registering is a no-op refresh.
+  addExpoPushToken(token: string): void {
+    this.db
+      .prepare(
+        `INSERT INTO expo_push_tokens (token, created_at)
+         VALUES (@token, @created_at)
+         ON CONFLICT(token) DO UPDATE SET created_at = excluded.created_at`,
+      )
+      .run({ token, created_at: Date.now() })
+  }
+
+  listExpoPushTokens(): string[] {
+    return (this.db.prepare('SELECT token FROM expo_push_tokens').all() as Array<{ token: string }>).map(
+      (r) => r.token,
+    )
+  }
+
+  removeExpoPushToken(token: string): void {
+    this.db.prepare('DELETE FROM expo_push_tokens WHERE token = ?').run(token)
+  }
+
   searchConversations(q: string): Array<{ conversation: Conversation; snippet: string }> {
     // snippet() is an FTS5 auxiliary function — cannot be used with GROUP BY.
     // Fetch up to 100 raw matches, then deduplicate by conversation_id in JS.

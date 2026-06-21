@@ -9,7 +9,8 @@ import { OpencodeAdapter } from './adapter/opencode'
 import { ConversationManager } from './manager'
 import type { AgentAdapter } from './adapter/types'
 import { buildServer } from './server'
-import { loadOrCreateVapid, WebPushNotifier } from './push'
+import { loadOrCreateVapid, WebPushNotifier, ExpoPushNotifier, CompositeNotifier } from './push'
+import type { Notifier } from './manager'
 
 loadEnvFiles()
 
@@ -26,13 +27,20 @@ async function main(): Promise<void> {
     ['codex', new CodexAdapter()],
     ['opencode', new OpencodeAdapter()],
   ])
-  // Web-push: establish VAPID keys (env, persisted file, or freshly generated).
-  // If keys can't be set up, push is disabled and the rest of trux runs unchanged.
+  // Notifications fan out to every transport a device might use. Web-push needs
+  // VAPID (env, persisted file, or freshly generated); if keys can't be set up,
+  // the web transport is dropped but the rest of trux — and native push — runs
+  // unchanged. Native (Expo) push needs no server keys: it delivers through the
+  // Expo Push Service keyed by a per-device token, so it's always available.
   const vapid = loadOrCreateVapid()
-  const notifier = vapid
-    ? new WebPushNotifier(registry, vapid, { privacy: config.pushPrivacy })
-    : null
-  if (!vapid) console.log('trux: web-push disabled (no VAPID keys)')
+  const transports: Notifier[] = []
+  if (vapid) {
+    transports.push(new WebPushNotifier(registry, vapid, { privacy: config.pushPrivacy }))
+  } else {
+    console.log('trux: web-push disabled (no VAPID keys)')
+  }
+  transports.push(new ExpoPushNotifier(registry, { privacy: config.pushPrivacy }))
+  const notifier = transports.length > 0 ? new CompositeNotifier(transports) : null
   const manager = new ConversationManager(registry, adapters, notifier)
   const app = await buildServer(config, db, registry, manager, { vapidPublicKey: vapid?.publicKey ?? null })
   await app.listen({ host: config.host, port: config.port })

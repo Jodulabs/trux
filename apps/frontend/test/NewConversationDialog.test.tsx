@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { NewConversationDialog } from '../src/components/NewConversationDialog'
-import { api } from '../src/api'
+import { api } from '@trux/client/api'
 
 afterEach(() => { cleanup(); vi.restoreAllMocks() })
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { GitFileStatus, GitStatusResult } from '@trux/protocol'
-import { api } from '../api'
+import { api } from '@trux/client/api'
 import { DiffView } from './DiffView'
 
 interface Props {

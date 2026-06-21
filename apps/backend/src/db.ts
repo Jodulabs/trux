@@ -44,6 +44,16 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
   auth        TEXT NOT NULL,
   created_at  INTEGER NOT NULL
 );
+
+-- Native (Expo) push tokens. The web-push protocol can't reach a native device;
+-- those go through the Expo Push Service (→ APNs/FCM) keyed by an opaque Expo
+-- push token. Stored alongside the browser subscriptions (same owner-wide
+-- semantics) so the manager's emit path fans a notification to every device,
+-- web or native. Token is the PRIMARY KEY so a re-register upserts in place.
+CREATE TABLE IF NOT EXISTS expo_push_tokens (
+  token       TEXT PRIMARY KEY,
+  created_at  INTEGER NOT NULL
+);
 `
 
 // Forward-only column adds. SQLite has no portable ADD COLUMN IF NOT EXISTS, so

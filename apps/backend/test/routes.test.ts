@@ -208,6 +208,27 @@ describe('REST', () => {
     })
     expect(res.status).toBe(400)
   })
+
+  it('stores and removes a native Expo push token via the same route', async () => {
+    const { port, registry } = await start()
+    const ok = await fetch(`http://127.0.0.1:${port}/push/subscribe`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ expoPushToken: 'ExponentPushToken[xyz]' }),
+    })
+    expect(ok.status).toBe(200)
+    expect(registry.listExpoPushTokens()).toEqual(['ExponentPushToken[xyz]'])
+    // Web-push subscriptions are untouched by a native registration.
+    expect(registry.listPushSubscriptions()).toEqual([])
+
+    const gone = await fetch(`http://127.0.0.1:${port}/push/unsubscribe`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ expoPushToken: 'ExponentPushToken[xyz]' }),
+    })
+    expect(gone.status).toBe(200)
+    expect(registry.listExpoPushTokens()).toEqual([])
+  })
 })
 
 describe('WS turn engine', () => {

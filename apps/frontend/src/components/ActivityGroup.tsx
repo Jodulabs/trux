@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ToolCallEvent, ToolResultEvent } from '@trux/protocol'
-import { api } from '../api'
-import { toolSummary } from '../tools'
+import { api } from '@trux/client/api'
+import { toolSummary } from '@trux/client/tools'
 import { Icon } from './Icon'
 import { DiffView } from './DiffView'
 

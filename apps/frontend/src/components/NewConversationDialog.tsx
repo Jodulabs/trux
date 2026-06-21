@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { AgentCapabilities, AgentName, DiscoveredSession, Workspace } from '@trux/protocol'
-import { api } from '../api'
-import { useStore } from '../store'
+import { api } from '@trux/client/api'
+import { useStore } from '@trux/client/store'
 
 interface Props {
   onCreated: (id: string) => void

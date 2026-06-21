@@ -1,26 +1,26 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen, fireEvent, waitFor } from '@testing-library/react'
 import type { Conversation } from '@trux/protocol'
-import { useStore } from '../src/store'
+import { useStore } from '@trux/client/store'
 
 // Stub a fake client so ConversationView's onSend can call sendUserMessage.
 const sendUserMessage = vi.fn()
 const interrupt = vi.fn()
-vi.mock('../src/connectionManager', () => ({
+vi.mock('@trux/client/connectionManager', () => ({
   openConnection: vi.fn(),
   setActiveHandlers: vi.fn(),
   clearActiveHandlers: vi.fn(),
   getConnection: () => ({ sendUserMessage, interrupt, close: () => {}, respondApproval: () => {} }),
 }))
 
-vi.mock('../src/outbox', () => ({
+vi.mock('@trux/client/outbox', () => ({
   enqueue: vi.fn(),
   newMessageId: vi.fn(() => 'cid-1'),
   dequeue: vi.fn(),
 }))
 
 import { ConversationView } from '../src/components/ConversationView'
-import { api } from '../src/api'
+import { api } from '@trux/client/api'
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); useStore.setState({ conversations: [], convMeta: {}, transcript: [], status: 'idle', approvalDecisions: {} }) })
 

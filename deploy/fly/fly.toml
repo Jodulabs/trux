@@ -1,0 +1,26 @@
+# Trux on Fly.io — a cloud dev machine the phone pairs to.
+# Deployed by deploy/fly/provision-fly.sh. The app name + build context are passed
+# on the command line so this file is reusable across users.
+primary_region = "iad"
+
+[env]
+  TRUX_PORT = "4317"
+
+# Fly's proxy terminates TLS at https://<app>.fly.dev and forwards to internal_port.
+# Scale-to-zero + auto-start: the machine stops when idle and the proxy boots it on
+# the next request — this is what lets the phone reach it without your computer on.
+[http_service]
+  internal_port = 4317
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"
+
+# Persist the workspace + sqlite db across stop/start.
+[mounts]
+  source = "data"
+  destination = "/data"

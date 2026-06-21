@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { View, Text, StyleSheet } from 'react-native'
+import type { ApprovalDecision } from '@trux/protocol'
 import { useStore } from '@trux/client/store'
 import { openConnection, setActiveHandlers, clearActiveHandlers, getConnection, enqueue } from '@trux/client/connectionManager'
 import { newMessageId, dequeue } from '@trux/client/outbox'
@@ -19,19 +20,20 @@ const CONN_LABEL: Record<string, string> = {
   offline: 'Offline — will retry',
 }
 
-// Phase A4 conversation view: opens a persistent WS connection for `id` via the
-// shared connectionManager, routes streamed events into the shared store, and
-// renders a plain-text Transcript + Composer with the connection-state banner
-// the spec calls out. Rich tool-cards, approvals UI, markdown, and diff land in
-// Phase B; this proves the spine streams end-to-end on native.
+// Phase B: opens a persistent WS connection for `id` via the shared
+// connectionManager, routes streamed events into the shared store, and renders
+// the Transcript (with happy tool-view cards) + Composer with the
+// connection-state banner. Approvals route through respondApproval via the WS.
 export function ConversationView({ id }: Props): React.ReactElement {
   const transcript = useStore((s) => s.transcript)
   const status = useStore((s) => s.status)
   const connState = useStore((s) => s.connState)
+  const approvalDecisions = useStore((s) => s.approvalDecisions)
   const applyEvent = useStore((s) => s.applyEvent)
   const setConnState = useStore((s) => s.setConnState)
   const addOptimistic = useStore((s) => s.addOptimistic)
   const failPending = useStore((s) => s.failPending)
+  const recordApproval = useStore((s) => s.recordApproval)
   const reloaded = useRef(false)
 
   // Open the connection once and register as the active conversation so events
@@ -56,8 +58,6 @@ export function ConversationView({ id }: Props): React.ReactElement {
     return () => clearActiveHandlers()
   }, [id, applyEvent, setConnState, failPending])
 
-  // Silence the unused-ref lint for the reloaded flag (kept for A4 follow-up:
-  // reload transcript on reconnect when the server speaks seq).
   void reloaded
 
   const onSend = (text: string): void => {
@@ -66,6 +66,12 @@ export function ConversationView({ id }: Props): React.ReactElement {
     enqueue(id, { client_message_id: cid, text })
     getConnection(id)?.sendUserMessage(text, undefined, cid)
     haptic('light')
+  }
+
+  const onRespond = (requestId: string, decision: ApprovalDecision): void => {
+    getConnection(id)?.respondApproval(requestId, decision)
+    recordApproval(requestId, decision)
+    haptic('medium')
   }
 
   const connNote = connState !== 'connected' ? CONN_LABEL[connState] : null
@@ -77,7 +83,13 @@ export function ConversationView({ id }: Props): React.ReactElement {
           <Text style={styles.connText}>{connNote}</Text>
         </View>
       ) : null}
-      <Transcript items={transcript} status={status} />
+      <Transcript
+        items={transcript}
+        status={status}
+        approvalDecisions={approvalDecisions}
+        onRespond={onRespond}
+        sessionId={id}
+      />
       <Composer
         busy={status === 'thinking' || status === 'awaiting_approval'}
         onSend={onSend}

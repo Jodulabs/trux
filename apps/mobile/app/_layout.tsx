@@ -3,6 +3,7 @@ import { View, ActivityIndicator, StyleSheet } from 'react-native'
 import { Stack } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
+import { KeyboardProvider } from 'react-native-keyboard-controller'
 import {
   useFonts,
   IBMPlexSans_400Regular,
@@ -46,19 +47,21 @@ export default function RootLayout(): React.ReactElement {
   }
 
   return (
-    <SafeAreaProvider>
-      <StatusBar style="light" />
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: theme.ink },
-          animation: 'slide_from_right',
-        }}
-      >
-        <Stack.Screen name="(app)" />
-        <Stack.Screen name="pair" options={{ presentation: 'modal' }} />
-      </Stack>
-    </SafeAreaProvider>
+    <KeyboardProvider>
+      <SafeAreaProvider>
+        <StatusBar style="light" />
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: theme.ink },
+            animation: 'slide_from_right',
+          }}
+        >
+          <Stack.Screen name="(app)" />
+          <Stack.Screen name="pair" options={{ presentation: 'modal' }} />
+        </Stack>
+      </SafeAreaProvider>
+    </KeyboardProvider>
   )
 }
 

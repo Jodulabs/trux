@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { View, Text, StyleSheet } from 'react-native'
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller'
 import type { AgentCapabilities, AgentCommand, ApprovalDecision, TurnConfig } from '@trux/protocol'
 import { useStore } from '@trux/client/store'
 import { api } from '@trux/client/api'
@@ -107,7 +108,7 @@ export function ConversationView({ id }: Props): React.ReactElement {
   const connNote = connState !== 'connected' ? CONN_LABEL[connState] : null
 
   return (
-    <View style={styles.shell}>
+    <KeyboardAvoidingView style={styles.shell} behavior="padding">
       {connNote ? (
         <View style={styles.connBanner}>
           <Text style={styles.connText}>{connNote}</Text>
@@ -129,7 +130,7 @@ export function ConversationView({ id }: Props): React.ReactElement {
         onConfigChange={setConfig}
         commands={commands}
       />
-    </View>
+    </KeyboardAvoidingView>
   )
 }
 

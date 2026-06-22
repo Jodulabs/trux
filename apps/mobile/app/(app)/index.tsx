@@ -81,6 +81,9 @@ export default function ConversationListScreen(): React.ReactElement {
         <Pressable hitSlop={12} onPress={() => router.push('/settings')} style={styles.settingsBtn}>
           <Text style={styles.settingsBtnText}>⚙</Text>
         </Pressable>
+        <Pressable hitSlop={12} onPress={() => router.push('/connections')} style={styles.connBtn}>
+          <Text style={styles.settingsBtnText}>🔑</Text>
+        </Pressable>
         <Pressable hitSlop={12} onPress={() => router.push('/new')} style={styles.newBtn}>
           <Text style={styles.newBtnText}>+</Text>
         </Pressable>
@@ -184,6 +187,12 @@ const styles = StyleSheet.create({
     marginLeft: 'auto',
   },
   settingsBtnText: { color: theme.textDim, fontSize: 18 },
+  connBtn: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -9,6 +9,8 @@ import { OpencodeAdapter } from './adapter/opencode'
 import { ConversationManager } from './manager'
 import type { AgentAdapter } from './adapter/types'
 import { buildServer } from './server'
+import { CodexAuthenticator } from './auth-codex'
+import type { Authenticator } from './auth-provider'
 import { loadOrCreateVapid, WebPushNotifier, ExpoPushNotifier, CompositeNotifier } from './push'
 import type { Notifier } from './manager'
 
@@ -27,6 +29,9 @@ async function main(): Promise<void> {
     ['codex', new CodexAdapter()],
     ['opencode', new OpencodeAdapter()],
   ])
+  // Phase 1: only Codex (cleanest headless device flow — see the Phase 0 findings).
+  // Claude/opencode/machine providers follow in Phase 2 behind the same interface.
+  const authenticators = new Map<string, Authenticator>([['codex', new CodexAuthenticator()]])
   // Notifications fan out to every transport a device might use. Web-push needs
   // VAPID (env, persisted file, or freshly generated); if keys can't be set up,
   // the web transport is dropped but the rest of trux — and native push — runs
@@ -42,7 +47,10 @@ async function main(): Promise<void> {
   transports.push(new ExpoPushNotifier(registry, { privacy: config.pushPrivacy }))
   const notifier = transports.length > 0 ? new CompositeNotifier(transports) : null
   const manager = new ConversationManager(registry, adapters, notifier)
-  const app = await buildServer(config, db, registry, manager, { vapidPublicKey: vapid?.publicKey ?? null })
+  const app = await buildServer(config, db, registry, manager, {
+    vapidPublicKey: vapid?.publicKey ?? null,
+    authenticators,
+  })
   await app.listen({ host: config.host, port: config.port })
   console.log(`trux backend listening on http://${config.host}:${config.port} (db: ${config.dbPath})`)
   printStartBanner(config)

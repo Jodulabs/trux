@@ -42,17 +42,18 @@ export async function buildServer(
   registerStream(app, config, registry, manager)
   registerTerminal(app, config, registry)
 
-  // Serve the built frontend in production. Only registers when dist/ exists so
-  // dev mode (Vite proxy) is unaffected. Path is relative to apps/backend/src (or
-  // apps/backend/dist if compiled) → apps/frontend/dist either way.
-  const distDir = join(dirname(fileURLToPath(import.meta.url)), '../../frontend/dist')
+  // Serve the built web surface in production. Only registers when dist/ exists
+  // so dev mode is unaffected.
+  // Serve the Expo web export (the single web surface). Path is relative to
+  // apps/backend/src (or apps/backend/dist if compiled) → apps/mobile/dist.
+  const distDir = join(dirname(fileURLToPath(import.meta.url)), '../../mobile/dist')
   if (existsSync(distDir)) {
     // decorateReply must stay on: the SPA fallback below calls reply.sendFile.
     await app.register(fastifyStatic, { root: distDir, prefix: '/' })
     app.setNotFoundHandler((_req, reply) => reply.sendFile('index.html'))
-    console.log(`trux: serving frontend from ${distDir}`)
+    console.log(`trux: serving web from ${distDir}`)
   } else {
-    console.log(`trux: no frontend build at ${distDir} (dev mode, or run: pnpm --filter frontend build)`)
+    console.log(`trux: no web build at ${distDir} (dev mode, or run: pnpm --filter @trux/mobile build:web)`)
   }
 
   return app

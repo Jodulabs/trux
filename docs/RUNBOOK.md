@@ -10,11 +10,11 @@ Proves the app and the agent loop work before involving the network.
 
 ```sh
 pnpm install            # once
-pnpm build              # build the frontend (writes apps/frontend/dist)
+pnpm build              # build the web app (Expo web export → apps/mobile/dist)
 TRUX_WORKSPACES=$HOME pnpm start
 ```
 
-- The backend serves the built frontend, so open **http://localhost:4317/** — you should see the
+- The backend serves the built web app, so open **http://localhost:4317/** — you should see the
   trux UI (sidebar + empty state), not a JSON 404.
 - New conversation → pick **claude** + a repo under `$HOME` → prompt it → watch the streaming reply,
   approve a tool, hit **Open preview** if it starts a dev server.

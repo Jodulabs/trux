@@ -12,13 +12,15 @@ import { registerRoutes } from './routes'
 import { registerStream } from './stream'
 import { registerTerminal } from './terminal-route'
 import { registerPreview } from './preview'
+import { registerAuth } from './auth-route'
+import type { Authenticator } from './auth-provider'
 
 export async function buildServer(
   config: Config,
   db: TruxDatabase,
   registry: SqliteRegistry,
   manager: ConversationManager,
-  opts?: { vapidPublicKey?: string | null },
+  opts?: { vapidPublicKey?: string | null; authenticators?: Map<string, Authenticator> },
 ): Promise<FastifyInstance> {
   const app = Fastify({ logger: false })
   await app.register(websocket)
@@ -39,6 +41,7 @@ export async function buildServer(
   // stays off /health, /config, or the WS upgrade.
   await app.register(async (scope) => {
     registerRoutes(scope, config, registry, manager.capabilities())
+    if (opts?.authenticators) registerAuth(scope, config, opts.authenticators)
   })
   registerStream(app, config, registry, manager)
   registerTerminal(app, config, registry)

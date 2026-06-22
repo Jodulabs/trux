@@ -9,6 +9,7 @@
     "ios": "expo run:ios",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "build:web": "expo export -p web --output-dir dist",
+    "gen:terminal-html": "node scripts/gen-terminal-html.mjs",
     "test": "jest"
   },
   "dependencies": {
@@ -19,6 +20,8 @@
     "@react-native-async-storage/async-storage": "3.1.1",
     "@trux/client": "workspace:*",
     "@trux/protocol": "workspace:*",
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/xterm": "^5.5.0",
     "expo": "~56.0.12",
     "expo-asset": "~56.0.17",
     "expo-camera": "~56.0.8",
@@ -41,6 +44,7 @@
     "react-native-screens": "~4.25.2",
     "react-native-svg": "~15.15.5",
     "react-native-web": "^0.21.2",
+    "react-native-webview": "13.16.1",
     "react-native-worklets": "0.9.2",
     "zod": "^4.4.3",
     "zustand": "^5.0.14"

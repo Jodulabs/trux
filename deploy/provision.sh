@@ -114,8 +114,8 @@ main() {
   echo "trux: provisioning from $TRUX_DIR"
   echo "trux: installing dependencies..."
   pnpm -C "$TRUX_DIR" install --frozen-lockfile
-  echo "trux: building frontend..."
-  pnpm -C "$TRUX_DIR" --filter frontend build
+  echo "trux: building web..."
+  pnpm -C "$TRUX_DIR" --filter @trux/mobile build:web
   ensure_env
   render_service "$SERVICE_DST"
   install_shim

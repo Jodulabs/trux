@@ -7,7 +7,7 @@
   "engines": { "node": ">=22" },
   "scripts": {
     "dev": "pnpm --parallel -r dev",
-    "build": "pnpm --filter @trux/frontend build",
+    "build": "pnpm --filter @trux/mobile build:web",
     "start": "pnpm --filter @trux/backend start",
     "stop": "fuser -k ${TRUX_PORT:-4317}/tcp 2>/dev/null || true",
     "restart": "pnpm stop; sleep 1; pnpm start",

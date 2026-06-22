@@ -30,6 +30,7 @@
         { "cameraPermission": "Scan the QR from `trux pair` to sign into your trux box." }
       ]
     ],
+    "web": { "bundler": "metro", "output": "single" },
     "experiments": {
       "tsconfigPaths": true
     },

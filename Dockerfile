@@ -1,4 +1,4 @@
-# Trux cloud dev machine image (Fly driver). Bakes the trux app + a built frontend
+# Trux cloud dev machine image (Fly driver). Bakes the trux app + a built web surface
 # + the claude CLI; the user's own code repo is cloned to /data at boot by the
 # entrypoint. See docs/superpowers/specs/2026-06-21-cloud-dev-machine-fly-design.md.
 FROM node:22-bookworm-slim
@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 COPY . .
 RUN pnpm install --frozen-lockfile \
-    && pnpm --filter @trux/frontend build
+    && pnpm --filter @trux/mobile build:web
 
 # Cloud defaults; secrets (TRUX_SECRET, ANTHROPIC_API_KEY, …) come from Fly at runtime.
 ENV TRUX_HOST=0.0.0.0 \

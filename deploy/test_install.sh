@@ -147,10 +147,24 @@ EOF
   pass "trux open constructs a localhost URL with token in the fragment"
 }
 
+test_ensure_flyctl_skip() {
+  local sandbox stub; sandbox="$(mktemp -d)"; stub="$sandbox/bin"; mkdir -p "$stub"
+  # flyctl already on PATH -> ensure_flyctl must NOT attempt a download.
+  printf '#!/usr/bin/env bash\nexit 0\n' > "$stub/flyctl"; chmod +x "$stub/flyctl"
+  printf '#!/usr/bin/env bash\necho "curl should not run" >&2; exit 1\n' > "$stub/curl"; chmod +x "$stub/curl"
+  # shellcheck disable=SC1090
+  source "$REPO/deploy/provision.sh"
+  PATH="$stub:$PATH" HOME="$sandbox" ensure_flyctl >/dev/null 2>&1 \
+    || fail "ensure_flyctl should skip (succeed) when flyctl is already present"
+  rm -rf "$sandbox"
+  pass "ensure_flyctl skips the download when flyctl is already present"
+}
+
 test_render_service
 test_ensure_env
 test_shim_url_token
 test_uninstall_files
 test_shim_resolve_install_dir
 test_shim_open
+test_ensure_flyctl_skip
 echo "ALL TESTS PASSED"

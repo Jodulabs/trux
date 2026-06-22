@@ -48,7 +48,7 @@ always-on box that sleeps when idle and wakes the instant your phone reconnects.
 account, your credit, your keys; trux runs no server in between.
 
 **Prerequisites**
-- A [Fly.io](https://fly.io) account with billing enabled, and [`flyctl`](https://fly.io/docs/flyctl/install/) installed + `fly auth login`
+- A [Fly.io](https://fly.io) account with billing enabled. trux installs [`flyctl`](https://fly.io/docs/flyctl/install/) for you during setup — just run `fly auth login` once.
 - Your Claude key in `ANTHROPIC_API_KEY`
 - (Optional) the repo to work on in `TRUX_REPO_URL`, plus `GITHUB_TOKEN` if it's private
 

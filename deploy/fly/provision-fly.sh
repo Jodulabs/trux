@@ -7,7 +7,16 @@
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-FLY="${FLY_BIN:-fly}"
+# Resolve the Fly CLI: explicit override, then PATH, then the default install dir
+# (~/.fly/bin) so `trux fly` works right after install without a shell reload.
+resolve_fly() {
+  if [[ -n "${FLY_BIN:-}" ]]; then echo "$FLY_BIN"; return; fi
+  if command -v flyctl &>/dev/null; then echo flyctl; return; fi
+  if command -v fly &>/dev/null; then echo fly; return; fi
+  if [[ -x "$HOME/.fly/bin/flyctl" ]]; then echo "$HOME/.fly/bin/flyctl"; return; fi
+  echo fly
+}
+FLY="$(resolve_fly)"
 REGION="${TRUX_FLY_REGION:-iad}"
 VOLUME_SIZE="${TRUX_FLY_VOLUME_GB:-10}"
 

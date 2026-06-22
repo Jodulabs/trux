@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { loadConfig, assertConfig } from '../src/config'
 
-const KEYS = ['TRUX_HOST', 'TRUX_PORT', 'TRUX_DB_PATH', 'TRUX_SECRET', 'TRUX_AUTH', 'TRUX_WORKSPACES', 'TRUX_TAILSCALE_HOST', 'TRUX_PUSH_PRIVACY']
+const KEYS = ['TRUX_HOST', 'TRUX_PORT', 'TRUX_DB_PATH', 'TRUX_SECRET', 'TRUX_AUTH', 'TRUX_WORKSPACES', 'TRUX_TAILSCALE_HOST', 'TRUX_PUBLIC_HOST', 'TRUX_PUSH_PRIVACY']
 
 describe('loadConfig', () => {
   let saved: Record<string, string | undefined>
@@ -44,6 +44,7 @@ describe('loadConfig', () => {
       authRequired: true,
       workspaceRoots: ['/a', '/b'],
       tailscaleHost: null,
+      publicHost: null,
       pushPrivacy: false,
     })
   })
@@ -56,6 +57,22 @@ describe('loadConfig', () => {
   it('reads TRUX_TAILSCALE_HOST', () => {
     process.env.TRUX_TAILSCALE_HOST = 'mybox.ts.net'
     expect(loadConfig().tailscaleHost).toBe('mybox.ts.net')
+  })
+
+  it('reads TRUX_PUBLIC_HOST', () => {
+    process.env.TRUX_PUBLIC_HOST = 'myapp.fly.dev'
+    expect(loadConfig().publicHost).toBe('myapp.fly.dev')
+  })
+
+  it('falls back to TRUX_TAILSCALE_HOST when TRUX_PUBLIC_HOST is unset', () => {
+    process.env.TRUX_TAILSCALE_HOST = 'mybox.ts.net'
+    expect(loadConfig().publicHost).toBe('mybox.ts.net')
+  })
+
+  it('prefers TRUX_PUBLIC_HOST over TRUX_TAILSCALE_HOST', () => {
+    process.env.TRUX_PUBLIC_HOST = 'myapp.fly.dev'
+    process.env.TRUX_TAILSCALE_HOST = 'mybox.ts.net'
+    expect(loadConfig().publicHost).toBe('myapp.fly.dev')
   })
 })
 

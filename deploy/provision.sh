@@ -80,6 +80,21 @@ setup_tailscale() {
   fi
 }
 
+ensure_flyctl() {
+  # flyctl powers `trux fly` (the cloud dev machine). Bundle it at install time so the
+  # cloud path works out of the box; best-effort — a failure never blocks a local install.
+  if command -v flyctl &>/dev/null || command -v fly &>/dev/null || [[ -x "$HOME/.fly/bin/flyctl" ]]; then
+    echo "trux: flyctl present — skipping"
+    return 0
+  fi
+  echo "trux: installing flyctl (for 'trux fly' cloud provisioning)..."
+  if curl -fsSL https://fly.io/install.sh | sh >/dev/null 2>&1; then
+    echo "trux: flyctl installed to ~/.fly/bin"
+  else
+    echo "trux: flyctl install failed — install manually from https://fly.io/docs/flyctl/install/ if you want 'trux fly'"
+  fi
+}
+
 print_banner() {
   # shellcheck disable=SC1090
   source "$ENV_FILE"
@@ -108,6 +123,7 @@ main() {
   systemctl --user daemon-reload
   systemctl --user enable --now trux.service
   setup_tailscale
+  ensure_flyctl
   print_banner
 }
 

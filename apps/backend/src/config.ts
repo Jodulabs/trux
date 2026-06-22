@@ -11,6 +11,10 @@ export interface Config {
   authRequired: boolean
   workspaceRoots: string[]
   tailscaleHost: string | null
+  // Public hostname the phone reaches trux at, for pairing URLs/QR. Backend-agnostic:
+  // local sets it from Tailscale, the Fly driver sets it to <app>.fly.dev. Optional so
+  // existing Config literals (tests, server) keep compiling.
+  publicHost?: string | null
   // When true, push bodies are genericized ("Approval required") so a lockscreen
   // preview can't leak a command or path.
   pushPrivacy: boolean
@@ -39,6 +43,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     authRequired: bool(env.TRUX_AUTH),
     workspaceRoots: env.TRUX_WORKSPACES ? env.TRUX_WORKSPACES.split(':').filter(Boolean) : [],
     tailscaleHost: env.TRUX_TAILSCALE_HOST ?? null,
+    publicHost: env.TRUX_PUBLIC_HOST ?? env.TRUX_TAILSCALE_HOST ?? null,
     pushPrivacy: bool(env.TRUX_PUSH_PRIVACY),
   }
 }

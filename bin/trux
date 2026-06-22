@@ -37,7 +37,8 @@ main() {
       echo "trux: updated and restarted" ;;
     token)   envval TRUX_SECRET ;;
     url)
-      host="$(envval TRUX_TAILSCALE_HOST)"
+      host="$(envval TRUX_PUBLIC_HOST)"
+      [[ -z "$host" ]] && host="$(envval TRUX_TAILSCALE_HOST)"
       if [[ -n "$host" ]]; then echo "https://$host/"; else echo "http://localhost:$(envval TRUX_PORT)/"; fi ;;
     open)
       secret="$(envval TRUX_SECRET)"
@@ -55,9 +56,10 @@ main() {
         echo "$open_url"
       fi ;;
     pair)    pnpm -C "$install_dir" --filter backend pair ;;
+    fly)     exec bash "$install_dir/deploy/fly/provision-fly.sh" "${@:2}" ;;
     uninstall) exec bash "$install_dir/deploy/uninstall.sh" "${@:2}" ;;
     *)
-      echo "usage: trux {status|start|stop|restart|logs|update|token|url|open|pair|uninstall [--purge]}" >&2
+      echo "usage: trux {status|start|stop|restart|logs|update|token|url|open|pair|fly <app>|uninstall [--purge]}" >&2
       exit 1 ;;
   esac
 }

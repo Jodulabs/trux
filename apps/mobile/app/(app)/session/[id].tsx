@@ -8,6 +8,7 @@ import { api } from '@trux/client/api'
 import { theme } from '../../../src/theme'
 import { ConversationView } from '../../../src/components/ConversationView'
 import { GitPanel } from '../../../src/components/GitPanel'
+import { TerminalPane } from '../../../src/components/TerminalPane'
 
 // Phase A4 session screen: a back button + the loaded conversation title, then
 // the ConversationView (transcript + composer + connection banner). The view
@@ -22,6 +23,7 @@ export default function SessionScreen(): React.ReactElement {
 
   const [gitStatus, setGitStatus] = useState<GitStatusResult | null>(null)
   const [gitOpen, setGitOpen] = useState(false)
+  const [termOpen, setTermOpen] = useState(false)
 
   const loadGit = (): void => {
     void api.gitStatus(id).then(setGitStatus).catch(() => setGitStatus(null))
@@ -37,6 +39,14 @@ export default function SessionScreen(): React.ReactElement {
           <Text style={styles.back}>‹</Text>
         </Pressable>
         <Text style={styles.title} numberOfLines={1}>{title}</Text>
+        <Pressable
+          style={styles.termBadge}
+          onPress={() => setTermOpen(true)}
+          accessibilityLabel="Open terminal"
+          hitSlop={8}
+        >
+          <Text style={styles.termBadgeText}>⌗</Text>
+        </Pressable>
         {repo ? (
           <Pressable
             style={[styles.gitBadge, repo.dirty && styles.gitBadgeDirty]}
@@ -55,6 +65,11 @@ export default function SessionScreen(): React.ReactElement {
         conversationId={id}
         visible={gitOpen}
         onClose={() => { setGitOpen(false); loadGit() }}
+      />
+      <TerminalPane
+        conversationId={id}
+        visible={termOpen}
+        onClose={() => setTermOpen(false)}
       />
     </SafeAreaView>
   )
@@ -84,4 +99,15 @@ const styles = StyleSheet.create({
   },
   gitBadgeDirty: { borderColor: theme.accent },
   gitBadgeText: { color: theme.accentBright, fontSize: 12, fontFamily: theme.fontMono },
+  termBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: theme.radiusSm,
+    borderWidth: 1,
+    borderColor: theme.line,
+    backgroundColor: theme.surface2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  termBadgeText: { color: theme.accentBright, fontSize: 16, fontFamily: theme.fontMono, lineHeight: 18 },
 })

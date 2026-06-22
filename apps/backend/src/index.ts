@@ -10,6 +10,8 @@ import { ConversationManager } from './manager'
 import type { AgentAdapter } from './adapter/types'
 import { buildServer } from './server'
 import { CodexAuthenticator } from './auth-codex'
+import { ClaudeAuthenticator } from './auth-claude'
+import { OpencodeAuthenticator } from './auth-opencode'
 import type { Authenticator } from './auth-provider'
 import { loadOrCreateVapid, WebPushNotifier, ExpoPushNotifier, CompositeNotifier } from './push'
 import type { Notifier } from './manager'
@@ -29,9 +31,13 @@ async function main(): Promise<void> {
     ['codex', new CodexAdapter()],
     ['opencode', new OpencodeAdapter()],
   ])
-  // Phase 1: only Codex (cleanest headless device flow — see the Phase 0 findings).
-  // Claude/opencode/machine providers follow in Phase 2 behind the same interface.
-  const authenticators = new Map<string, Authenticator>([['codex', new CodexAuthenticator()]])
+  // Model-plane authenticators (display order = screen order). Codex shipped in
+  // Phase 1; claude + opencode added in Phase 2a. Machine providers follow later.
+  const authenticators = new Map<string, Authenticator>([
+    ['claude', new ClaudeAuthenticator()],
+    ['codex', new CodexAuthenticator()],
+    ['opencode', new OpencodeAuthenticator()],
+  ])
   // Notifications fan out to every transport a device might use. Web-push needs
   // VAPID (env, persisted file, or freshly generated); if keys can't be set up,
   // the web transport is dropped but the rest of trux — and native push — runs

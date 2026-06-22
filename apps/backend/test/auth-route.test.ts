@@ -18,6 +18,7 @@ class FakeAuth implements Authenticator {
   status(): Promise<AuthStatus> { return Promise.resolve('connected') }
   disconnect(): Promise<void> { return Promise.resolve() }
   submitKey(key: string): Promise<AuthStatus> { return Promise.resolve(key === 'good' ? 'connected' : 'disconnected') }
+  submitCode(code: string): Promise<AuthStatus> { return Promise.resolve(code === 'good' ? 'connected' : 'disconnected') }
 }
 
 let app: FastifyInstance
@@ -47,5 +48,9 @@ describe('auth routes', () => {
   it('key fallback validates and maps the result', async () => {
     expect((await app.inject({ method: 'POST', url: '/auth/codex/key', payload: { key: 'good' } })).json()).toEqual({ status: 'connected' })
     expect((await app.inject({ method: 'POST', url: '/auth/codex/key', payload: {} })).statusCode).toBe(400)
+  })
+  it('code step validates and maps the result', async () => {
+    expect((await app.inject({ method: 'POST', url: '/auth/codex/code', payload: { code: 'good' } })).json()).toEqual({ status: 'connected' })
+    expect((await app.inject({ method: 'POST', url: '/auth/codex/code', payload: {} })).statusCode).toBe(400)
   })
 })

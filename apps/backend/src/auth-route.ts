@@ -52,4 +52,15 @@ export function registerAuth(
     }
     return { status: await a.submitKey(body.key) }
   })
+
+  app.post('/auth/:provider/code', async (req, reply) => {
+    const a = find((req.params as { provider: string }).provider)
+    if (!a) return reply.code(400).send({ error: 'unknown provider' })
+    if (!a.submitCode) return reply.code(400).send({ error: 'provider has no code step' })
+    const body = req.body as { code?: string }
+    if (!body || typeof body.code !== 'string' || body.code.length === 0) {
+      return reply.code(400).send({ error: 'code is required' })
+    }
+    return { status: await a.submitCode(body.code) }
+  })
 }

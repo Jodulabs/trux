@@ -9,6 +9,7 @@ import { theme } from '../../../src/theme'
 import { ConversationView } from '../../../src/components/ConversationView'
 import { GitPanel } from '../../../src/components/GitPanel'
 import { TerminalPane } from '../../../src/components/TerminalPane'
+import { PreviewPane } from '../../../src/components/PreviewPane'
 
 // Phase A4 session screen: a back button + the loaded conversation title, then
 // the ConversationView (transcript + composer + connection banner). The view
@@ -20,10 +21,12 @@ export default function SessionScreen(): React.ReactElement {
   const conversations = useStore((s) => s.conversations)
   const conv = conversations.find((c) => c.id === id)
   const title = conv?.title ?? conv?.cwd?.replace(/\/$/, '').split('/').pop() ?? id
+  const previewPort = useStore((s) => s.previewPort)
 
   const [gitStatus, setGitStatus] = useState<GitStatusResult | null>(null)
   const [gitOpen, setGitOpen] = useState(false)
   const [termOpen, setTermOpen] = useState(false)
+  const [prevOpen, setPrevOpen] = useState(false)
 
   const loadGit = (): void => {
     void api.gitStatus(id).then(setGitStatus).catch(() => setGitStatus(null))
@@ -47,6 +50,16 @@ export default function SessionScreen(): React.ReactElement {
         >
           <Text style={styles.termBadgeText}>⌗</Text>
         </Pressable>
+        {previewPort != null ? (
+          <Pressable
+            style={styles.termBadge}
+            onPress={() => setPrevOpen(true)}
+            accessibilityLabel="Open preview"
+            hitSlop={8}
+          >
+            <Text style={styles.termBadgeText}>◳</Text>
+          </Pressable>
+        ) : null}
         {repo ? (
           <Pressable
             style={[styles.gitBadge, repo.dirty && styles.gitBadgeDirty]}
@@ -71,6 +84,14 @@ export default function SessionScreen(): React.ReactElement {
         visible={termOpen}
         onClose={() => setTermOpen(false)}
       />
+      {previewPort != null ? (
+        <PreviewPane
+          conversationId={id}
+          port={previewPort}
+          visible={prevOpen}
+          onClose={() => setPrevOpen(false)}
+        />
+      ) : null}
     </SafeAreaView>
   )
 }

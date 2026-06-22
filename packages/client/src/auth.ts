@@ -1,7 +1,7 @@
 import { getServerConfig, getStorage } from './ports'
 
 export type AuthMode =
-  | { mode: 'device'; verifyUrl: string; userCode: string | null }
+  | { mode: 'device'; verifyUrl: string; userCode: string | null; needsCode?: boolean }
   | { mode: 'apikey'; label: string }
 export type AuthStatus = 'disconnected' | 'pending' | 'connected' | 'expired'
 export interface ProviderInfo { id: string; plane: 'model' | 'machine' }
@@ -33,5 +33,11 @@ export const authApi = {
       method: 'POST',
       headers: { 'content-type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ key }),
+    }).then(json<{ status: AuthStatus }>),
+  submitCode: (provider: string, code: string) =>
+    fetch(url(`/auth/${provider}/code`), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ code }),
     }).then(json<{ status: AuthStatus }>),
 }

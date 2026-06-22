@@ -10,7 +10,9 @@ export default function ConnectionsScreen(): React.ReactElement {
   const router = useRouter()
   const [providers, setProviders] = useState<ProviderInfo[]>([])
   const [status, setStatus] = useState<Record<string, AuthStatus>>({})
-  const [device, setDevice] = useState<{ verifyUrl: string; userCode: string | null } | null>(null)
+  const [device, setDevice] = useState<{ verifyUrl: string; userCode: string | null; needsCode?: boolean } | null>(null)
+  const [codeInput, setCodeInput] = useState('')
+  const [hint, setHint] = useState<string | null>(null)
   const [active, setActive] = useState<string | null>(null)
   const [keyInput, setKeyInput] = useState('')
   const [busy, setBusy] = useState(false)
@@ -44,7 +46,8 @@ export default function ConnectionsScreen(): React.ReactElement {
     setBusy(true); setError(null); setActive(id)
     try {
       const mode = await authApi.begin(id)
-      if (mode.mode === 'device') setDevice({ verifyUrl: mode.verifyUrl, userCode: mode.userCode })
+      if (mode.mode === 'device') { setDevice({ verifyUrl: mode.verifyUrl, userCode: mode.userCode, needsCode: mode.needsCode }); setHint(null) }
+      else { setHint(mode.label); setDevice(null) } // apikey mode: prompt the key field
     } catch (e) { setError(String(e)); setActive(null) } finally { setBusy(false) }
   }
 
@@ -54,6 +57,16 @@ export default function ConnectionsScreen(): React.ReactElement {
     try {
       const { status: s } = await authApi.submitKey(id, keyInput)
       setStatus((prev) => ({ ...prev, [id]: s })); setKeyInput('')
+    } catch (e) { setError(String(e)) } finally { setBusy(false) }
+  }
+
+  const submitCode = async (id: string): Promise<void> => {
+    haptic('medium')
+    setBusy(true); setError(null)
+    try {
+      const { status: s } = await authApi.submitCode(id, codeInput)
+      setStatus((prev) => ({ ...prev, [id]: s })); setCodeInput('')
+      if (s === 'connected') { haptic('success'); setDevice(null); setActive(null) }
     } catch (e) { setError(String(e)) } finally { setBusy(false) }
   }
 
@@ -91,13 +104,29 @@ export default function ConnectionsScreen(): React.ReactElement {
             </View>
             {active === p.id && device ? (
               <View style={styles.device}>
-                <Text style={styles.deviceLabel}>Open this URL on any device and sign in:</Text>
+                <Text style={styles.deviceLabel}>Open this URL and sign in:</Text>
                 <Pressable onPress={() => Linking.openURL(device.verifyUrl)}>
                   <Text style={styles.link}>{device.verifyUrl}</Text>
                 </Pressable>
                 {device.userCode ? <Text style={styles.code}>code: {device.userCode}</Text> : null}
+                {device.needsCode ? (
+                  <View style={styles.keyRow}>
+                    <TextInput
+                      style={styles.input}
+                      value={codeInput}
+                      onChangeText={setCodeInput}
+                      placeholder="paste the code shown after sign-in"
+                      placeholderTextColor={theme.textFaint}
+                      autoCapitalize="none"
+                    />
+                    <Pressable disabled={busy || !codeInput} onPress={() => submitCode(p.id)} style={styles.btn}>
+                      <Text style={styles.btnText}>Submit</Text>
+                    </Pressable>
+                  </View>
+                ) : null}
               </View>
             ) : null}
+            {active === p.id && hint ? <Text style={styles.deviceLabel}>{hint} — paste it below.</Text> : null}
             <View style={styles.keyRow}>
               <TextInput
                 style={styles.input}

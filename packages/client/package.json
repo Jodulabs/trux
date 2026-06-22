@@ -8,6 +8,7 @@
     "./ports": "./src/ports.ts",
     "./truxClient": "./src/truxClient.ts",
     "./connectionManager": "./src/connectionManager.ts",
+    "./terminalClient": "./src/terminalClient.ts",
     "./outbox": "./src/outbox.ts",
     "./store": "./src/store.ts",
     "./api": "./src/api.ts",

@@ -9,6 +9,7 @@
     "./truxClient": "./src/truxClient.ts",
     "./connectionManager": "./src/connectionManager.ts",
     "./terminalClient": "./src/terminalClient.ts",
+    "./preview": "./src/preview.ts",
     "./outbox": "./src/outbox.ts",
     "./store": "./src/store.ts",
     "./api": "./src/api.ts",

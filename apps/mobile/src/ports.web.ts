@@ -45,7 +45,12 @@ export function clearPair(): void {
   webStorage.remove(HOST_KEY)
   rebindHost()
 }
-export function getStoredHost(): string | null { return webStorage.get(HOST_KEY) }
+// Web is same-origin: the box that serves this page IS the host, so a paired
+// host always exists. Returning location.host (always truthy) lets the shared
+// authed-shell gate — which requires host && token — reduce to "have a token?".
+export function getStoredHost(): string | null {
+  return location.host || null
+}
 export function getStoredToken(): string | null { return webStorage.get(TOKEN_KEY) }
 
 // Pure trux-pair QR/URL parser (duplicated from ports.ts so the web bundle never

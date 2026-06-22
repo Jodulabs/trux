@@ -10,6 +10,7 @@ import type { SqliteRegistry } from './registry'
 import type { ConversationManager } from './manager'
 import { registerRoutes } from './routes'
 import { registerStream } from './stream'
+import { registerTerminal } from './terminal-route'
 
 export async function buildServer(
   config: Config,
@@ -39,6 +40,7 @@ export async function buildServer(
     registerRoutes(scope, config, registry, manager.capabilities())
   })
   registerStream(app, config, registry, manager)
+  registerTerminal(app, config, registry)
 
   // Serve the built frontend in production. Only registers when dist/ exists so
   // dev mode (Vite proxy) is unaffected. Path is relative to apps/backend/src (or

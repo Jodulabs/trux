@@ -11,6 +11,7 @@ import {
 import { enqueue, newMessageId, dequeue } from '@trux/client/outbox'
 import { Transcript } from './Transcript'
 import { Composer } from './Composer'
+import { TerminalPane } from './TerminalPane'
 import { ApprovalCard } from './ApprovalCard'
 import { Icon } from './Icon'
 import { haptic } from '../haptics'
@@ -70,6 +71,7 @@ export function ConversationView({ id }: { id: string }): React.ReactElement {
   // Whether the view is currently pinned to the bottom (following the stream).
   const stuck = useRef(true)
   const [atBottom, setAtBottom] = useState(true)
+  const [showTerminal, setShowTerminal] = useState(false)
   const [thinkingSecs, setThinkingSecs] = useState(0)
   const thinkingStart = useRef<number | null>(null)
 
@@ -242,6 +244,13 @@ export function ConversationView({ id }: { id: string }): React.ReactElement {
             ◳ preview :{previewPort}
           </button>
         ) : null}
+        <button
+          className="open-terminal"
+          data-testid="toggle-terminal"
+          onClick={() => setShowTerminal((v) => !v)}
+        >
+          ⌗ terminal
+        </button>
       </div>
       <div className="transcript-area">
         <div className="transcript-scroll" ref={scrollRef} onScroll={onScroll}>
@@ -258,6 +267,11 @@ export function ConversationView({ id }: { id: string }): React.ReactElement {
           </button>
         ) : null}
       </div>
+      {showTerminal ? (
+        <div className="terminal-area" data-testid="terminal-area">
+          <TerminalPane conversationId={id} />
+        </div>
+      ) : null}
       {pendingApproval ? (
         <ApprovalCard
           key={pendingApproval.request_id}

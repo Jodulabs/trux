@@ -11,6 +11,7 @@ import type { ConversationManager } from './manager'
 import { registerRoutes } from './routes'
 import { registerStream } from './stream'
 import { registerTerminal } from './terminal-route'
+import { registerPreview } from './preview'
 
 export async function buildServer(
   config: Config,
@@ -41,6 +42,9 @@ export async function buildServer(
   })
   registerStream(app, config, registry, manager)
   registerTerminal(app, config, registry)
+  // Web preview reverse proxy (own cookie-or-token auth, registered at app level
+  // so the REST bearer preHandler doesn't apply — same as stream/terminal).
+  registerPreview(app, config)
 
   // Serve the built web surface in production. Only registers when dist/ exists
   // so dev mode is unaffected.

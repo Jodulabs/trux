@@ -21,11 +21,24 @@ export interface Authenticator {
 // chunk of stdout. URL: first https URL on a line; code: a short A-Z0-9(-) token
 // near a "code" label. Returns null until the URL has appeared.
 export function parseCodexDeviceOutput(buf: string): { verifyUrl: string; userCode: string | null } | null {
-  const urlMatch = /(https?:\/\/[^\s]+)/.exec(buf)
+  // The CLI colours its output, so strip ANSI/SGR escapes first — otherwise the
+  // URL regex's [^\s]+ swallows the trailing reset (ESC[0m) and the link 404s.
+  const clean = stripAnsi(buf)
+  const urlMatch = /(https?:\/\/[^\s]+)/.exec(clean)
   if (!urlMatch) return null
   const verifyUrl = urlMatch[1].replace(/[).,]+$/, '') // strip trailing punctuation
-  const codeMatch = /code[^A-Z0-9]*([A-Z0-9]{4,}(?:-[A-Z0-9]{4,})?)/i.exec(buf)
+  // The one-time code is a dash-joined run of uppercase letters/digits (e.g.
+  // 72J2-KPLEP). Require the dash and stay case-sensitive so prose like the
+  // intro line "...using device code authorization:" can't masquerade as it.
+  const codeMatch = /\b([A-Z0-9]{4,}-[A-Z0-9]{4,})\b/.exec(clean)
   return { verifyUrl, userCode: codeMatch ? codeMatch[1] : null }
+}
+
+// Remove ANSI/VT escape sequences (CSI <params> <final byte>) the CLIs emit for
+// colour, so URL/code scraping isn't polluted by reset codes like ESC[0m.
+export function stripAnsi(s: string): string {
+  // eslint-disable-next-line no-control-regex
+  return s.replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, '')
 }
 
 // `codex login status` prints "Logged in using ChatGPT" when authed, and a
@@ -37,7 +50,7 @@ export function parseCodexStatus(out: string): AuthStatus {
 // `claude setup-token` prints a sign-in URL, then waits for the user to paste the
 // code shown after they authorize in the browser. Scrape the first https URL.
 export function parseClaudeSetupOutput(buf: string): { verifyUrl: string } | null {
-  const m = /(https?:\/\/[^\s]+)/.exec(buf)
+  const m = /(https?:\/\/[^\s]+)/.exec(stripAnsi(buf))
   if (!m) return null
   return { verifyUrl: m[1].replace(/[).,]+$/, '') }
 }

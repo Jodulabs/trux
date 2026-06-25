@@ -3,6 +3,10 @@ import { EventEmitter } from 'node:events'
 import { parseCodexDeviceOutput, parseCodexStatus } from '../src/auth-provider'
 import { CodexAuthenticator, type AuthChild, type SpawnFn } from '../src/auth-codex'
 
+// ESC built at runtime so the source stays pure-ASCII (no raw control bytes).
+const ESC = String.fromCharCode(27)
+const sgr = (code: string, text: string): string => `${ESC}[${code}m${text}${ESC}[0m`
+
 describe('parseCodexDeviceOutput', () => {
   it('extracts the verify URL and user code', () => {
     const out = 'To authenticate, visit https://chatgpt.com/device and enter code: WXYZ-1234\n'
@@ -16,6 +20,23 @@ describe('parseCodexDeviceOutput', () => {
   })
   it('returns null before any URL appears', () => {
     expect(parseCodexDeviceOutput('Starting device authorization…')).toBeNull()
+  })
+  // Real `codex login --device-auth` output: ANSI-coloured, and the prose
+  // "device code authorization:" sits before the actual code. The URL must not
+  // keep the trailing reset (ESC[0m), and the code must be 72J2-KPLEP — not
+  // the word "authorization" from the intro line.
+  it('strips ANSI colour codes and ignores the "code" prose', () => {
+    const real =
+      `\nWelcome to Codex [v${sgr('90', '0.142.1')}]\n${sgr('90', 'OpenAI’s command-line coding agent')}\n\n` +
+      'Follow these steps to sign in with ChatGPT using device code authorization:\n\n' +
+      '1. Open this link in your browser and sign in to your account\n' +
+      `   ${sgr('94', 'https://auth.openai.com/codex/device')}\n\n` +
+      `2. Enter this one-time code ${sgr('90', '(expires in 15 minutes)')}\n` +
+      `   ${sgr('94', '72J2-KPLEP')}\n`
+    expect(parseCodexDeviceOutput(real)).toEqual({
+      verifyUrl: 'https://auth.openai.com/codex/device',
+      userCode: '72J2-KPLEP',
+    })
   })
 })
 

@@ -1,8 +1,16 @@
 import { View, Text, Pressable, StyleSheet, Modal } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { WebView } from 'react-native-webview'
 import { previewUrl } from '@trux/client/preview'
 import { theme } from '../theme'
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let RNWebView: React.ComponentType<any> | null = null
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  RNWebView = (require('react-native-webview') as { WebView: React.ComponentType<any> }).WebView
+} catch {
+  // RNCWebViewModule not registered — run `expo run:android` to rebuild
+}
 
 interface Props {
   conversationId?: string
@@ -25,8 +33,8 @@ export function PreviewPane({ port, visible, onClose }: Props): React.ReactEleme
             <Text style={styles.close}>✕</Text>
           </Pressable>
         </View>
-        {visible ? (
-          <WebView
+        {visible && RNWebView ? (
+          <RNWebView
             originWhitelist={['*']}
             source={{ uri: previewUrl(port) }}
             style={styles.web}
@@ -34,6 +42,10 @@ export function PreviewPane({ port, visible, onClose }: Props): React.ReactEleme
             domStorageEnabled
             setBuiltInZoomControls={false}
           />
+        ) : visible ? (
+          <View style={styles.unavailable}>
+            <Text style={styles.unavailableText}>Preview unavailable — rebuild with `expo run:android`</Text>
+          </View>
         ) : null}
       </SafeAreaView>
     </Modal>
@@ -55,4 +67,6 @@ const styles = StyleSheet.create({
   headerSpacer: { flex: 1 },
   close: { color: theme.textDim, fontSize: 18, fontFamily: theme.fontSans },
   web: { flex: 1, backgroundColor: theme.ink },
+  unavailable: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  unavailableText: { color: theme.textDim, fontSize: 13, fontFamily: theme.fontMono, textAlign: 'center', lineHeight: 20 },
 })

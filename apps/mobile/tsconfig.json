@@ -6,11 +6,26 @@
     "noUnusedParameters": true,
     "noImplicitOverride": true,
     "verbatimModuleSyntax": true,
-    "types": ["jest"],
+    "types": [
+      "jest"
+    ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": [
+        "./src/*"
+      ]
     }
   },
-  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
-  "exclude": ["node_modules", "babel.config.js", "metro.config.js", "jest.config.js", "android", "ios", ".expo"]
+  "include": [
+    "**/*.ts",
+    "**/*.tsx"
+  ],
+  "exclude": [
+    "node_modules",
+    "babel.config.js",
+    "metro.config.js",
+    "jest.config.js",
+    "android",
+    "ios",
+    ".expo"
+  ]
 }

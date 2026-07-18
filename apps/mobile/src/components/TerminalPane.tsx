@@ -1,10 +1,22 @@
 import { useEffect, useRef } from 'react'
 import { View, Text, Pressable, StyleSheet, Modal } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { WebView, type WebViewMessageEvent } from 'react-native-webview'
+import type { WebView as WebViewType, WebViewMessageEvent } from 'react-native-webview'
 import { openTerminal, type TerminalHandle } from '@trux/client/terminalClient'
 import { theme } from '../theme'
 import { TERMINAL_HTML } from './terminalHtml.generated'
+
+// Guard: react-native-webview requires a native binary that registers
+// RNCWebViewModule. On builds where it isn't compiled in, catch the error
+// so the app doesn't crash — the terminal pane just shows a fallback message.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let RNWebView: React.ComponentType<any> | null = null
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  RNWebView = (require('react-native-webview') as { WebView: React.ComponentType<any> }).WebView
+} catch {
+  // RNCWebViewModule not registered — run `expo run:android` to rebuild
+}
 
 interface Props {
   conversationId: string
@@ -25,7 +37,7 @@ type PageMsg =
 // The spine channel is opened only after the page posts {ready} so no early
 // output is dropped, and torn down on unmount / onClose.
 export function TerminalPane({ conversationId, visible, onClose }: Props): React.ReactElement {
-  const webRef = useRef<WebView | null>(null)
+  const webRef = useRef<WebViewType | null>(null)
   const handleRef = useRef<TerminalHandle | null>(null)
 
   // Tear down the spine channel whenever the pane is hidden/unmounted.
@@ -77,18 +89,21 @@ export function TerminalPane({ conversationId, visible, onClose }: Props): React
             <Text style={styles.close}>✕</Text>
           </Pressable>
         </View>
-        {visible ? (
-          <WebView
+        {visible && RNWebView ? (
+          <RNWebView
             ref={webRef}
             originWhitelist={['*']}
             source={{ html: TERMINAL_HTML }}
             onMessage={onMessage}
             style={styles.web}
             keyboardDisplayRequiresUserAction={false}
-            // The page is fully self-contained; no remote loads.
             javaScriptEnabled
             setBuiltInZoomControls={false}
           />
+        ) : visible && !RNWebView ? (
+          <View style={styles.unavailable}>
+            <Text style={styles.unavailableText}>Terminal unavailable — rebuild the app with `expo run:android`</Text>
+          </View>
         ) : null}
       </SafeAreaView>
     </Modal>
@@ -110,4 +125,6 @@ const styles = StyleSheet.create({
   headerSpacer: { flex: 1 },
   close: { color: theme.textDim, fontSize: 18, fontFamily: theme.fontSans },
   web: { flex: 1, backgroundColor: theme.ink },
+  unavailable: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  unavailableText: { color: theme.textDim, fontSize: 13, fontFamily: theme.fontMono, textAlign: 'center', lineHeight: 20 },
 })

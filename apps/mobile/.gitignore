@@ -8,6 +8,9 @@ web-build/
 ios/
 android/
 
+# Firebase
+google-services.json
+
 # Bundler
 node_modules/
 

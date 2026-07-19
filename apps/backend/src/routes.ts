@@ -105,7 +105,7 @@ export function registerRoutes(
   app: FastifyInstance,
   config: Config,
   registry: SqliteRegistry,
-  agents: AgentCapabilities[],
+  getAgents: () => AgentCapabilities[],
 ): void {
   // Bearer gate for REST (no-op locally when authRequired is false). Scoped to
   // this plugin so it never runs for /health or the WS upgrade (registered elsewhere).
@@ -119,7 +119,7 @@ export function registerRoutes(
 
   app.get('/workspaces', async () => listWorkspaces(config.workspaceRoots))
 
-  app.get('/agents', async () => ({ agents }))
+  app.get('/agents', async () => ({ agents: getAgents() }))
 
   app.get('/sessions/discover', async (req, reply) => {
     const { agent, cwd } = req.query as { agent?: string; cwd?: string }
@@ -149,7 +149,7 @@ export function registerRoutes(
     if (!body || typeof body.cwd !== 'string' || body.cwd.length === 0) {
       return reply.code(400).send({ error: 'cwd is required' })
     }
-    if (!agents.some((a) => a.agent === body.agent)) {
+    if (!getAgents().some((a) => a.agent === body.agent)) {
       return reply.code(400).send({ error: `unknown agent: ${body.agent}` })
     }
     return registry.createConversation({

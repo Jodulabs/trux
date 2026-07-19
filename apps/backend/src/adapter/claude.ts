@@ -1,7 +1,70 @@
 import { query as realQuery } from '@anthropic-ai/claude-agent-sdk'
-import type { AgentCapabilities, ApprovalDecision, ImageAttachment, TurnConfig } from '@trux/protocol'
+import Anthropic from '@anthropic-ai/sdk'
+import { readFileSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
+import type { AgentCapabilities, ControlOption, ApprovalDecision, ImageAttachment, TurnConfig } from '@trux/protocol'
 import type { AgentAdapter, AgentSession, AdapterEvent } from './types'
 import { PushQueue } from './queue'
+
+// ─── Dynamic model list (TTL-cached, background-refreshed) ──────────────────
+
+const FALLBACK_MODELS: ControlOption[] = [
+  { value: 'claude-fable-5', label: 'Fable 5' },
+  { value: 'claude-opus-4-8', label: 'Opus 4.8' },
+  { value: 'claude-opus-4-7', label: 'Opus 4.7' },
+  { value: 'claude-sonnet-4-6', label: 'Sonnet 4.6' },
+  { value: 'claude-haiku-4-5', label: 'Haiku 4.5' },
+]
+
+const MODEL_CACHE: { list: ControlOption[]; expiry: number; fetching: boolean } = {
+  list: FALLBACK_MODELS,
+  expiry: 0,
+  fetching: false,
+}
+const MODEL_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+
+function readClaudeAccessToken(): string | null {
+  try {
+    const raw = readFileSync(join(homedir(), '.claude', '.credentials.json'), 'utf8')
+    const parsed = JSON.parse(raw) as { claudeAiOauth?: { accessToken?: string } }
+    return parsed.claudeAiOauth?.accessToken ?? null
+  } catch {
+    return null
+  }
+}
+
+function fetchModelsInBackground(): void {
+  if (MODEL_CACHE.fetching) return
+  MODEL_CACHE.fetching = true
+  void (async () => {
+    try {
+      const apiKey = process.env.ANTHROPIC_API_KEY
+      const authToken = apiKey ? undefined : readClaudeAccessToken()
+      if (!apiKey && !authToken) return
+      const client = new Anthropic(apiKey ? { apiKey } : { authToken: authToken! })
+      const models: ControlOption[] = []
+      for await (const m of client.models.list()) {
+        models.push({ value: m.id, label: m.display_name })
+      }
+      if (models.length > 0) MODEL_CACHE.list = models
+    } catch {
+      // keep current cache on any error (network, auth expired, etc.)
+    } finally {
+      MODEL_CACHE.fetching = false
+    }
+  })()
+}
+
+function getCachedModels(): ControlOption[] {
+  if (Date.now() >= MODEL_CACHE.expiry) {
+    MODEL_CACHE.expiry = Date.now() + MODEL_CACHE_TTL
+    fetchModelsInBackground()
+  }
+  return MODEL_CACHE.list
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 
 type QueryFn = typeof realQuery
 type SdkUserMessage = {
@@ -234,14 +297,12 @@ export class ClaudeAdapter implements AgentAdapter {
   // Mirrors Claude Code's own surface. Model IDs are the bare SDK strings; effort
   // levels are the SDK's EffortLevel union. defaultModel is null and the effort
   // default is '' — trux does not pick; the backend's own default applies.
+  // Models are fetched live from the Anthropic Models API (TTL-cached); a
+  // hardcoded fallback list is used until the first successful fetch.
   capabilities(): AgentCapabilities {
     return {
       agent: 'claude',
-      models: [
-        { value: 'claude-opus-4-8', label: 'Opus 4.8' },
-        { value: 'claude-sonnet-4-6', label: 'Sonnet 4.6' },
-        { value: 'claude-haiku-4-5', label: 'Haiku 4.5' },
-      ],
+      models: getCachedModels(),
       defaultModel: null,
       controls: [
         {

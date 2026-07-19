@@ -6,6 +6,7 @@ const DECISIONS: readonly ApprovalDecision[] = [
   'allow_always',
   'allow_edits',
   'allow_command',
+  'allow_all',
 ]
 
 // Validate and narrow an untrusted inbound frame to a ClientMessage.

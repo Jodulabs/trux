@@ -33,10 +33,13 @@ export function ControlPicker({ caps, value, onChange }: Props) {
   const hasControls = caps.controls.length > 0
   if (!hasModel && !hasControls) return null
 
+  const allowAll = value.options.allow_all === '1'
+
   // Summary line when collapsed
   const modelLabel = value.model ? caps.models.find((m) => m.value === value.model)?.label ?? value.model : 'default'
   const controlLabels = caps.controls.filter((c) => value.options[c.key]).map((c) => `${c.label}: ${value.options[c.key]}`)
-  const summary = [modelLabel, ...controlLabels].join(' · ')
+  const permLabel = allowAll ? 'allow all' : 'ask'
+  const summary = [modelLabel, ...controlLabels, permLabel].join(' · ')
 
   return (
     <View style={styles.wrap}>
@@ -68,6 +71,13 @@ export function ControlPicker({ caps, value, onChange }: Props) {
               </View>
             </View>
           ))}
+          <View style={styles.pickerSection}>
+            <Text style={styles.pickerLabel}>Permissions</Text>
+            <View style={styles.chipRow}>
+              <Chip label="Ask per tool" selected={!allowAll} onPress={() => setOption('allow_all', '')} />
+              <Chip label="Allow all" selected={allowAll} onPress={() => setOption('allow_all', '1')} />
+            </View>
+          </View>
         </View>
       ) : null}
     </View>

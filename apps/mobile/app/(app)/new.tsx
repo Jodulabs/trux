@@ -143,7 +143,7 @@ export default function NewConversationScreen(): React.ReactElement {
         cwd,
         native_session_id: sessionId || undefined,
         model: null,
-        options: {},
+        options: { allow_all: '1' },
       })
       await loadConversations()
       await selectConversation(conv.id)

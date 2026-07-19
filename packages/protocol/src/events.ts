@@ -12,8 +12,10 @@ export type ConversationStatus = 'idle' | 'thinking' | 'awaiting_approval' | 'er
 // SDK's suggested permission rule. `allow_edits` flips Edit/Write/MultiEdit to
 // auto-approve for the rest of the session; `allow_command` pins this exact Bash
 // command so future identical invocations auto-approve — the middle ground between
-// babysitting every call and full yolo.
-export type ApprovalDecision = 'allow' | 'deny' | 'allow_always' | 'allow_edits' | 'allow_command'
+// babysitting every call and full yolo. `allow_all` is the broadest scope: every
+// tool call for the rest of the session is auto-approved (equivalent to
+// --dangerously-skip-permissions on the CLI).
+export type ApprovalDecision = 'allow' | 'deny' | 'allow_always' | 'allow_edits' | 'allow_command' | 'allow_all'
 export type ToolResultStatus = 'ok' | 'error'
 
 export interface ImageAttachment {

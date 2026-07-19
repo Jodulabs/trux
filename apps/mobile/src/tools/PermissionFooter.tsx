@@ -32,13 +32,13 @@ export const PermissionFooter: React.FC<PermissionFooterProps> = ({
   decision,
   onRespond,
 }) => {
-  const [loadingButton, setLoadingButton] = useState<'allow' | 'deny' | 'edits' | 'command' | null>(null)
+  const [loadingButton, setLoadingButton] = useState<'allow' | 'deny' | 'edits' | 'command' | 'all' | null>(null)
   const isEdit = EDIT_TOOLS.has(toolName)
   const isBash = toolName === 'Bash'
   const decided = decision !== undefined
   const pending = permission.status === 'pending' && !decided
 
-  const handle = (reqId: string, d: ApprovalDecision, btn: 'allow' | 'deny' | 'edits' | 'command') => {
+  const handle = (reqId: string, d: ApprovalDecision, btn: 'allow' | 'deny' | 'edits' | 'command' | 'all') => {
     if (!pending || loadingButton !== null) return
     setLoadingButton(btn)
     onRespond(reqId, d)
@@ -49,7 +49,7 @@ export const PermissionFooter: React.FC<PermissionFooterProps> = ({
   const btn = (
     label: string,
     d: ApprovalDecision,
-    btnKey: 'allow' | 'deny' | 'edits' | 'command',
+    btnKey: 'allow' | 'deny' | 'edits' | 'command' | 'all',
     primary?: boolean,
   ) => {
     const isChosen = decision === d
@@ -93,6 +93,7 @@ export const PermissionFooter: React.FC<PermissionFooterProps> = ({
       {isEdit ? btn('Allow all edits', 'allow_edits', 'edits') : null}
       {isBash ? btn('Allow this command', 'allow_command', 'command') : null}
       {!isEdit && !isBash ? btn('Always', 'allow_always', 'allow') : null}
+      {btn('Allow all', 'allow_all', 'all')}
       {btn('Deny', 'deny', 'deny')}
     </View>
   )

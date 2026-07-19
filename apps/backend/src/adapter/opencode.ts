@@ -30,6 +30,7 @@ const RESPONSE: Record<ApprovalDecision, 'once' | 'always' | 'reject'> = {
   allow_always: 'always',
   allow_edits: 'once',
   allow_command: 'once',
+  allow_all: 'always',
   deny: 'reject',
 }
 

@@ -127,24 +127,36 @@ class ClaudeSession implements AgentSession {
   private readonly outbox = new PushQueue<AdapterEvent>()
   private readonly pending = new Map<string, PendingApproval>()
   private readonly q: QueryHandle
-  // Session-scoped graduated-trust state, set by allow_edits / allow_command.
+  // Session-scoped graduated-trust state.
+  // allAllowed: broadest scope — every tool auto-approved (CLI --dangerously-skip-permissions).
+  //             Set on construction via options.allow_all='1', or live via allow_all decision.
+  // editsAllowed: Edit/Write/MultiEdit/NotebookEdit auto-approved.
+  // allowedCommands: exact Bash commands previously approved.
+  private allAllowed: boolean
   private editsAllowed = false
   private readonly allowedCommands = new Set<string>()
 
-  constructor(startQuery: (canUseTool: CanUseTool) => QueryHandle, private readonly inbox: PushQueue<SdkUserMessage>) {
+  constructor(
+    startQuery: (canUseTool: CanUseTool) => QueryHandle,
+    private readonly inbox: PushQueue<SdkUserMessage>,
+    initialAllAllowed = false,
+  ) {
+    this.allAllowed = initialAllAllowed
     this.q = startQuery((toolName, input, options) => this.requestApproval(toolName, input, options))
     void this.consume()
   }
 
   // The canUseTool bridge: surface an approval_request and park the SDK's promise —
   // unless a session-scoped graduated-trust rule already covers this call, in which
-  // case auto-allow without prompting (the whole point of "allow all edits" / "allow
-  // this command").
+  // case auto-allow without prompting.
   private requestApproval(
     toolName: string,
     input: Record<string, unknown>,
     options: CanUseToolOptions,
   ): Promise<PermissionResult> {
+    if (this.allAllowed) {
+      return Promise.resolve({ behavior: 'allow', updatedInput: input })
+    }
     if (this.editsAllowed && EDIT_TOOLS.has(toolName)) {
       return Promise.resolve({ behavior: 'allow', updatedInput: input })
     }
@@ -270,6 +282,8 @@ class ClaudeSession implements AgentSession {
       entry.resolve({ behavior: 'allow', updatedInput: entry.input, updatedPermissions: entry.suggestions })
       return
     }
+    // Broadest scope: skip ALL future tool prompts for this session.
+    if (decision === 'allow_all') this.allAllowed = true
     // Graduated scopes set session state so future matching calls skip the prompt.
     if (decision === 'allow_edits') this.editsAllowed = true
     if (decision === 'allow_command' && typeof entry.input.command === 'string') {
@@ -326,6 +340,8 @@ export class ClaudeAdapter implements AgentAdapter {
     // Map the opaque selection onto the SDK's native knobs. Empty/absent = omit
     // (let the backend default apply) — trux imposes no model policy.
     const effort = config?.options?.effort
+    // options.allow_all='1' starts the session in full-trust mode (no prompts).
+    const initialAllAllowed = config?.options?.allow_all === '1'
     const startQuery = (canUseTool: CanUseTool): QueryHandle =>
       this.queryFn({
         prompt: inbox.iterable() as never,
@@ -343,6 +359,6 @@ export class ClaudeAdapter implements AgentAdapter {
           ...(effort ? { effort: effort as 'low' | 'medium' | 'high' | 'xhigh' | 'max' } : {}),
         },
       }) as unknown as QueryHandle
-    return new ClaudeSession(startQuery, inbox)
+    return new ClaudeSession(startQuery, inbox, initialAllAllowed)
   }
 }

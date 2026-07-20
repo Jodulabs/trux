@@ -6,6 +6,9 @@ import type { GitStatusResult } from '@trux/protocol'
 import { useStore } from '@trux/client/store'
 import { api } from '@trux/client/api'
 import { theme } from '../../../src/theme'
+import { useIsDesktop } from '../../../src/hooks/useIsDesktop'
+import { DesktopDock } from '../../../src/components/desktop/DesktopDock'
+
 import { ConversationView } from '../../../src/components/ConversationView'
 import { GitPanel } from '../../../src/components/GitPanel'
 import { TerminalPane } from '../../../src/components/TerminalPane'
@@ -18,6 +21,7 @@ import { PreviewPane } from '../../../src/components/PreviewPane'
 export default function SessionScreen(): React.ReactElement {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
+  const isDesktop = useIsDesktop()
   const conversations = useStore((s) => s.conversations)
   const conv = conversations.find((c) => c.id === id)
   const title = conv?.title ?? conv?.cwd?.replace(/\/$/, '').split('/').pop() ?? id
@@ -34,6 +38,38 @@ export default function SessionScreen(): React.ReactElement {
   useEffect(() => { loadGit() }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const repo = gitStatus?.repo ? gitStatus : null
+
+  if (isDesktop) {
+    return (
+      <View style={styles.desktopShell}>
+        <View style={styles.desktopMain}>
+          <View style={styles.desktopBar}>
+            <Text style={styles.desktopTitle} numberOfLines={1}>{title}</Text>
+          </View>
+          <ConversationView id={id} onBack={() => {}} />
+        </View>
+        <DesktopDock conversationId={id} previewPort={previewPort} hasRepo={!!repo} />
+        <GitPanel
+          conversationId={id}
+          visible={gitOpen}
+          onClose={() => { setGitOpen(false); loadGit() }}
+        />
+        <TerminalPane
+          conversationId={id}
+          visible={termOpen}
+          onClose={() => setTermOpen(false)}
+        />
+        {previewPort != null ? (
+          <PreviewPane
+            conversationId={id}
+            port={previewPort}
+            visible={prevOpen}
+            onClose={() => setPrevOpen(false)}
+          />
+        ) : null}
+      </View>
+    )
+  }
 
   return (
     <SafeAreaView style={styles.shell} edges={['top', 'bottom']}>
@@ -131,4 +167,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   termBadgeText: { color: theme.accentBright, fontSize: 16, fontFamily: theme.fontMono, lineHeight: 18 },
+  desktopShell: { flex: 1, flexDirection: 'row', backgroundColor: theme.ink },
+  desktopMain: { flex: 1, minWidth: 0 },
+  desktopBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.lineSoft,
+  },
+  desktopTitle: { color: theme.text, fontSize: 14, fontFamily: `${theme.fontSans}-600`, flex: 1 },
 })

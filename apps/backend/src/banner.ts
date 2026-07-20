@@ -43,3 +43,18 @@ export function printAccessBanner(config: Config): void {
   }
   console.log(`\n   local: http://localhost:${config.port}/\n`)
 }
+
+// Print just the pairing URL (for `trux pair --link`).
+export function printAccessLink(config: Config): void {
+  const host = config.publicHost ?? config.tailscaleHost
+  if (host) {
+    const base = `https://${host}/`
+    if (config.secret) {
+      console.log(`${base}#token=${encodeURIComponent(config.secret)}`)
+    } else {
+      console.log(`${base} (auth disabled)`)
+    }
+  } else {
+    console.log(`http://localhost:${config.port}/`)
+  }
+}

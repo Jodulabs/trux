@@ -1,3 +1,4 @@
+import { Platform } from 'react-native'
 import { useState } from 'react'
 import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native'
 import type { AgentCapabilities, AgentCommand, TurnConfig } from '@trux/protocol'
@@ -44,6 +45,21 @@ export function Composer({ busy, onSend, onInterrupt, caps, config, onConfigChan
     haptic('light')
   }
 
+  // Web: Enter sends, Shift+Enter newline. Default react-native-web TextInput
+  // inserts a newline on Enter in multiline mode; we intercept it here.
+  const handleKeyPress = (e: {
+    nativeEvent: { key: string; shiftKey?: boolean }
+    stopPropagation?: () => void
+    preventDefault?: () => void
+  }): void => {
+    if (Platform.OS !== 'web') return
+    if (e.nativeEvent.key === 'Enter' && !e.nativeEvent.shiftKey) {
+      e.stopPropagation?.()
+      e.preventDefault?.()
+      submit()
+    }
+  }
+
   return (
     <View style={styles.shell}>
       {hasControls && caps && config && onConfigChange ? (
@@ -71,6 +87,7 @@ export function Composer({ busy, onSend, onInterrupt, caps, config, onConfigChan
           autoCapitalize="none"
           autoCorrect={false}
           onSubmitEditing={submit}
+          onKeyPress={handleKeyPress}
         />
         {busy ? (
           <Pressable style={styles.interruptBtn} onPress={() => { onInterrupt(); haptic('medium') }} hitSlop={8}>

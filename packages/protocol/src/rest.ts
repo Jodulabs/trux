@@ -79,6 +79,13 @@ export interface DiscoveredSession {
   sessionId: string
   updatedAt: number
 }
+export interface HandoffResponse {
+  agent: AgentName
+  cwd: string
+  nativeSessionId: string
+  command: string[]
+}
+
 
 export interface ConversationDetail {
   conversation: Conversation

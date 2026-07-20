@@ -391,6 +391,67 @@ describe('git routes', () => {
 
 import { mkdtempSync as mkdtmp, mkdirSync as mkdir, writeFileSync as writeF } from 'node:fs'
 
+describe('GET /conversations/:id/handoff', () => {
+  it('404s for unknown conversation', async () => {
+    const { port } = await start()
+    const res = await fetch(`http://127.0.0.1:${port}/conversations/nope/handoff`)
+    expect(res.status).toBe(404)
+  })
+
+  it('409s when conversation is not idle', async () => {
+    const { port, registry } = await start()
+    const conv = registry.createConversation({ agent: 'claude', cwd: '/repo' })
+    registry.setStatus(conv.id, 'thinking')
+    const res = await fetch(`http://127.0.0.1:${port}/conversations/${conv.id}/handoff`)
+    expect(res.status).toBe(409)
+    const body = (await res.json()) as { error: string; status: string }
+    expect(body.error).toBe('busy')
+    expect(body.status).toBe('thinking')
+  })
+
+  it('422s when conversation has no native_session_id', async () => {
+    const { port, registry } = await start()
+    const conv = registry.createConversation({ agent: 'claude', cwd: '/repo' })
+    const res = await fetch(`http://127.0.0.1:${port}/conversations/${conv.id}/handoff`)
+    expect(res.status).toBe(422)
+    const body = (await res.json()) as { error: string }
+    expect(body.error).toBe('no native session id')
+  })
+
+  it('returns claude handoff command', async () => {
+    const { port, registry } = await start()
+    const conv = registry.createConversation({ agent: 'claude', cwd: '/repo' })
+    registry.setNativeSessionId(conv.id, 'sess-abc')
+    const res = await fetch(`http://127.0.0.1:${port}/conversations/${conv.id}/handoff`)
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { agent: string; cwd: string; nativeSessionId: string; command: string[] }
+    expect(body.agent).toBe('claude')
+    expect(body.cwd).toBe('/repo')
+    expect(body.nativeSessionId).toBe('sess-abc')
+    expect(body.command).toEqual(['claude', '--resume', 'sess-abc'])
+  })
+
+  it('returns codex handoff command', async () => {
+    const { port, registry } = await start()
+    const conv = registry.createConversation({ agent: 'codex', cwd: '/repo' })
+    registry.setNativeSessionId(conv.id, 'tid-xyz')
+    const res = await fetch(`http://127.0.0.1:${port}/conversations/${conv.id}/handoff`)
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { command: string[] }
+    expect(body.command).toEqual(['codex', 'resume', 'tid-xyz'])
+  })
+
+  it('422s for unsupported agent', async () => {
+    const { port, registry } = await start()
+    const conv = registry.createConversation({ agent: 'opencode', cwd: '/repo' })
+    registry.setNativeSessionId(conv.id, 'oc-123')
+    const res = await fetch(`http://127.0.0.1:${port}/conversations/${conv.id}/handoff`)
+    expect(res.status).toBe(422)
+    const body = (await res.json()) as { error: string }
+    expect(body.error).toBe('handoff not supported for agent: opencode')
+  })
+})
+
 describe('GET /commands/discover', () => {
   function buildApp(): Promise<FastifyInstance> {
     const db = openDb(':memory:')

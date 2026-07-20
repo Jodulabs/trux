@@ -96,6 +96,14 @@ export class ConversationManager {
     clientMessageId?: string,
     config?: TurnConfig,
   ): Promise<void> {
+    // Single-driver guard: reject if another client (or this one) already started
+    // a turn and the conversation is not idle. Prevents parallel turns when two
+    // surfaces are attached to the same conversation.
+    const status = this.registry.getConversation(convId)?.status
+    if (status && status !== 'idle') {
+      this.emit(convId, { type: 'error', message: 'conversation busy', recoverable: true })
+      return
+    }
     // Persist the selection first (sticky) so ensureSession reads the latest one
     // when it creates a fresh session for this conversation.
     if (config) this.registry.setConfig(convId, config)

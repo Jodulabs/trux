@@ -55,11 +55,12 @@ main() {
       else
         echo "$open_url"
       fi ;;
-    pair)    pnpm -C "$install_dir" --filter backend pair ;;
+    pair)    pnpm -C "$install_dir" --filter backend pair -- "${@:2}" ;;
+    resume)  pnpm -C "$install_dir" --filter backend resume -- "${@:2}" ;;
     fly)     exec bash "$install_dir/deploy/fly/provision-fly.sh" "${@:2}" ;;
     uninstall) exec bash "$install_dir/deploy/uninstall.sh" "${@:2}" ;;
     *)
-      echo "usage: trux {status|start|stop|restart|logs|update|token|url|open|pair|fly <app>|uninstall [--purge]}" >&2
+      echo "usage: trux {status|start|stop|restart|logs|update|token|url|open|pair|resume [query]|fly <app>|uninstall [--purge]}" >&2
       exit 1 ;;
   esac
 }

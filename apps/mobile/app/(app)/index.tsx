@@ -6,6 +6,7 @@ import type { Conversation } from '@trux/protocol'
 import { useStore } from '@trux/client/store'
 import { api } from '@trux/client/api'
 import { theme, STATUS_COLORS } from '../../src/theme'
+import { useIsDesktop } from '../../src/hooks/useIsDesktop'
 import { getStoredHost } from '../../src/ports'
 
 function shortCwd(cwd: string): string {
@@ -30,6 +31,7 @@ export default function ConversationListScreen(): React.ReactElement {
   const [searchResults, setSearchResults] = useState<Conversation[] | null>(null)
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const host = getStoredHost()
+  const isDesktop = useIsDesktop()
 
   const reload = async (): Promise<void> => {
     try {
@@ -60,6 +62,17 @@ export default function ConversationListScreen(): React.ReactElement {
 
   const open = (id: string): void => {
     void selectConversation(id).then(() => router.push(`/session/${id}`))
+  }
+
+  // Desktop: the sidebar owns the list; this screen is the empty main pane.
+  if (isDesktop) {
+    return (
+      <View style={styles.desktopEmpty}>
+        <Text style={styles.desktopEmptyMark}>✳</Text>
+        <Text style={styles.desktopEmptyTitle}>Select a conversation</Text>
+        <Text style={styles.desktopEmptySub}>or start a new one from the sidebar</Text>
+      </View>
+    )
   }
 
   if (loading && conversations.length === 0) {
@@ -264,4 +277,8 @@ const styles = StyleSheet.create({
   errorText: { color: theme.error, fontSize: 13, fontFamily: theme.fontMono },
   retryBtn: { alignSelf: 'flex-start', paddingHorizontal: 14, paddingVertical: 8, backgroundColor: theme.accent, borderRadius: theme.radiusSm },
   retryText: { color: theme.ink, fontFamily: `${theme.fontSans}-600` },
+  desktopEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
+  desktopEmptyMark: { color: theme.accent, fontSize: 32, fontFamily: theme.fontMono },
+  desktopEmptyTitle: { color: theme.text, fontSize: 18, fontFamily: `${theme.fontSans}-500` },
+  desktopEmptySub: { color: theme.textDim, fontSize: 14, fontFamily: theme.fontSans },
 })

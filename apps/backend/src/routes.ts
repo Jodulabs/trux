@@ -276,4 +276,35 @@ export function registerRoutes(
     if (!conversation) return reply.code(404).send({ error: 'not found' })
     return conversation
   })
+
+  app.get('/conversations/:id/handoff', async (req, reply) => {
+    const { id } = req.params as { id: string }
+    const conversation = registry.getConversation(id)
+    if (!conversation) return reply.code(404).send({ error: 'not found' })
+    if (conversation.status !== 'idle') {
+      return reply.code(409).send({ error: 'busy', status: conversation.status })
+    }
+    if (!conversation.native_session_id) {
+      return reply.code(422).send({ error: 'no native session id' })
+    }
+    const command = (() => {
+      switch (conversation.agent) {
+        case 'claude':
+          return ['claude', '--resume', conversation.native_session_id]
+        case 'codex':
+          return ['codex', 'resume', conversation.native_session_id]
+        default:
+          return null
+      }
+    })()
+    if (!command) {
+      return reply.code(422).send({ error: `handoff not supported for agent: ${conversation.agent}` })
+    }
+    return {
+      agent: conversation.agent,
+      cwd: conversation.cwd,
+      nativeSessionId: conversation.native_session_id,
+      command,
+    }
+  })
 }

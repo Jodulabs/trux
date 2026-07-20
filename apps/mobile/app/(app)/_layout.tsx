@@ -3,6 +3,8 @@ import { Redirect, Stack, useRouter } from 'expo-router'
 import { useStore } from '@trux/client/store'
 import { theme } from '../../src/theme'
 import { getStoredHost, getStoredToken } from '../../src/ports'
+import { useIsDesktop } from '../../src/hooks/useIsDesktop'
+import { DesktopShell } from '../../src/components/desktop/DesktopShell'
 import {
   configureNotificationHandler,
   registerForPushAsync,
@@ -18,6 +20,7 @@ export default function AppLayout(): React.ReactElement {
   const router = useRouter()
   const host = getStoredHost()
   const token = getStoredToken()
+  const isDesktop = useIsDesktop()
   const loadConversations = useStore((s) => s.loadConversations)
   const loadRemoteConfig = useStore((s) => s.loadRemoteConfig)
 
@@ -45,6 +48,10 @@ export default function AppLayout(): React.ReactElement {
 
   if (!host || !token) {
     return <Redirect href="/pair" />
+  }
+
+  if (isDesktop) {
+    return <DesktopShell />
   }
 
   return (

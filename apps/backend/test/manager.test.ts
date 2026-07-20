@@ -309,6 +309,25 @@ describe('ConversationManager', () => {
     await settle()
     expect(seen.filter((e) => e.type === 'user_text')).toHaveLength(0)
   })
+
+  it('rejects a second turn while busy (single-driver guard)', async () => {
+    const conv = registry.createConversation({ agent: 'claude', cwd: '/repo' })
+    // A slow turn that never completes in this test.
+    const adapter = new FakeAdapter([{ type: 'text', text: 'working…' }])
+    const manager = new ConversationManager(registry, new Map([['claude', adapter]]))
+    const seen: ServerEvent[] = []
+    manager.attach(conv.id, (e) => seen.push(e))
+    await manager.handleUserMessage(conv.id, 'first')
+    await settle()
+    // Second turn while the first is still in progress.
+    await manager.handleUserMessage(conv.id, 'second')
+    await settle()
+    const errors = seen.filter((e) => e.type === 'error')
+    expect(errors).toHaveLength(1)
+    expect(errors[0]).toMatchObject({ type: 'error', message: 'conversation busy', recoverable: true })
+    // Only one turn_started was emitted.
+    expect(seen.filter((e) => e.type === 'turn_started')).toHaveLength(1)
+  })
 })
 
 describe('manager capabilities + config threading', () => {

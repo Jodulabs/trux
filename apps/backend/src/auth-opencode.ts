@@ -21,9 +21,15 @@ const defaultPath = (): string => join(homedir(), '.local', 'share', 'opencode',
 const defaultFs: FsSeam = {
   read: () => {
     try {
-      return JSON.parse(readFileSync(defaultPath(), 'utf8')) as AuthFile
+      // Object.create(null) prevents prototype pollution: a JSON key like
+      // '__proto__' can't shadow Object.prototype because the parsed object
+      // has no prototype chain.
+      const parsed = JSON.parse(readFileSync(defaultPath(), 'utf8')) as Record<string, unknown>
+      const safe: AuthFile = Object.create(null)
+      for (const [k, v] of Object.entries(parsed)) safe[k] = v as AuthFile[string]
+      return safe
     } catch {
-      return {}
+      return Object.create(null) as AuthFile
     }
   },
   write: (data) => {
@@ -111,9 +117,14 @@ export class OpencodeAuthenticator implements Authenticator {
   }
 
   // API key fallback: write directly to auth.json (preserves unrelated entries).
+  // The route layer enforces max length; this trim + cap is defense in depth.
   submitKey(key: string): Promise<AuthStatus> {
+    const trimmed = key.trim()
+    if (trimmed.length === 0 || trimmed.length > 8 * 1024) {
+      return Promise.resolve('disconnected')
+    }
     const data = this.fs.read()
-    data[OPENCODE_GO] = { type: 'api', key: key.trim() }
+    data[OPENCODE_GO] = { type: 'api', key: trimmed }
     this.fs.write(data)
     return Promise.resolve('connected')
   }

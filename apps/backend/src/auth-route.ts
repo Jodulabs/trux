@@ -2,6 +2,12 @@ import type { FastifyInstance } from 'fastify'
 import type { Config } from './config'
 import type { Authenticator } from './auth-provider'
 
+// Max length for user-submitted keys/codes. Protects against unbounded file
+// writes / OOM from a malicious client sending a multi-GB payload. Real API
+// keys are well under 1KB; OAuth codes are short strings. 8KB is generous.
+const MAX_KEY_LEN = 8 * 1024
+const MAX_CODE_LEN = 1024
+
 // Registered INSIDE the bearer-gated REST scope (server.ts) — the preHandler in
 // registerRoutes already rejects unauthorized requests, so no extra auth here.
 // `config` is unused today but kept in the signature to match the route family
@@ -46,6 +52,9 @@ export function registerAuth(
     if (!body || typeof body.key !== 'string' || body.key.length === 0) {
       return reply.code(400).send({ error: 'key is required' })
     }
+    if (body.key.length > MAX_KEY_LEN) {
+      return reply.code(400).send({ error: 'key too long' })
+    }
     return { status: await a.submitKey(body.key) }
   })
 
@@ -56,6 +65,9 @@ export function registerAuth(
     const body = req.body as { code?: string }
     if (!body || typeof body.code !== 'string' || body.code.length === 0) {
       return reply.code(400).send({ error: 'code is required' })
+    }
+    if (body.code.length > MAX_CODE_LEN) {
+      return reply.code(400).send({ error: 'code too long' })
     }
     return { status: await a.submitCode(body.code) }
   })

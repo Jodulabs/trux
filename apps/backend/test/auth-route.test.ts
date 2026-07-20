@@ -54,4 +54,16 @@ describe('auth routes', () => {
     expect((await app.inject({ method: 'POST', url: '/auth/codex/code', payload: { code: 'good' } })).json()).toEqual({ status: 'connected' })
     expect((await app.inject({ method: 'POST', url: '/auth/codex/code', payload: {} })).statusCode).toBe(400)
   })
+  it('rejects an oversized key (resource exhaustion guard)', async () => {
+    const hugeKey = 'x'.repeat(9 * 1024) // > MAX_KEY_LEN (8KB)
+    const res = await app.inject({ method: 'POST', url: '/auth/codex/key', payload: { key: hugeKey } })
+    expect(res.statusCode).toBe(400)
+    expect(res.json()).toMatchObject({ error: 'key too long' })
+  })
+  it('rejects an oversized code (resource exhaustion guard)', async () => {
+    const hugeCode = 'x'.repeat(2048) // > MAX_CODE_LEN (1KB)
+    const res = await app.inject({ method: 'POST', url: '/auth/codex/code', payload: { code: hugeCode } })
+    expect(res.statusCode).toBe(400)
+    expect(res.json()).toMatchObject({ error: 'code too long' })
+  })
 })

@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import type { AgentCapabilities, ApprovalDecision, TurnConfig } from '@trux/protocol'
 import type { AgentAdapter, AgentSession, AdapterEvent } from './types'
+import { safeCliArg } from './types'
 import { PushQueue } from './queue'
 import { PiMapper, type PiEvent, type PiMapState } from './pi-map'
 import { PiDiscoverer, type RunFn } from '../discover'
@@ -33,7 +34,7 @@ export class PiAdapter implements AgentAdapter {
 
   // Models + thinking control discovered live from `pi --list-models`
   // (TTL-cached; empty manifest on failure → native default applies).
-  capabilities(): AgentCapabilities {
+  async capabilities(): Promise<AgentCapabilities> {
     return this.discoverer.discover()
   }
 
@@ -65,9 +66,14 @@ class PiSession implements AgentSession {
     // working directory; resume is carried by --session. Model and thinking
     // map onto pi's --model and --thinking flags; empty/absent = omit (native
     // default applies). No Pi npm dependency.
+    //
+    // safeCliArg guards against argument injection: a model or thinking value
+    // starting with '-' would be parsed by the pi CLI as a flag rather than a
+    // value. Values from user input (the mobile composer) are untrusted.
     const args: string[] = ['--mode', 'json']
-    if (this.config?.model) args.push('--model', this.config.model)
-    const thinking = this.config?.options?.thinking
+    const model = safeCliArg(this.config?.model)
+    if (model) args.push('--model', model)
+    const thinking = safeCliArg(this.config?.options?.thinking)
     if (thinking) args.push('--thinking', thinking)
     if (this.mapState.sessionId) args.push('--session', this.mapState.sessionId)
     args.push(text)

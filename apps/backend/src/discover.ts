@@ -1,4 +1,5 @@
-import { spawnSync } from 'node:child_process'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 import type { AgentCapabilities, AgentControl, ControlOption } from '@trux/protocol'
 
 // Capability discovery: each agent's installed CLI is the source of truth for
@@ -6,18 +7,25 @@ import type { AgentCapabilities, AgentControl, ControlOption } from '@trux/proto
 // briefly (CLIs don't change often) and falls back to an empty manifest + the
 // agent's native default on any failure — conversation creation is never
 // blocked by a discovery error.
+//
+// All spawns are ASYNC (execFile, not spawnSync) so a slow CLI never blocks
+// the Node.js event loop. The cache coalesces concurrent calls so only one
+// spawn happens per cache miss.
+
+const execFileAsync = promisify(execFile)
 
 export interface Discoverer {
-  discover(): AgentCapabilities
+  discover(): Promise<AgentCapabilities>
 }
 
-// Spawn-to-string seam, injectable for tests. Returns stdout or null on error.
-export type RunFn = (cmd: string, args: string[]) => string | null
+// Async spawn-to-string seam, injectable for tests. Returns stdout or null on
+// error. Never blocks the event loop — callers must `await`.
+export type RunFn = (cmd: string, args: string[]) => Promise<string | null>
 
-export const defaultRun: RunFn = (cmd, args) => {
+export const defaultRun: RunFn = async (cmd, args) => {
   try {
-    const r = spawnSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
-    return r.status === 0 && r.stdout ? r.stdout : null
+    const { stdout } = await execFileAsync(cmd, args, { encoding: 'utf8', maxBuffer: 1024 * 1024 })
+    return stdout || null
   } catch {
     return null
   }
@@ -27,8 +35,14 @@ export const defaultRun: RunFn = (cmd, args) => {
 // One cache per agent key. The discoverer is called on every capabilities()
 // call (which the catalog hits per /catalog request); the CLI spawn is only
 // triggered when the cache expires. A failed spawn keeps the previous cache so
-// a transient CLI error doesn't wipe the manifest.
-interface CacheEntry { caps: AgentCapabilities; expiry: number; fetching: boolean }
+// a transient CLI error doesn't wipe the manifest. Concurrent calls during a
+// cache miss share the same in-flight promise (coalescing) so only one spawn
+// runs regardless of how many requests arrive simultaneously.
+interface CacheEntry {
+  caps: AgentCapabilities
+  expiry: number
+  fetching: Promise<AgentCapabilities> | null
+}
 const cache = new Map<string, CacheEntry>()
 
 function readCache(key: string): AgentCapabilities | null {
@@ -38,7 +52,7 @@ function readCache(key: string): AgentCapabilities | null {
 }
 
 function writeCache(key: string, caps: AgentCapabilities, ttlMs: number): void {
-  cache.set(key, { caps, expiry: Date.now() + ttlMs, fetching: false })
+  cache.set(key, { caps, expiry: Date.now() + ttlMs, fetching: null })
 }
 
 // Test seam: clear the in-memory cache so a fresh discover() call re-runs the
@@ -103,21 +117,29 @@ const PI_TTL = 5 * 60_000 // 5 min
 export class PiDiscoverer implements Discoverer {
   constructor(private readonly run: RunFn = defaultRun) {}
 
-  discover(): AgentCapabilities {
+  async discover(): Promise<AgentCapabilities> {
     const cached = readCache('pi')
     if (cached) return cached
-    const stdout = this.run('pi', ['--list-models'])
-    const models = stdout ? parsePiModelsTable(stdout) : []
-    const caps: AgentCapabilities = {
-      agent: 'pi',
-      models,
-      defaultModel: null,
-      controls: [PI_THINKING],
-    }
-    // Cache even on empty (failed spawn) so a broken CLI doesn't get hammered
-    // on every /catalog request — but use a shorter TTL so a retry happens soon.
-    writeCache('pi', caps, models.length > 0 ? PI_TTL : 30_000)
-    return caps
+    // Coalesce concurrent calls — share the in-flight promise so only one
+    // `pi --list-models` spawn runs regardless of concurrent /catalog requests.
+    const entry = cache.get('pi')
+    if (entry?.fetching) return entry.fetching
+    const p = (async () => {
+      const stdout = await this.run('pi', ['--list-models'])
+      const models = stdout ? parsePiModelsTable(stdout) : []
+      const caps: AgentCapabilities = {
+        agent: 'pi',
+        models,
+        defaultModel: null,
+        controls: [PI_THINKING],
+      }
+      // Cache even on empty (failed spawn) so a broken CLI doesn't get hammered
+      // on every /catalog request — but use a shorter TTL so a retry happens soon.
+      writeCache('pi', caps, models.length > 0 ? PI_TTL : 30_000)
+      return caps
+    })()
+    cache.set('pi', { caps: readCache('pi') ?? { agent: 'pi', models: [], defaultModel: null, controls: [PI_THINKING] }, expiry: Date.now() + 30_000, fetching: p })
+    return p
   }
 }
 
@@ -148,19 +170,25 @@ const OPENCODE_TTL = 5 * 60_000 // 5 min
 export class OpencodeDiscoverer implements Discoverer {
   constructor(private readonly run: RunFn = defaultRun) {}
 
-  discover(): AgentCapabilities {
+  async discover(): Promise<AgentCapabilities> {
     const cached = readCache('opencode')
     if (cached) return cached
-    const stdout = this.run('opencode', ['models'])
-    const models = stdout ? parseOpencodeModelsLines(stdout) : []
-    const caps: AgentCapabilities = {
-      agent: 'opencode',
-      models,
-      defaultModel: null,
-      controls: [],
-    }
-    writeCache('opencode', caps, models.length > 0 ? OPENCODE_TTL : 30_000)
-    return caps
+    const entry = cache.get('opencode')
+    if (entry?.fetching) return entry.fetching
+    const p = (async () => {
+      const stdout = await this.run('opencode', ['models'])
+      const models = stdout ? parseOpencodeModelsLines(stdout) : []
+      const caps: AgentCapabilities = {
+        agent: 'opencode',
+        models,
+        defaultModel: null,
+        controls: [],
+      }
+      writeCache('opencode', caps, models.length > 0 ? OPENCODE_TTL : 30_000)
+      return caps
+    })()
+    cache.set('opencode', { caps: readCache('opencode') ?? { agent: 'opencode', models: [], defaultModel: null, controls: [] }, expiry: Date.now() + 30_000, fetching: p })
+    return p
   }
 }
 
@@ -169,7 +197,7 @@ export class OpencodeDiscoverer implements Discoverer {
 // honest manifest is empty: the user types a model id or accepts the native
 // default. No discovery spawn, no cache.
 export class CodexDiscoverer implements Discoverer {
-  discover(): AgentCapabilities {
+  async discover(): Promise<AgentCapabilities> {
     return { agent: 'codex', models: [], defaultModel: null, controls: [] }
   }
 }

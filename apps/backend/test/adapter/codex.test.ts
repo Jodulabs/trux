@@ -79,6 +79,20 @@ describe('CodexAdapter', () => {
     expect(spawnedArgs[1]).toEqual(['exec', 'resume', '--json', 'tid-abc', '-m', 'gpt-5', 'second'])
   })
 
+  it('rejects a model value starting with "-" (argument injection guard)', async () => {
+    const { fn } = fakeSpawn()
+    const spawnedArgs: string[][] = []
+    const trackingFn: SpawnFn = (args, opts) => { spawnedArgs.push(args); return fn(args, opts) }
+    const adapter = new CodexAdapter(trackingFn)
+    const session = adapter.start({ cwd: '/repo' })
+
+    session.send('do stuff', undefined, { model: '--malicious-flag', options: {} })
+    await tick()
+    // The unsafe model was dropped — no -m flag in the args.
+    expect(spawnedArgs[0]).toEqual(['exec', '--json', '-C', '/repo', '-s', 'workspace-write', 'do stuff'])
+    expect(spawnedArgs[0].some((a) => a === '-m')).toBe(false)
+  })
+
   it('subsequent send uses exec resume with thread_id', async () => {
     const { fn, procs } = fakeSpawn()
     const spawnedArgs: string[][] = []

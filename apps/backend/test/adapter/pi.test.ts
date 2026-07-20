@@ -6,7 +6,7 @@ import type { RunFn } from '../../src/discover'
 
 // A discoverer run that returns no models — keeps the capabilities() manifest
 // empty and deterministic regardless of whether `pi` is on PATH in the test env.
-const noModels: RunFn = () => null
+const noModels: RunFn = async () => null
 
 class FakeProc extends EventEmitter implements ChildProcessLike {
   readonly stdout = new EventEmitter()
@@ -39,9 +39,9 @@ function fakeSpawn() {
 const tick = (): Promise<void> => new Promise((r) => setTimeout(r, 5))
 
 describe('PiAdapter', () => {
-  it('capabilities returns a manifest with thinking control (models from discoverer)', () => {
+  it('capabilities returns a manifest with thinking control (models from discoverer)', async () => {
     const adapter = new PiAdapter(undefined, noModels)
-    const caps = adapter.capabilities()
+    const caps = await adapter.capabilities()
     expect(caps.agent).toBe('pi')
     expect(caps.models).toEqual([]) // noModels returns null → empty list
     expect(caps.defaultModel).toBeNull()
@@ -124,6 +124,22 @@ describe('PiAdapter', () => {
 
     session.send('go')
     await tick()
+    expect(spawnedArgs[0]).toEqual(['--mode', 'json', 'go'])
+  })
+
+  it('rejects model/thinking values starting with "-" (argument injection guard)', async () => {
+    const { fn } = fakeSpawn()
+    const spawnedArgs: string[][] = []
+    const trackingFn: SpawnFn = (args, opts) => { spawnedArgs.push(args); return fn(args, opts) }
+    const adapter = new PiAdapter(trackingFn, noModels)
+    const session = adapter.start({
+      cwd: '/repo',
+      config: { model: '--malicious', options: { thinking: '--also-bad' } },
+    })
+
+    session.send('go')
+    await tick()
+    // Both unsafe values were dropped — no --model or --thinking flags.
     expect(spawnedArgs[0]).toEqual(['--mode', 'json', 'go'])
   })
 

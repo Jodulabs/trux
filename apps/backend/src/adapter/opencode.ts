@@ -55,7 +55,7 @@ export class OpencodeAdapter implements AgentAdapter {
 
   // Models discovered live from `opencode models` (TTL-cached; empty manifest
   // on failure → native default applies).
-  capabilities(): AgentCapabilities {
+  async capabilities(): Promise<AgentCapabilities> {
     return this.discoverer.discover()
   }
 

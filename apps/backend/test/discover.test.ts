@@ -103,10 +103,10 @@ describe('parseOpencodeModelsLines', () => {
 })
 
 describe('PiDiscoverer', () => {
-  it('discovers models + the thinking control from a successful pi --list-models', () => {
-    const run: RunFn = () => PI_SAMPLE
+  it('discovers models + the thinking control from a successful pi --list-models', async () => {
+    const run: RunFn = async () => PI_SAMPLE
     const d = new PiDiscoverer(run)
-    const caps = d.discover()
+    const caps = await d.discover()
     expect(caps.agent).toBe('pi')
     expect(caps.models.length).toBeGreaterThan(0)
     expect(caps.models).toContainEqual({ value: 'openai/gpt-4o', label: 'gpt-4o' })
@@ -116,20 +116,20 @@ describe('PiDiscoverer', () => {
     expect(thinking?.options.map((o) => o.value)).toEqual(['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'])
   })
 
-  it('falls back to empty models but keeps the thinking control on a failed spawn', () => {
-    const run: RunFn = () => null
+  it('falls back to empty models but keeps the thinking control on a failed spawn', async () => {
+    const run: RunFn = async () => null
     const d = new PiDiscoverer(run)
-    const caps = d.discover()
+    const caps = await d.discover()
     expect(caps.models).toEqual([])
     expect(caps.controls.find((c) => c.key === 'thinking')).toBeDefined()
   })
 })
 
 describe('OpencodeDiscoverer', () => {
-  it('discovers models from a successful opencode models', () => {
-    const run: RunFn = () => OPENCODE_SAMPLE
+  it('discovers models from a successful opencode models', async () => {
+    const run: RunFn = async () => OPENCODE_SAMPLE
     const d = new OpencodeDiscoverer(run)
-    const caps = d.discover()
+    const caps = await d.discover()
     expect(caps.agent).toBe('opencode')
     expect(caps.models.length).toBe(6)
     expect(caps.models).toContainEqual({ value: 'opencode-go/glm-5.2', label: 'glm-5.2' })
@@ -137,17 +137,17 @@ describe('OpencodeDiscoverer', () => {
     expect(caps.controls).toEqual([])
   })
 
-  it('falls back to empty models on a failed spawn', () => {
-    const run: RunFn = () => null
+  it('falls back to empty models on a failed spawn', async () => {
+    const run: RunFn = async () => null
     const d = new OpencodeDiscoverer(run)
-    const caps = d.discover()
+    const caps = await d.discover()
     expect(caps.models).toEqual([])
   })
 })
 
 describe('CodexDiscoverer', () => {
-  it('returns an honest empty manifest (codex has no model list)', () => {
+  it('returns an honest empty manifest (codex has no model list)', async () => {
     const d = new CodexDiscoverer()
-    expect(d.discover()).toEqual({ agent: 'codex', models: [], defaultModel: null, controls: [] })
+    expect(await d.discover()).toEqual({ agent: 'codex', models: [], defaultModel: null, controls: [] })
   })
 })

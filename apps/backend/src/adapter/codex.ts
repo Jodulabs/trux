@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import type { AgentCapabilities, ApprovalDecision, TurnConfig } from '@trux/protocol'
 import type { AgentAdapter, AgentSession, AdapterEvent } from './types'
+import { safeCliArg } from './types'
 import { PushQueue } from './queue'
 import { mapCodexLine, type CodexMapState, type CodexEvent } from './codex-map'
 
@@ -20,7 +21,7 @@ export class CodexAdapter implements AgentAdapter {
 
   // codex declares no controls yet — wired in a follow-up. Empty manifest renders
   // no extra UI; identical code path to a populated backend.
-  capabilities(): AgentCapabilities {
+  async capabilities(): Promise<AgentCapabilities> {
     return { agent: 'codex', models: [], defaultModel: null, controls: [] }
   }
 
@@ -45,7 +46,10 @@ class CodexSession implements AgentSession {
   }
 
   send(text: string, _attachments?: unknown, config?: TurnConfig): void {
-    const model = config?.model
+    // safeCliArg guards against argument injection: a model value starting
+    // with '-' would be parsed by codex as a flag rather than a value. Values
+    // from user input (the mobile composer) are untrusted.
+    const model = safeCliArg(config?.model)
     const args = this.mapState.threadId
       ? ['exec', 'resume', '--json', this.mapState.threadId, ...(model ? ['-m', model] : []), text]
       : ['exec', '--json', '-C', this.cwd, '-s', 'workspace-write', ...(model ? ['-m', model] : []), text]

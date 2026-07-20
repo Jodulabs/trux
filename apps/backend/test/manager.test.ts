@@ -9,7 +9,7 @@ import { PushQueue } from '../src/adapter/queue'
 // A fake adapter whose session replays a scripted AdapterEvent stream per turn.
 class FakeAdapter implements AgentAdapter {
   readonly name = 'claude' as const
-  capabilities() {
+  async capabilities() {
     return { agent: 'claude' as const, models: [], defaultModel: null, controls: [] }
   }
   last!: FakeSession
@@ -54,7 +54,7 @@ class FakeSession implements AgentSession {
 // once the response arrives — needed to exercise both push notifications.
 class ApprovalScriptAdapter implements AgentAdapter {
   readonly name = 'claude' as const
-  capabilities() {
+  async capabilities() {
     return { agent: 'claude' as const, models: [], defaultModel: null, controls: [] }
   }
   start(): AgentSession {
@@ -335,6 +335,40 @@ describe('ConversationManager', () => {
     // Only one turn_started was emitted.
     expect(seen.filter((e) => e.type === 'turn_started')).toHaveLength(1)
   })
+
+  it('rejects concurrent turns fired simultaneously (race condition guard)', async () => {
+    // Two handleUserMessage calls fired without awaiting the first. Without the
+    // synchronous claim, both would pass the idle check before either awaits.
+    const conv = registry.createConversation({ agent: 'claude', cwd: '/repo' })
+    // An adapter whose session.close() yields to the event loop — this is the
+    // window that used to let a concurrent caller slip through.
+    class YieldingCloseAdapter extends FakeAdapter {
+      constructor() {
+        super([{ type: 'text', text: 'hi' }, { type: 'turn_complete', cost: 0 }])
+      }
+      override start(opts?: { config?: TurnConfig }): AgentSession {
+        const s = super.start(opts)
+        const origClose = s.close.bind(s)
+        s.close = async () => { await new Promise((r) => setTimeout(r, 1)); origClose() }
+        return s
+      }
+    }
+    const adapter = new YieldingCloseAdapter()
+    const manager = new ConversationManager(registry, new Map([['claude', adapter]]))
+    const seen: ServerEvent[] = []
+    manager.attach(conv.id, (e) => seen.push(e))
+    // Fire both concurrently — both get config changes to force the await path.
+    await Promise.all([
+      manager.handleUserMessage(conv.id, 'first', undefined, 'm1', { model: 'a', options: {} }),
+      manager.handleUserMessage(conv.id, 'second', undefined, 'm2', { model: 'b', options: {} }),
+    ])
+    await settle()
+    const turnStarts = seen.filter((e) => e.type === 'turn_started')
+    const errors = seen.filter((e) => e.type === 'error' && (e as Extract<ServerEvent, { type: 'error' }>).message === 'conversation busy')
+    // Exactly one turn started; the other was rejected.
+    expect(turnStarts).toHaveLength(1)
+    expect(errors).toHaveLength(1)
+  })
 })
 
 describe('manager capabilities + config threading', () => {
@@ -350,7 +384,7 @@ describe('manager capabilities + config threading', () => {
   class ConfigRecordingAdapter implements AgentAdapter {
     readonly name = 'claude' as const
     startConfigs: (TurnConfig | undefined)[] = []
-    capabilities(): AgentCapabilities {
+    async capabilities(): Promise<AgentCapabilities> {
       return { agent: 'claude', models: [{ value: 'm', label: 'M' }], defaultModel: null, controls: [] }
     }
     start(opts: { cwd: string; resume?: string; config?: TurnConfig }): AgentSession {
@@ -370,10 +404,10 @@ describe('manager capabilities + config threading', () => {
     }
   }
 
-  it('aggregates adapter manifests', () => {
+  it('aggregates adapter manifests', async () => {
     const adapter = new ConfigRecordingAdapter()
     const mgr = new ConversationManager(registry, new Map([['claude', adapter]]))
-    const caps = mgr.capabilities()
+    const caps = await mgr.capabilities()
     expect(caps).toHaveLength(1)
     expect(caps[0].agent).toBe('claude')
     expect(caps[0].models[0].value).toBe('m')
@@ -466,7 +500,7 @@ describe('manager capabilities + config threading', () => {
     class SlowAdapter implements AgentAdapter {
       readonly name = 'claude' as const
       starts = 0
-      capabilities(): AgentCapabilities {
+      async capabilities(): Promise<AgentCapabilities> {
         return { agent: 'claude', models: [], defaultModel: null, controls: [] }
       }
       start(): AgentSession {

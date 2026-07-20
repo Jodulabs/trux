@@ -49,7 +49,7 @@ export async function buildServer(
     const catalogDeps = opts?.adapters && opts?.authenticators
       ? { adapters: opts.adapters, authenticators: opts.authenticators }
       : undefined
-    registerRoutes(scope, config, registry, () => manager.capabilities(), catalogDeps)
+    registerRoutes(scope, config, registry, async () => manager.capabilities(), catalogDeps)
     if (opts?.authenticators) registerAuth(scope, config, opts.authenticators)
   })
   registerStream(app, config, registry, manager)

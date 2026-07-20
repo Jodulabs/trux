@@ -31,9 +31,16 @@ const defaultPath = (): string => join(homedir(), '.pi', 'agent', 'auth.json')
 const defaultFs: PiFsSeam = {
   read: () => {
     try {
-      return JSON.parse(readFileSync(defaultPath(), 'utf8')) as PiAuthFile
+      // Object.create(null) prevents prototype pollution: a JSON key like
+      // '__proto__' can't shadow Object.prototype because the parsed object
+      // has no prototype chain. The cast is safe because PiAuthFile is a
+      // plain record type.
+      const parsed = JSON.parse(readFileSync(defaultPath(), 'utf8')) as Record<string, unknown>
+      const safe: PiAuthFile = Object.create(null)
+      for (const [k, v] of Object.entries(parsed)) safe[k] = v as PiAuthFile[string]
+      return safe
     } catch {
-      return {}
+      return Object.create(null) as PiAuthFile
     }
   },
 }

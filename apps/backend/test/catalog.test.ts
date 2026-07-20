@@ -8,7 +8,7 @@ import { PushQueue } from '../src/adapter/queue'
 function fakeAdapter(name: AgentName, caps?: Partial<AgentCapabilities>): AgentAdapter {
   return {
     name,
-    capabilities(): AgentCapabilities {
+    async capabilities(): Promise<AgentCapabilities> {
       return { agent: name, models: [], defaultModel: null, controls: [], ...caps }
     },
     start(): AgentSession {
@@ -44,7 +44,7 @@ describe('buildCatalog', () => {
       ['claude', fakeAdapter('claude', { models: [{ value: 'sonnet', label: 'Sonnet' }] })],
     ])
     const authenticators = new Map<string, Authenticator>([['claude', fakeAuth()]])
-    const probe: ProbeFn = () => true
+    const probe: ProbeFn = async () => true
 
     const catalog = await buildCatalog({ adapters, authenticators }, probe)
 
@@ -68,7 +68,7 @@ describe('buildCatalog', () => {
   it('marks agent not runnable when binary is not installed', async () => {
     const adapters = new Map<AgentName, AgentAdapter>([['claude', fakeAdapter('claude')]])
     const authenticators = new Map<string, Authenticator>([['claude', fakeAuth()]])
-    const probe: ProbeFn = () => false
+    const probe: ProbeFn = async () => false
 
     const catalog = await buildCatalog({ adapters, authenticators }, probe)
 
@@ -81,7 +81,7 @@ describe('buildCatalog', () => {
   it('marks agent not runnable when no account is connected', async () => {
     const adapters = new Map<AgentName, AgentAdapter>([['claude', fakeAdapter('claude')]])
     const authenticators = new Map<string, Authenticator>([['claude', fakeAuth({ status: () => Promise.resolve('disconnected') })]])
-    const probe: ProbeFn = () => true
+    const probe: ProbeFn = async () => true
 
     const catalog = await buildCatalog({ adapters, authenticators }, probe)
 
@@ -94,7 +94,7 @@ describe('buildCatalog', () => {
   it('agent without authenticator is runnable when installed (native credentials)', async () => {
     const adapters = new Map<AgentName, AgentAdapter>([['pi', fakeAdapter('pi')]])
     const authenticators = new Map<string, Authenticator>()
-    const probe: ProbeFn = () => true
+    const probe: ProbeFn = async () => true
 
     const catalog = await buildCatalog({ adapters, authenticators }, probe)
 
@@ -111,7 +111,7 @@ describe('buildCatalog', () => {
   it('agent without authenticator is not runnable when not installed', async () => {
     const adapters = new Map<AgentName, AgentAdapter>([['pi', fakeAdapter('pi')]])
     const authenticators = new Map<string, Authenticator>()
-    const probe: ProbeFn = () => false
+    const probe: ProbeFn = async () => false
 
     const catalog = await buildCatalog({ adapters, authenticators }, probe)
 
@@ -129,7 +129,7 @@ describe('buildCatalog', () => {
       ['claude', fakeAuth({ id: 'claude', accountKind: 'subscription' })],
       ['opencode', fakeAuth({ id: 'opencode', accountKind: 'api_key' })],
     ])
-    const probe: ProbeFn = () => true
+    const probe: ProbeFn = async () => true
 
     const catalog = await buildCatalog({ adapters, authenticators }, probe)
 
@@ -145,7 +145,7 @@ describe('buildCatalog', () => {
     const authenticators = new Map<string, Authenticator>([
       ['claude', fakeAuth({ status: () => { statusCalled = true; return Promise.resolve('connected') } })],
     ])
-    const probe: ProbeFn = () => false
+    const probe: ProbeFn = async () => false
 
     await buildCatalog({ adapters, authenticators }, probe)
 
@@ -157,7 +157,7 @@ describe('buildCatalog', () => {
     const authenticators = new Map<string, Authenticator>([
       ['claude', fakeAuth({ status: () => Promise.reject(new Error('boom')) })],
     ])
-    const probe: ProbeFn = () => true
+    const probe: ProbeFn = async () => true
 
     const catalog = await buildCatalog({ adapters, authenticators }, probe)
 
@@ -174,7 +174,7 @@ describe('buildCatalog', () => {
       ['claude', fakeAuth({ id: 'claude' })],
       ['codex', fakeAuth({ id: 'codex' })],
     ])
-    const probe: ProbeFn = () => true
+    const probe: ProbeFn = async () => true
 
     const catalog = await buildCatalog({ adapters, authenticators }, probe)
 
@@ -192,7 +192,7 @@ describe('buildCatalog', () => {
     const authenticators = new Map<string, Authenticator>([
       ['pi', fakeAuth({ id: 'pi', accountKind: 'native', status: () => Promise.resolve('connected') })],
     ])
-    const probe: ProbeFn = () => true
+    const probe: ProbeFn = async () => true
 
     const catalog = await buildCatalog({ adapters, authenticators }, probe)
 
@@ -208,7 +208,7 @@ describe('buildCatalog', () => {
     const authenticators = new Map<string, Authenticator>([
       ['pi', fakeAuth({ id: 'pi', accountKind: 'native', status: () => Promise.resolve('disconnected') })],
     ])
-    const probe: ProbeFn = () => true
+    const probe: ProbeFn = async () => true
 
     const catalog = await buildCatalog({ adapters, authenticators }, probe)
 

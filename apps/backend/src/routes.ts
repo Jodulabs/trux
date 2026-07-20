@@ -106,7 +106,7 @@ export function registerRoutes(
   app: FastifyInstance,
   config: Config,
   registry: SqliteRegistry,
-  getAgents: () => AgentCapabilities[],
+  getAgents: () => Promise<AgentCapabilities[]>,
   catalogDeps?: CatalogDeps,
 ): void {
   // Bearer gate for REST (no-op locally when authRequired is false). Scoped to
@@ -218,7 +218,7 @@ export function registerRoutes(
     if (!body || typeof body.cwd !== 'string' || body.cwd.length === 0) {
       return reply.code(400).send({ error: 'cwd is required' })
     }
-    if (!getAgents().some((a) => a.agent === body.agent)) {
+    if (!(await getAgents()).some((a) => a.agent === body.agent)) {
       return reply.code(400).send({ error: `unknown agent: ${body.agent}` })
     }
     // Auto-attach to a project by cwd if the caller didn't provide one. Lets

@@ -313,7 +313,7 @@ export class ClaudeAdapter implements AgentAdapter {
   // default is '' — trux does not pick; the backend's own default applies.
   // Models are fetched live from the Anthropic Models API (TTL-cached); a
   // hardcoded fallback list is used until the first successful fetch.
-  capabilities(): AgentCapabilities {
+  async capabilities(): Promise<AgentCapabilities> {
     return {
       agent: 'claude',
       models: getCachedModels(),

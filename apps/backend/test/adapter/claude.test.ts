@@ -190,8 +190,8 @@ describe('ClaudeAdapter mapping', () => {
 })
 
 describe('ClaudeAdapter capabilities + config routing', () => {
-  it('declares a model list and an effort control', () => {
-    const caps = new ClaudeAdapter(fakeQuery([]).fn).capabilities()
+  it('declares a model list and an effort control', async () => {
+    const caps = await new ClaudeAdapter(fakeQuery([]).fn).capabilities()
     expect(caps.agent).toBe('claude')
     expect(caps.models.map((m) => m.value)).toContain('claude-opus-4-8')
     expect(caps.controls.find((c) => c.key === 'effort')).toBeTruthy()

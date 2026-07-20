@@ -23,7 +23,7 @@ const baseConfig: Config = {
 
 class FakeAdapter implements AgentAdapter {
   readonly name = 'claude' as const
-  capabilities() {
+  async capabilities() {
     return { agent: 'claude' as const, models: [], defaultModel: null, controls: [] }
   }
   start(): AgentSession {
@@ -46,7 +46,7 @@ class FakeAdapter implements AgentAdapter {
 // A fake whose turn parks on an approval_request and resumes once answered.
 class ApprovalFakeAdapter implements AgentAdapter {
   readonly name = 'claude' as const
-  capabilities() {
+  async capabilities() {
     return { agent: 'claude' as const, models: [], defaultModel: null, controls: [] }
   }
   start(): AgentSession {

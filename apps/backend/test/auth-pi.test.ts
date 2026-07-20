@@ -99,4 +99,16 @@ describe('PiAuthenticator', () => {
     const auth = new PiAuthenticator({ read: () => ({}) }, {})
     await expect(auth.disconnect()).resolves.toBeUndefined()
   })
+
+  it('auth file parsed with Object.create(null) — __proto__ does not pollute', () => {
+    // A malicious auth.json with a __proto__ key must not pollute Object.prototype.
+    // The defaultFs.read() uses Object.create(null); the test here exercises the
+    // pure function path with a null-prototype object.
+    const file = Object.create(null) as PiAuthFile
+    file['openai'] = { type: 'api_key', key: 'sk-x' }
+    file['__proto__'] = { type: 'pollution', key: 'evil' } as unknown as PiAuthFile[string]
+    expect(piStatusFromAuthFile(file, {})).toBe('connected')
+    // Object.prototype must not be polluted.
+    expect(({} as Record<string, unknown>).type).toBeUndefined()
+  })
 })

@@ -67,6 +67,10 @@ function stampTurn(e: AdapterEvent, turnId: string): ServerEvent {
 export class ConversationManager {
   private live = new Map<string, LiveSession>()
   private listeners = new Map<string, Set<Listener>>()
+  // Synchronous per-conversation claim for the single-driver guard. Set BEFORE
+  // any await in handleUserMessage so concurrent callers see the claim and get
+  // rejected. Released in the finally block after the turn is dispatched.
+  private claimed = new Set<string>()
 
   constructor(
     private readonly registry: SqliteRegistry,
@@ -85,8 +89,9 @@ export class ConversationManager {
     return [...this.adapters.keys()]
   }
 
-  capabilities(): AgentCapabilities[] {
-    return [...this.adapters.values()].map((a) => a.capabilities())
+  async capabilities(): Promise<AgentCapabilities[]> {
+    const entries = await Promise.all([...this.adapters.values()].map((a) => a.capabilities()))
+    return entries
   }
 
   async handleUserMessage(
@@ -99,54 +104,75 @@ export class ConversationManager {
     // Single-driver guard: reject if another client (or this one) already started
     // a turn and the conversation is not idle. Prevents parallel turns when two
     // surfaces are attached to the same conversation.
+    //
+    // The guard must be SYNCHRONOUS — no awaits between the idle check and
+    // marking the conversation as claimed. Otherwise two concurrent calls both
+    // see 'idle', both pass the guard, and both proceed to start a turn. We use
+    // an in-memory claim Set as a synchronous second layer (the registry status
+    // write is also synchronous but the in-memory set is bulletproof against
+    // any future code that might await between check and claim).
+    if (this.claimed.has(convId)) {
+      this.emit(convId, { type: 'error', message: 'conversation busy', recoverable: true })
+      return
+    }
     const status = this.registry.getConversation(convId)?.status
     if (status && status !== 'idle') {
       this.emit(convId, { type: 'error', message: 'conversation busy', recoverable: true })
       return
     }
-    // Persist the selection first (sticky) so ensureSession reads the latest one
-    // when it creates a fresh session for this conversation.
-    const existing = this.live.get(convId)
-    const priorConfig = this.liveConfig(convId)
-    if (config) this.registry.setConfig(convId, config)
-    // If the incoming config differs from the one baked into the live session,
-    // tear down + recreate so the new model/effort/thinking take effect on this
-    // turn. The native_session_id is preserved for resume (the agent's own
-    // conversation continuity), but the process/query handle is rebuilt so the
-    // SDK sees the new knobs. Only safe when the prior turn is idle.
-    if (existing && priorConfig && config && this.configsDiffer(priorConfig, config)) {
-      const conv = this.registry.getConversation(convId)
-      if (conv && conv.status === 'idle') {
-        await existing.session.close().catch(() => {})
-        this.live.delete(convId)
+    // Claim the conversation synchronously before any await. This is the
+    // critical section — no awaits between the idle check and this claim.
+    this.claimed.add(convId)
+    try {
+      // Persist the selection first (sticky) so ensureSession reads the latest one
+      // when it creates a fresh session for this conversation.
+      const existing = this.live.get(convId)
+      const priorConfig = this.liveConfig(convId)
+      if (config) this.registry.setConfig(convId, config)
+      // If the incoming config differs from the one baked into the live session,
+      // tear down + recreate so the new model/effort/thinking take effect on this
+      // turn. The native_session_id is preserved for resume (the agent's own
+      // conversation continuity), but the process/query handle is rebuilt so the
+      // SDK sees the new knobs. Only safe when the prior turn is idle.
+      if (existing && priorConfig && config && this.configsDiffer(priorConfig, config)) {
+        const conv = this.registry.getConversation(convId)
+        if (conv && conv.status === 'idle') {
+          await existing.session.close().catch(() => {})
+          this.live.delete(convId)
+        }
       }
-    }
-    const live = this.ensureSession(convId)
-    if (!live) {
+      const live = this.ensureSession(convId)
+      if (!live) {
+        this.emit(convId, {
+          type: 'error',
+          message: "no adapter for this conversation's agent",
+          recoverable: false,
+        })
+        return
+      }
+      // Idempotency: a reconnect outbox flush can replay a message the server
+      // already ran (the user_text echo may not have reached the client before the
+      // socket dropped). Drop the duplicate; the original is replayed via resume.
+      if (clientMessageId && live.seenMessageIds.has(clientMessageId)) return
+      if (clientMessageId) live.seenMessageIds.add(clientMessageId)
+      const turnId = `t_${randomUUID().slice(0, 8)}`
+      live.currentTurnId = turnId
       this.emit(convId, {
-        type: 'error',
-        message: "no adapter for this conversation's agent",
-        recoverable: false,
+        type: 'user_text',
+        turn_id: turnId,
+        text,
+        ...(attachments && attachments.length > 0 ? { attachments } : {}),
+        ...(clientMessageId ? { client_message_id: clientMessageId } : {}),
       })
-      return
+      this.emit(convId, { type: 'turn_started', turn_id: turnId })
+      this.emit(convId, { type: 'status', state: 'thinking' })
+      live.session.send(text, attachments, config)
+    } finally {
+      // Release the claim so the next turn can start. The 'thinking' status
+      // persists in the registry until the pump flips it back to 'idle' on
+      // turn_complete; the in-memory claim is just the synchronous guard.
+      this.claimed.delete(convId)
     }
-    // Idempotency: a reconnect outbox flush can replay a message the server
-    // already ran (the user_text echo may not have reached the client before the
-    // socket dropped). Drop the duplicate; the original is replayed via resume.
-    if (clientMessageId && live.seenMessageIds.has(clientMessageId)) return
-    if (clientMessageId) live.seenMessageIds.add(clientMessageId)
-    const turnId = `t_${randomUUID().slice(0, 8)}`
-    live.currentTurnId = turnId
-    this.emit(convId, {
-      type: 'user_text',
-      turn_id: turnId,
-      text,
-      ...(attachments && attachments.length > 0 ? { attachments } : {}),
-      ...(clientMessageId ? { client_message_id: clientMessageId } : {}),
-    })
-    this.emit(convId, { type: 'turn_started', turn_id: turnId })
-    this.emit(convId, { type: 'status', state: 'thinking' })
-    live.session.send(text, attachments, config)
   }
 
   async interrupt(convId: string): Promise<void> {

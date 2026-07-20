@@ -2,6 +2,11 @@ import { EventEmitter } from 'node:events'
 import { describe, expect, it } from 'vitest'
 import { PiAdapter, type SpawnFn, type ChildProcessLike } from '../../src/adapter/pi'
 import type { AdapterEvent } from '../../src/adapter/types'
+import type { RunFn } from '../../src/discover'
+
+// A discoverer run that returns no models — keeps the capabilities() manifest
+// empty and deterministic regardless of whether `pi` is on PATH in the test env.
+const noModels: RunFn = () => null
 
 class FakeProc extends EventEmitter implements ChildProcessLike {
   readonly stdout = new EventEmitter()
@@ -34,21 +39,21 @@ function fakeSpawn() {
 const tick = (): Promise<void> => new Promise((r) => setTimeout(r, 5))
 
 describe('PiAdapter', () => {
-  it('capabilities returns an empty manifest (native defaults apply)', () => {
-    const adapter = new PiAdapter()
-    expect(adapter.capabilities()).toEqual({
-      agent: 'pi',
-      models: [],
-      defaultModel: null,
-      controls: [],
-    })
+  it('capabilities returns a manifest with thinking control (models from discoverer)', () => {
+    const adapter = new PiAdapter(undefined, noModels)
+    const caps = adapter.capabilities()
+    expect(caps.agent).toBe('pi')
+    expect(caps.models).toEqual([]) // noModels returns null → empty list
+    expect(caps.defaultModel).toBeNull()
+    // thinking control is always present (Pi's native --thinking flag).
+    expect(caps.controls.map((c) => c.key)).toContain('thinking')
   })
 
   it('first send spawns pi --mode json with the prompt', async () => {
     const { fn } = fakeSpawn()
     const spawnedArgs: string[][] = []
     const trackingFn: SpawnFn = (args, opts) => { spawnedArgs.push(args); return fn(args, opts) }
-    const adapter = new PiAdapter(trackingFn)
+    const adapter = new PiAdapter(trackingFn, noModels)
     const session = adapter.start({ cwd: '/repo' })
 
     session.send('list files')
@@ -61,7 +66,7 @@ describe('PiAdapter', () => {
     const { fn, procs } = fakeSpawn()
     const spawnedArgs: string[][] = []
     const trackingFn: SpawnFn = (args, opts) => { spawnedArgs.push(args); return fn(args, opts) }
-    const adapter = new PiAdapter(trackingFn)
+    const adapter = new PiAdapter(trackingFn, noModels)
     const session = adapter.start({ cwd: '/repo' })
 
     session.send('first')
@@ -81,7 +86,7 @@ describe('PiAdapter', () => {
     const { fn } = fakeSpawn()
     const spawnedArgs: string[][] = []
     const trackingFn: SpawnFn = (args, opts) => { spawnedArgs.push(args); return fn(args, opts) }
-    const adapter = new PiAdapter(trackingFn)
+    const adapter = new PiAdapter(trackingFn, noModels)
     const session = adapter.start({ cwd: '/repo', resume: 'pi-existing' })
 
     session.send('continue')
@@ -90,9 +95,41 @@ describe('PiAdapter', () => {
     expect(session.nativeSessionId()).toBe('pi-existing')
   })
 
+  it('config.model and config.options.thinking are passed as --model and --thinking', async () => {
+    const { fn } = fakeSpawn()
+    const spawnedArgs: string[][] = []
+    const trackingFn: SpawnFn = (args, opts) => { spawnedArgs.push(args); return fn(args, opts) }
+    const adapter = new PiAdapter(trackingFn, noModels)
+    const session = adapter.start({
+      cwd: '/repo',
+      config: { model: 'anthropic/claude-sonnet-5', options: { thinking: 'high' } },
+    })
+
+    session.send('solve this')
+    await tick()
+    expect(spawnedArgs[0]).toEqual([
+      '--mode', 'json',
+      '--model', 'anthropic/claude-sonnet-5',
+      '--thinking', 'high',
+      'solve this',
+    ])
+  })
+
+  it('omits --model and --thinking when the selection is empty (native default)', async () => {
+    const { fn } = fakeSpawn()
+    const spawnedArgs: string[][] = []
+    const trackingFn: SpawnFn = (args, opts) => { spawnedArgs.push(args); return fn(args, opts) }
+    const adapter = new PiAdapter(trackingFn, noModels)
+    const session = adapter.start({ cwd: '/repo', config: { model: null, options: {} } })
+
+    session.send('go')
+    await tick()
+    expect(spawnedArgs[0]).toEqual(['--mode', 'json', 'go'])
+  })
+
   it('maps an event-by-event Pi stream to adapter events', async () => {
     const { fn, procs } = fakeSpawn()
-    const adapter = new PiAdapter(fn)
+    const adapter = new PiAdapter(fn, noModels)
     const session = adapter.start({ cwd: '/repo' })
     session.send('hi')
     await tick()
@@ -126,7 +163,7 @@ describe('PiAdapter', () => {
 
   it('deduplicates tool lifecycle events by tool_call_id', async () => {
     const { fn, procs } = fakeSpawn()
-    const adapter = new PiAdapter(fn)
+    const adapter = new PiAdapter(fn, noModels)
     const session = adapter.start({ cwd: '/repo' })
     session.send('go')
     await tick()
@@ -158,7 +195,7 @@ describe('PiAdapter', () => {
 
   it('emits synthetic turn_complete if process closes without turn_end', async () => {
     const { fn, procs } = fakeSpawn()
-    const adapter = new PiAdapter(fn)
+    const adapter = new PiAdapter(fn, noModels)
     const session = adapter.start({ cwd: '/repo' })
     session.send('go')
     await tick()
@@ -180,7 +217,7 @@ describe('PiAdapter', () => {
 
   it('emits recoverable error and synthetic turn_complete on non-zero close without turn_end', async () => {
     const { fn, procs } = fakeSpawn()
-    const adapter = new PiAdapter(fn)
+    const adapter = new PiAdapter(fn, noModels)
     const session = adapter.start({ cwd: '/repo' })
     session.send('go')
     await tick()
@@ -202,7 +239,7 @@ describe('PiAdapter', () => {
 
   it('does NOT emit a synthetic error when an explicit error event was already emitted', async () => {
     const { fn, procs } = fakeSpawn()
-    const adapter = new PiAdapter(fn)
+    const adapter = new PiAdapter(fn, noModels)
     const session = adapter.start({ cwd: '/repo' })
     session.send('go')
     await tick()
@@ -228,7 +265,7 @@ describe('PiAdapter', () => {
 
   it('does NOT emit a synthetic turn_complete if turn_end was already emitted', async () => {
     const { fn, procs } = fakeSpawn()
-    const adapter = new PiAdapter(fn)
+    const adapter = new PiAdapter(fn, noModels)
     const session = adapter.start({ cwd: '/repo' })
     session.send('go')
     await tick()
@@ -252,7 +289,7 @@ describe('PiAdapter', () => {
 
   it('interrupt kills the active process', async () => {
     const { fn, procs } = fakeSpawn()
-    const adapter = new PiAdapter(fn)
+    const adapter = new PiAdapter(fn, noModels)
     const session = adapter.start({ cwd: '/repo' })
     session.send('work')
     await tick()
@@ -263,14 +300,14 @@ describe('PiAdapter', () => {
 
   it('respondApproval is a no-op (Pi has no approval protocol)', () => {
     const { fn } = fakeSpawn()
-    const adapter = new PiAdapter(fn)
+    const adapter = new PiAdapter(fn, noModels)
     const session = adapter.start({ cwd: '/repo' })
     expect(() => session.respondApproval('req1', 'allow')).not.toThrow()
   })
 
   it('close ends the outbox without throwing', async () => {
     const { fn } = fakeSpawn()
-    const adapter = new PiAdapter(fn)
+    const adapter = new PiAdapter(fn, noModels)
     const session = adapter.start({ cwd: '/repo' })
     await expect(session.close()).resolves.toBeUndefined()
   })

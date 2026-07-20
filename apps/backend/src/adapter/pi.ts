@@ -1,9 +1,10 @@
 import { spawn } from 'node:child_process'
 import { EventEmitter } from 'node:events'
-import type { AgentCapabilities, ApprovalDecision } from '@trux/protocol'
+import type { AgentCapabilities, ApprovalDecision, TurnConfig } from '@trux/protocol'
 import type { AgentAdapter, AgentSession, AdapterEvent } from './types'
 import { PushQueue } from './queue'
 import { PiMapper, type PiEvent, type PiMapState } from './pi-map'
+import { PiDiscoverer, type RunFn } from '../discover'
 
 export interface ChildProcessLike extends EventEmitter {
   readonly stdout: EventEmitter
@@ -21,17 +22,23 @@ const defaultSpawn: SpawnFn = (args, opts) =>
 export class PiAdapter implements AgentAdapter {
   readonly name = 'pi' as const
 
-  // Empty manifest = "use Pi's native defaults," not "Pi is unsupported."
-  // Model/controls discovery arrives in a later phase; Track A runs against
-  // Pi's installed CLI defaults and credentials.
-  capabilities(): AgentCapabilities {
-    return { agent: 'pi', models: [], defaultModel: null, controls: [] }
+  private readonly discoverer: PiDiscoverer
+
+  constructor(
+    private readonly spawnFn: SpawnFn = defaultSpawn,
+    discoverRun?: RunFn,
+  ) {
+    this.discoverer = new PiDiscoverer(discoverRun)
   }
 
-  constructor(private readonly spawnFn: SpawnFn = defaultSpawn) {}
+  // Models + thinking control discovered live from `pi --list-models`
+  // (TTL-cached; empty manifest on failure → native default applies).
+  capabilities(): AgentCapabilities {
+    return this.discoverer.discover()
+  }
 
-  start(opts: { cwd: string; resume?: string }): AgentSession {
-    return new PiSession(this.spawnFn, opts.cwd, opts.resume ?? null)
+  start(opts: { cwd: string; resume?: string; config?: TurnConfig }): AgentSession {
+    return new PiSession(this.spawnFn, opts.cwd, opts.resume ?? null, opts.config ?? null)
   }
 }
 
@@ -40,22 +47,30 @@ class PiSession implements AgentSession {
   private readonly mapState: PiMapState
   private readonly mapper: PiMapper
   private activeProc: ChildProcessLike | null = null
+  private readonly config: TurnConfig | null
 
   constructor(
     private readonly spawnFn: SpawnFn,
     private readonly cwd: string,
     resume: string | null,
+    config: TurnConfig | null,
   ) {
     this.mapState = { sessionId: resume }
     this.mapper = new PiMapper(this.mapState)
+    this.config = config
   }
 
   send(text: string, _attachments?: unknown): void {
     // Per-turn spawn, matching the Codex process pattern. cwd is the spawn
-    // working directory; resume is carried by --session. No Pi npm dependency.
-    const args = this.mapState.sessionId
-      ? ['--mode', 'json', '--session', this.mapState.sessionId, text]
-      : ['--mode', 'json', text]
+    // working directory; resume is carried by --session. Model and thinking
+    // map onto pi's --model and --thinking flags; empty/absent = omit (native
+    // default applies). No Pi npm dependency.
+    const args: string[] = ['--mode', 'json']
+    if (this.config?.model) args.push('--model', this.config.model)
+    const thinking = this.config?.options?.thinking
+    if (thinking) args.push('--thinking', thinking)
+    if (this.mapState.sessionId) args.push('--session', this.mapState.sessionId)
+    args.push(text)
 
     const proc = this.spawnFn(args, { cwd: this.cwd })
     this.activeProc = proc

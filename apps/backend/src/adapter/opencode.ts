@@ -3,6 +3,7 @@ import type { AgentCapabilities, ApprovalDecision } from '@trux/protocol'
 import type { AgentAdapter, AgentSession, AdapterEvent } from './types'
 import { PushQueue } from './queue'
 import { OpencodeMapper, type OcEvent } from './opencode-map'
+import { OpencodeDiscoverer, type RunFn } from '../discover'
 
 // The minimal opencode client surface trux uses. The real SDK client is cast to
 // this at the boundary; the test injects a fake implementing it directly.
@@ -41,15 +42,22 @@ const defaultCreateServer: CreateServer = async () => {
 
 export class OpencodeAdapter implements AgentAdapter {
   readonly name = 'opencode' as const
-
-  // opencode declares no controls yet — wired in a follow-up. Empty manifest.
-  capabilities(): AgentCapabilities {
-    return { agent: 'opencode', models: [], defaultModel: null, controls: [] }
-  }
   private serverP: Promise<{ client: OcClient }> | null = null
   private readonly routes = new Map<string, (e: OcEvent) => void>()
+  private readonly discoverer: OpencodeDiscoverer
 
-  constructor(private readonly createServer: CreateServer = defaultCreateServer) {}
+  constructor(
+    private readonly createServer: CreateServer = defaultCreateServer,
+    discoverRun?: RunFn,
+  ) {
+    this.discoverer = new OpencodeDiscoverer(discoverRun)
+  }
+
+  // Models discovered live from `opencode models` (TTL-cached; empty manifest
+  // on failure → native default applies).
+  capabilities(): AgentCapabilities {
+    return this.discoverer.discover()
+  }
 
   // Spawn the shared server once and start the global event demux loop.
   ensureServer(): Promise<{ client: OcClient }> {

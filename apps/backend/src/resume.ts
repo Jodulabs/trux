@@ -12,6 +12,8 @@ export function buildHandoffCommand(agent: AgentName, nativeSessionId: string): 
       return ['claude', '--resume', nativeSessionId]
     case 'codex':
       return ['codex', 'resume', nativeSessionId]
+    case 'pi':
+      return ['pi', '--session', nativeSessionId]
     default:
       return null
   }

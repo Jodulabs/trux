@@ -161,6 +161,12 @@ describe('REST', () => {
     expect(res).toEqual([])
   })
 
+  it('/sessions/discover for pi returns [] (on-disk format not yet covered)', async () => {
+    const { port } = await start()
+    const res = await (await fetch(`http://127.0.0.1:${port}/sessions/discover?agent=pi&cwd=/repo`)).json()
+    expect(res).toEqual([])
+  })
+
   it('rejects a non-claude agent with 400', async () => {
     const { port } = await start()
     const res = await fetch(`http://127.0.0.1:${port}/conversations`, {
@@ -439,6 +445,16 @@ describe('GET /conversations/:id/handoff', () => {
     expect(res.status).toBe(200)
     const body = (await res.json()) as { command: string[] }
     expect(body.command).toEqual(['codex', 'resume', 'tid-xyz'])
+  })
+
+  it('returns pi handoff command with --session', async () => {
+    const { port, registry } = await start()
+    const conv = registry.createConversation({ agent: 'pi', cwd: '/repo' })
+    registry.setNativeSessionId(conv.id, 'pi-sess-9')
+    const res = await fetch(`http://127.0.0.1:${port}/conversations/${conv.id}/handoff`)
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { command: string[] }
+    expect(body.command).toEqual(['pi', '--session', 'pi-sess-9'])
   })
 
   it('422s for unsupported agent', async () => {

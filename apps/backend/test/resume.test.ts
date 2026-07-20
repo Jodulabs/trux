@@ -11,6 +11,10 @@ describe('buildHandoffCommand', () => {
     expect(buildHandoffCommand('codex', 'tid-xyz')).toEqual(['codex', 'resume', 'tid-xyz'])
   })
 
+  it('returns pi command with --session', () => {
+    expect(buildHandoffCommand('pi', 'pi-sess-9')).toEqual(['pi', '--session', 'pi-sess-9'])
+  })
+
   it('returns null for unsupported agents', () => {
     expect(buildHandoffCommand('opencode', 'oc-123')).toBeNull()
   })

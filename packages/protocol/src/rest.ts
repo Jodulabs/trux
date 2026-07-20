@@ -1,6 +1,6 @@
 import type { ConversationStatus, ServerEvent } from './events'
 
-export type AgentName = 'claude' | 'codex' | 'opencode'
+export type AgentName = 'claude' | 'codex' | 'opencode' | 'pi'
 
 // One selectable value for a model or a control. `value` is sent to the backend
 // verbatim; `label` is shown in the unified UI.

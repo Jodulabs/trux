@@ -126,6 +126,11 @@ export function registerRoutes(
     if (!agent || !cwd) return reply.code(400).send({ error: 'agent and cwd are required' })
     if (agent === 'claude') return discoverClaudeSessions(cwd)
     if (agent === 'codex') return discoverCodexSessions(cwd)
+    // Pi on-disk JSONL discovery arrives once its format is covered by
+    // fixtures. Until then, return no discovered sessions; explicit
+    // Trux-created session resume still works (native_session_id is set on
+    // create or captured from the first turn's `session` header).
+    if (agent === 'pi') return []
     return reply.code(400).send({ error: `session discovery not supported for agent: ${agent}` })
   })
 
@@ -293,6 +298,8 @@ export function registerRoutes(
           return ['claude', '--resume', conversation.native_session_id]
         case 'codex':
           return ['codex', 'resume', conversation.native_session_id]
+        case 'pi':
+          return ['pi', '--session', conversation.native_session_id]
         default:
           return null
       }

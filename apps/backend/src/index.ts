@@ -6,6 +6,7 @@ import { SqliteRegistry } from './registry'
 import { ClaudeAdapter } from './adapter/claude'
 import { CodexAdapter } from './adapter/codex'
 import { OpencodeAdapter } from './adapter/opencode'
+import { PiAdapter } from './adapter/pi'
 import { ConversationManager } from './manager'
 import type { AgentAdapter } from './adapter/types'
 import { buildServer } from './server'
@@ -30,6 +31,7 @@ async function main(): Promise<void> {
     ['claude', new ClaudeAdapter()],
     ['codex', new CodexAdapter()],
     ['opencode', new OpencodeAdapter()],
+    ['pi', new PiAdapter()],
   ])
   // Model-plane authenticators (display order = screen order). Codex shipped in
   // Phase 1; claude + opencode added in Phase 2a. Machine providers follow later.

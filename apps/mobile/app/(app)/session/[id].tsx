@@ -1,23 +1,19 @@
 import { useEffect, useState } from 'react'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { View, Text, Pressable, StyleSheet } from 'react-native'
+import { View, Text, StyleSheet } from 'react-native'
 import type { AgentCatalogEntry, GitStatusResult } from '@trux/protocol'
 import { useStore } from '@trux/client/store'
 import { api } from '@trux/client/api'
 import { theme, STATUS_COLORS } from '../../../src/theme'
 import { useIsDesktop } from '../../../src/hooks/useIsDesktop'
 import { DesktopDock } from '../../../src/components/desktop/DesktopDock'
-
 import { ConversationView } from '../../../src/components/ConversationView'
 import { GitPanel } from '../../../src/components/GitPanel'
 import { TerminalPane } from '../../../src/components/TerminalPane'
 import { PreviewPane } from '../../../src/components/PreviewPane'
+import { IconButton } from '../../../src/icons'
 
-// Session screen: status dot + title + agent·model chip + account state in the
-// top bar, then the ConversationView (transcript + composer). The view owns its
-// WS connection via the shared connectionManager. A git badge opens the GitPanel
-// for review/commit when the conversation is a repo.
 export default function SessionScreen(): React.ReactElement {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
@@ -40,8 +36,6 @@ export default function SessionScreen(): React.ReactElement {
   }
   useEffect(() => { loadGit() }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fetch the agent's catalog entry so the top bar can show account status
-  // (connected/disconnected) alongside the agent·model chip.
   useEffect(() => {
     if (!conv?.agent) return
     void api.getCatalog().then((r) => {
@@ -52,13 +46,21 @@ export default function SessionScreen(): React.ReactElement {
   const repo = gitStatus?.repo ? gitStatus : null
   const accountStatus = catalog?.accounts[0]?.status ?? null
   const modelLabel = conv?.model ?? 'default'
+  const statusLabel =
+    liveStatus === 'awaiting_approval' ? 'Needs approval'
+      : liveStatus === 'thinking' ? 'Working'
+        : liveStatus === 'error' ? 'Error'
+          : 'Idle'
 
   if (isDesktop) {
     return (
       <View style={styles.desktopShell}>
         <View style={styles.desktopMain}>
           <View style={styles.desktopBar}>
-            <View style={[styles.statusDot, { backgroundColor: STATUS_COLORS[liveStatus] ?? theme.textFaint }]} />
+            <View
+              style={[styles.statusDot, { backgroundColor: STATUS_COLORS[liveStatus] ?? theme.textFaint }]}
+              accessibilityLabel={`Status: ${statusLabel}`}
+            />
             <Text style={styles.desktopTitle} numberOfLines={1}>{title}</Text>
             <Text style={styles.agentModelChip}>{conv?.agent} · {modelLabel}</Text>
             {accountStatus ? <Text style={styles.accountStatus}>{accountStatus}</Text> : null}
@@ -66,24 +68,6 @@ export default function SessionScreen(): React.ReactElement {
           <ConversationView id={id} onBack={() => {}} />
         </View>
         <DesktopDock conversationId={id} previewPort={previewPort} hasRepo={!!repo} />
-        <GitPanel
-          conversationId={id}
-          visible={gitOpen}
-          onClose={() => { setGitOpen(false); loadGit() }}
-        />
-        <TerminalPane
-          conversationId={id}
-          visible={termOpen}
-          onClose={() => setTermOpen(false)}
-        />
-        {previewPort != null ? (
-          <PreviewPane
-            conversationId={id}
-            port={previewPort}
-            visible={prevOpen}
-            onClose={() => setPrevOpen(false)}
-          />
-        ) : null}
       </View>
     )
   }
@@ -91,50 +75,28 @@ export default function SessionScreen(): React.ReactElement {
   return (
     <SafeAreaView style={styles.shell} edges={['top', 'bottom']}>
       <View style={styles.bar}>
-        <Pressable hitSlop={12} onPress={() => router.back()}>
-          <Text style={styles.back}>‹</Text>
-        </Pressable>
-        <View style={[styles.statusDot, { backgroundColor: STATUS_COLORS[liveStatus] ?? theme.textFaint }]} />
+        <IconButton name="chevron-back" accessibilityLabel="Back" onPress={() => router.back()} color={theme.accent} />
+        <View
+          style={[styles.statusDot, { backgroundColor: STATUS_COLORS[liveStatus] ?? theme.textFaint }]}
+          accessibilityLabel={`Status: ${statusLabel}`}
+        />
         <Text style={styles.title} numberOfLines={1}>{title}</Text>
         <Text style={styles.agentModelChip} numberOfLines={1}>{conv?.agent} · {modelLabel}</Text>
-        <Pressable
-          style={styles.termBadge}
-          onPress={() => setTermOpen(true)}
-          accessibilityLabel="Open terminal"
-          hitSlop={8}
-        >
-          <Text style={styles.termBadgeText}>⌗</Text>
-        </Pressable>
+        <IconButton name="terminal-outline" accessibilityLabel="Open terminal" onPress={() => setTermOpen(true)} color={theme.accentBright} />
         {previewPort != null ? (
-          <Pressable
-            style={styles.termBadge}
-            onPress={() => setPrevOpen(true)}
-            accessibilityLabel="Open preview"
-            hitSlop={8}
-          >
-            <Text style={styles.termBadgeText}>◳</Text>
-          </Pressable>
+          <IconButton name="browsers-outline" accessibilityLabel="Open preview" onPress={() => setPrevOpen(true)} color={theme.accentBright} />
         ) : null}
         {repo ? (
-          <Pressable
-            style={[styles.gitBadge, repo.dirty && styles.gitBadgeDirty]}
+          <IconButton
+            name="git-branch-outline"
+            accessibilityLabel={`Open git panel, branch ${repo.branch ?? 'HEAD'}${repo.dirty ? ', dirty' : ''}`}
             onPress={() => setGitOpen(true)}
-            accessibilityLabel="Open git panel"
-            hitSlop={8}
-          >
-            <Text style={styles.gitBadgeText} numberOfLines={1}>
-              {repo.branch ?? 'HEAD'}{repo.dirty ? ' ●' : ''}
-            </Text>
-          </Pressable>
+            color={repo.dirty ? theme.accent : theme.accentBright}
+          />
         ) : null}
       </View>
-      {liveStatus === 'awaiting_approval' ? (
-        <View style={styles.approvalBar}>
-          <Text style={styles.approvalText}>Approval waiting — tap the prompt below</Text>
-        </View>
-      ) : null}
       {accountStatus && accountStatus !== 'connected' ? (
-        <View style={styles.accountBar}>
+        <View style={styles.accountBar} accessibilityLiveRegion="polite">
           <Text style={styles.accountText}>{conv?.agent} account {accountStatus}</Text>
         </View>
       ) : null}
@@ -166,14 +128,13 @@ const styles = StyleSheet.create({
   bar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    gap: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
     borderBottomWidth: 1,
     borderBottomColor: theme.lineSoft,
   },
-  back: { color: theme.accent, fontSize: 22, fontFamily: theme.fontSans },
-  statusDot: { width: 8, height: 8, borderRadius: 4 },
+  statusDot: { width: 8, height: 8, borderRadius: 4, marginHorizontal: 4 },
   title: { color: theme.text, fontSize: 16, fontFamily: `${theme.fontSans}-500`, flex: 1, minWidth: 0 },
   agentModelChip: {
     color: theme.textDim,
@@ -184,17 +145,9 @@ const styles = StyleSheet.create({
     borderRadius: theme.radiusSm,
     paddingHorizontal: 6,
     paddingVertical: 2,
-    maxWidth: 140,
+    maxWidth: 120,
   },
   accountStatus: { color: theme.textFaint, fontSize: 10, fontFamily: theme.fontMono },
-  approvalBar: {
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    backgroundColor: theme.accentSoft,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.accent,
-  },
-  approvalText: { color: theme.accentBright, fontSize: 12, fontFamily: theme.fontMono, textAlign: 'center' },
   accountBar: {
     paddingHorizontal: 16,
     paddingVertical: 5,
@@ -203,28 +156,6 @@ const styles = StyleSheet.create({
     borderBottomColor: theme.lineSoft,
   },
   accountText: { color: theme.warn, fontSize: 11, fontFamily: theme.fontMono, textAlign: 'center' },
-  gitBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: theme.radiusSm,
-    borderWidth: 1,
-    borderColor: theme.line,
-    backgroundColor: theme.surface2,
-    maxWidth: 140,
-  },
-  gitBadgeDirty: { borderColor: theme.accent },
-  gitBadgeText: { color: theme.accentBright, fontSize: 12, fontFamily: theme.fontMono },
-  termBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: theme.radiusSm,
-    borderWidth: 1,
-    borderColor: theme.line,
-    backgroundColor: theme.surface2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  termBadgeText: { color: theme.accentBright, fontSize: 16, fontFamily: theme.fontMono, lineHeight: 18 },
   desktopShell: { flex: 1, flexDirection: 'row', backgroundColor: theme.ink },
   desktopMain: { flex: 1, minWidth: 0 },
   desktopBar: {

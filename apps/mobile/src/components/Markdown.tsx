@@ -1,4 +1,4 @@
-import { useState, Fragment } from 'react'
+import { useEffect, useState, Fragment } from 'react'
 import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native'
 import * as Clipboard from 'expo-clipboard'
 import { theme } from '../theme'
@@ -96,7 +96,32 @@ function CodeBlock({ lang, code }: { lang?: string; code: string }): React.React
   )
 }
 
-export function Markdown({ text }: { text: string }): React.ReactElement {
+function StreamingCaret({ reduceMotion }: { reduceMotion?: boolean }): React.ReactElement {
+  const [on, setOn] = useState(true)
+  useEffect(() => {
+    if (reduceMotion) return
+    const id = setInterval(() => setOn((v) => !v), 530)
+    return () => clearInterval(id)
+  }, [reduceMotion])
+  return (
+    <Text
+      style={[styles.caret, (!on && !reduceMotion) && styles.caretOff]}
+      accessibilityLabel="Streaming"
+    >
+      █
+    </Text>
+  )
+}
+
+export function Markdown({
+  text,
+  streaming,
+  reduceMotion,
+}: {
+  text: string
+  streaming?: boolean
+  reduceMotion?: boolean
+}): React.ReactElement {
   const blocks = parseBlocks(text)
   return (
     <View style={styles.wrap}>
@@ -107,6 +132,7 @@ export function Markdown({ text }: { text: string }): React.ReactElement {
           <InlineText key={i} text={b.content} />
         ),
       )}
+      {streaming ? <StreamingCaret reduceMotion={reduceMotion} /> : null}
     </View>
   )
 }
@@ -143,4 +169,6 @@ const styles = StyleSheet.create({
   codeCopied: { color: theme.ok },
   codeScroll: { padding: 10 },
   codeText: { color: theme.text, fontSize: 13, lineHeight: 18, fontFamily: theme.fontMono },
+  caret: { color: theme.accent, fontSize: 14, fontFamily: theme.fontMono, marginTop: 2 },
+  caretOff: { opacity: 0 },
 })

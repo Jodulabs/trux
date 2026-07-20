@@ -6,6 +6,7 @@ import type { Conversation, Project } from '@trux/protocol'
 import { useStore } from '@trux/client/store'
 import { api } from '@trux/client/api'
 import { theme, STATUS_COLORS } from '../../../src/theme'
+import { IconButton } from '../../../src/icons'
 
 function titleOf(c: Conversation): string {
   return c.title ?? 'Untitled'
@@ -71,16 +72,18 @@ export default function ProjectDetailScreen(): React.ReactElement {
   return (
     <SafeAreaView style={styles.shell} edges={['top', 'bottom']}>
       <View style={styles.bar}>
-        <Pressable hitSlop={12} onPress={() => router.back()}>
-          <Text style={styles.back}>‹</Text>
-        </Pressable>
+        <IconButton name="chevron-back" accessibilityLabel="Back" onPress={() => router.back()} color={theme.accent} />
         <View style={styles.barText}>
           <Text style={styles.title} numberOfLines={1}>{project.name}</Text>
           <Text style={styles.path} numberOfLines={1}>{project.cwd}</Text>
         </View>
-        <Pressable hitSlop={12} onPress={() => router.push(`/new?projectId=${project.id}`)} style={styles.newBtn}>
-          <Text style={styles.newBtnText}>+</Text>
-        </Pressable>
+        <IconButton
+          name="add"
+          accessibilityLabel="New chat"
+          onPress={() => router.push(`/new?projectId=${project.id}`)}
+          color={theme.ink}
+          style={styles.newBtn}
+        />
       </View>
 
       <FlatList
@@ -132,25 +135,16 @@ const styles = StyleSheet.create({
   bar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    gap: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
     borderBottomWidth: 1,
     borderBottomColor: theme.lineSoft,
   },
-  back: { color: theme.accent, fontSize: 22, fontFamily: theme.fontSans },
   barText: { flex: 1, minWidth: 0, gap: 2 },
   title: { color: theme.text, fontSize: 16, fontFamily: `${theme.fontSans}-500` },
   path: { color: theme.textFaint, fontSize: 11, fontFamily: theme.fontMono },
-  newBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: theme.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  newBtnText: { color: theme.ink, fontSize: 20, fontFamily: `${theme.fontSans}-600` },
+  newBtn: { backgroundColor: theme.accent, borderRadius: 22 },
   sep: { height: 1, backgroundColor: theme.lineSoft, marginLeft: 40 },
   row: {
     flexDirection: 'row',

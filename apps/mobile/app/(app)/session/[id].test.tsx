@@ -74,13 +74,13 @@ describe('SessionScreen', () => {
     expect(screen.getByText(/claude · default/)).toBeTruthy()
   })
 
-  it('renders the approval banner when status is awaiting_approval', async () => {
+  it('exposes awaiting_approval status on the status dot', async () => {
     useStore.setState({
       conversations: [conv({ status: 'awaiting_approval' })],
       convMeta: { c1: { status: 'awaiting_approval', unread: 0, connState: 'connected', lastSeq: -1, totalCost: 0 } },
     })
     await render(<SessionScreen />)
-    expect(screen.getByText(/Approval waiting/)).toBeTruthy()
+    expect(screen.getByLabelText('Status: Needs approval')).toBeTruthy()
   })
 
   it('renders the account banner when the agent account is disconnected', async () => {

@@ -16,7 +16,7 @@ interface Props {
 
 // Live QR scanner over the back camera. Restricts barcode detection to QR and
 // fires onScanned with the raw payload string for the caller to parse. A
-// copper-tinted target frame guides alignment; the frame pulses via a simple
+// celadon-tinted target frame guides alignment; the frame pulses via a simple
 // border, no reanimation yet (deferred to A4).
 export function QrScanner({ onScanned, paused }: Props): React.ReactElement {
   const [permission, requestPermission] = useCameraPermissions()

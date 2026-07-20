@@ -1,35 +1,33 @@
-// Theme tokens for the native app — mirrors the Vite PWA's index.css :root.
-// Ink surfaces, warm copper accent, IBM Plex Sans/Mono. Kept in one place so
-// the native shell reads as the same product without a CSS layer.
+// Theme tokens — dark sumi + celadon (monk / restrained).
+// Spec: docs/superpowers/specs/2026-07-20-dark-sumi-celadon-personality.md
+// Celadon is for primary actions and liveness only; never decorative washes.
 
 export const theme = {
-  ink: '#0c0d10',
-  surface1: '#14161b',
-  surface2: '#1b1e25',
-  surface3: '#232730',
-  line: '#2a2f39',
-  lineSoft: '#1f232b',
+  ink: '#0b0c0b',
+  surface1: '#131514',
+  surface2: '#1c1e1c',
+  surface3: '#252825',
+  line: '#2c302c',
+  lineSoft: '#1f221f',
 
-  text: '#e7e4dd',
-  textDim: '#9aa1ab',
-  textFaint: '#646b76',
+  text: '#e4e6e2',
+  textDim: '#9a9f98',
+  textFaint: '#5e635c',
 
-  accent: '#e8843d',
-  accentBright: '#f6a05a',
-  // RN doesn't take CSS rgba() strings in StyleSheet directly; use the hex with
-  // alpha where needed, or a dedicated soft token.
-  accentSoft: 'rgba(232, 132, 61, 0.13)',
+  accent: '#8fbc8f',
+  accentBright: '#a8cfa8',
+  accentSoft: 'rgba(143, 188, 143, 0.14)',
 
-  userSurface: '#1c2632',
-  userBorder: '#2c3a4c',
+  userSurface: '#161a18',
+  userBorder: '#2a312c',
 
-  ok: '#6fcf8e',
-  warn: '#f0b429',
-  error: '#ef6f6c',
+  ok: '#7d9f7d',
+  warn: '#c4a574',
+  error: '#c47f7a',
 
-  radius: 11,
-  radiusSm: 7,
-  radiusLg: 22,
+  radius: 8,
+  radiusSm: 5,
+  radiusLg: 16,
 
   fontSans: 'IBM Plex Sans',
   fontMono: 'IBM Plex Mono',
@@ -37,10 +35,10 @@ export const theme = {
 
 export type Theme = typeof theme
 
-// Status dot colors mirror the PWA's .dot.<state> rules.
+// Status dots: idle ash; thinking / needs-you = celadon; error = clay.
 export const STATUS_COLORS: Record<string, string> = {
   idle: theme.textFaint,
   thinking: theme.accent,
-  awaiting_approval: theme.accent,
+  awaiting_approval: theme.accentBright,
   error: theme.error,
 }

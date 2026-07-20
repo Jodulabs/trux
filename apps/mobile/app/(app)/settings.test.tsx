@@ -18,6 +18,10 @@ jest.mock('react-native-safe-area-context', () => ({
 // Mock haptics
 jest.mock('../../src/haptics', () => ({ haptic: jest.fn() }))
 
+jest.mock('../../src/confirm', () => ({
+  confirmAsync: jest.fn(async () => true),
+}))
+
 import SettingsScreen from './settings'
 
 describe('SettingsScreen', () => {

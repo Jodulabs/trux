@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { View, Text, FlatList, Pressable, TextInput, StyleSheet, ActivityIndicator } from 'react-native'
 import { useRouter } from 'expo-router'
-import type { Conversation } from '@trux/protocol'
+import type { Conversation, Project } from '@trux/protocol'
 import { useStore } from '@trux/client/store'
 import { api } from '@trux/client/api'
 import { theme, STATUS_COLORS } from '../../theme'
 import { getStoredHost } from '../../ports'
+import { IconButton } from '../../icons'
 
 function shortCwd(cwd: string): string {
   const parts = cwd.replace(/\/$/, '').split('/')
@@ -16,23 +17,30 @@ function titleOf(c: Conversation): string {
   return c.title ?? shortCwd(c.cwd)
 }
 
+type ListItem =
+  | { kind: 'project'; project: Project }
+  | { kind: 'chat'; conversation: Conversation }
+
 export function Sidebar(): React.ReactElement {
   const router = useRouter()
+  const projects = useStore((s) => s.projects)
   const conversations = useStore((s) => s.conversations)
   const convMeta = useStore((s) => s.convMeta)
+  const loadProjects = useStore((s) => s.loadProjects)
   const loadConversations = useStore((s) => s.loadConversations)
   const selectConversation = useStore((s) => s.selectConversation)
   const [loading, setLoading] = useState(true)
   const [searchQ, setSearchQ] = useState('')
   const [searchResults, setSearchResults] = useState<Conversation[] | null>(null)
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const host = getStoredHost()
 
   useEffect(() => {
-    void loadConversations()
+    void Promise.all([loadProjects(), loadConversations()])
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [loadConversations])
+  }, [loadProjects, loadConversations])
 
   useEffect(() => {
     if (searchTimer.current) clearTimeout(searchTimer.current)
@@ -43,11 +51,32 @@ export function Sidebar(): React.ReactElement {
     return () => { if (searchTimer.current) clearTimeout(searchTimer.current) }
   }, [searchQ])
 
-  const displayList = searchResults ?? conversations
+  const chatsByProject = new Map<string, Conversation[]>()
+  for (const c of conversations) {
+    if (!c.project_id) continue
+    const arr = chatsByProject.get(c.project_id) ?? []
+    arr.push(c)
+    chatsByProject.set(c.project_id, arr)
+  }
 
-  const open = (id: string): void => {
+  const openChat = (id: string): void => {
     void selectConversation(id).then(() => router.push(`/session/${id}`))
   }
+
+  const toggleProject = (id: string): void => {
+    setExpanded((prev) => ({ ...prev, [id]: !prev[id] }))
+  }
+
+  const projectItems: ListItem[] = projects.flatMap((p) => {
+    const open = expanded[p.id] ?? false
+    const chats = chatsByProject.get(p.id) ?? []
+    const head: ListItem = { kind: 'project', project: p }
+    if (!open) return [head]
+    return [head, ...chats.map((c) => ({ kind: 'chat' as const, conversation: c }))]
+  })
+
+  const searchItems: ListItem[] = (searchResults ?? []).map((c) => ({ kind: 'chat', conversation: c }))
+  const displayList = searchQ.trim() ? searchItems : projectItems
 
   return (
     <View style={styles.shell}>
@@ -55,9 +84,13 @@ export function Sidebar(): React.ReactElement {
         <Text style={styles.mark}>✳</Text>
         <Text style={styles.title}>trux</Text>
         {host ? <Text style={styles.host} numberOfLines={1}>{host}</Text> : null}
-        <Pressable hitSlop={12} onPress={() => router.push('/new')} style={styles.newBtn}>
-          <Text style={styles.newBtnText}>+</Text>
-        </Pressable>
+        <IconButton
+          name="add"
+          accessibilityLabel="New project"
+          onPress={() => router.push('/new-project')}
+          color={theme.ink}
+          style={styles.newBtn}
+        />
       </View>
 
       <View style={styles.searchWrap}>
@@ -65,55 +98,88 @@ export function Sidebar(): React.ReactElement {
           style={styles.searchInput}
           value={searchQ}
           onChangeText={setSearchQ}
-          placeholder="Search…"
+          placeholder="Search chats…"
           placeholderTextColor={theme.textFaint}
           autoCapitalize="none"
           autoCorrect={false}
+          accessibilityLabel="Search chats"
         />
         {searchQ ? (
-          <Pressable hitSlop={12} onPress={() => setSearchQ('')} style={styles.searchClear}>
-            <Text style={styles.searchClearText}>✕</Text>
-          </Pressable>
+          <IconButton name="close" accessibilityLabel="Clear search" onPress={() => setSearchQ('')} size={16} />
         ) : null}
       </View>
 
-      {loading && conversations.length === 0 ? (
+      {loading && projects.length === 0 ? (
         <View style={styles.center}>
           <ActivityIndicator color={theme.accent} size="small" />
         </View>
       ) : (
         <FlatList
           data={displayList}
-          keyExtractor={(c) => c.id}
+          keyExtractor={(item) => item.kind === 'project' ? `p-${item.project.id}` : `c-${item.conversation.id}`}
           ItemSeparatorComponent={() => <View style={styles.sep} />}
-          renderItem={({ item: c }) => {
+          renderItem={({ item }) => {
+            if (item.kind === 'project') {
+              const p = item.project
+              const chats = chatsByProject.get(p.id) ?? []
+              const anyApproval = chats.some((c) => {
+                const s = convMeta[c.id]?.status ?? c.status
+                return s === 'awaiting_approval'
+              })
+              const anyActive = chats.some((c) => {
+                const s = convMeta[c.id]?.status ?? c.status
+                return s === 'thinking' || s === 'awaiting_approval'
+              })
+              const statusColor = anyApproval
+                ? STATUS_COLORS.awaiting_approval
+                : anyActive ? STATUS_COLORS.thinking : STATUS_COLORS.idle
+              const open = expanded[p.id] ?? false
+              return (
+                <Pressable
+                  style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+                  onPress={() => toggleProject(p.id)}
+                  onLongPress={() => router.push(`/projects/${p.id}`)}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: open }}
+                  accessibilityLabel={`Project ${p.name}, ${chats.length} chats`}
+                >
+                  <View style={[styles.dot, { backgroundColor: statusColor }]} />
+                  <View style={styles.rowText}>
+                    <Text style={styles.rowTitle} numberOfLines={1}>{p.name}</Text>
+                    <Text style={styles.rowSub} numberOfLines={1}>{p.cwd}</Text>
+                  </View>
+                  <Text style={styles.count}>{chats.length}</Text>
+                  <Text style={styles.chevron}>{open ? '▾' : '▸'}</Text>
+                </Pressable>
+              )
+            }
+            const c = item.conversation
             const meta = convMeta[c.id]
             const liveStatus = meta?.status ?? c.status
             const unread = meta?.unread ?? 0
-            const cost = meta?.totalCost ?? 0
             return (
               <Pressable
-                style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-                onPress={() => open(c.id)}
+                style={({ pressed }) => [styles.chatRow, pressed && styles.rowPressed]}
+                onPress={() => openChat(c.id)}
+                accessibilityRole="button"
+                accessibilityLabel={`Chat ${meta?.title ?? titleOf(c)}`}
               >
                 <View style={[styles.dot, { backgroundColor: STATUS_COLORS[liveStatus] ?? theme.textFaint }]} />
                 <View style={styles.rowText}>
-                  <Text style={styles.rowTitle} numberOfLines={1}>{meta?.title ?? titleOf(c)}</Text>
-                  <Text style={styles.rowSub} numberOfLines={1}>{shortCwd(c.cwd)}</Text>
+                  <Text style={styles.chatTitle} numberOfLines={1}>{meta?.title ?? titleOf(c)}</Text>
+                  <Text style={styles.rowSub} numberOfLines={1}>{c.agent} · {c.model ?? 'default'}</Text>
                 </View>
-                {cost > 0 ? <Text style={styles.costBadge}>${cost.toFixed(2)}</Text> : null}
                 {unread > 0 ? (
                   <View style={styles.unreadBadge}>
                     <Text style={styles.unreadText}>{unread}</Text>
                   </View>
                 ) : null}
-                <Text style={styles.agentBadge}>{c.agent}</Text>
               </Pressable>
             )
           }}
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Text style={styles.emptyText}>{searchQ ? 'No matches.' : 'No conversations yet.'}</Text>
+              <Text style={styles.emptyText}>{searchQ ? 'No matches.' : 'No projects yet.'}</Text>
             </View>
           }
           contentContainerStyle={displayList.length === 0 ? styles.emptyList : undefined}
@@ -121,11 +187,21 @@ export function Sidebar(): React.ReactElement {
       )}
 
       <View style={styles.footer}>
-        <Pressable style={styles.footerBtn} onPress={() => router.push('/settings')}>
-          <Text style={styles.footerBtnText}>⚙ Settings</Text>
+        <Pressable
+          style={styles.footerBtn}
+          onPress={() => router.push('/settings')}
+          accessibilityRole="button"
+          accessibilityLabel="Settings"
+        >
+          <Text style={styles.footerBtnText}>Settings</Text>
         </Pressable>
-        <Pressable style={styles.footerBtn} onPress={() => router.push('/connections')}>
-          <Text style={styles.footerBtnText}>🔑 Hosts</Text>
+        <Pressable
+          style={styles.footerBtn}
+          onPress={() => router.push('/providers')}
+          accessibilityRole="button"
+          accessibilityLabel="Providers"
+        >
+          <Text style={styles.footerBtnText}>Providers</Text>
         </Pressable>
       </View>
     </View>
@@ -140,33 +216,25 @@ const styles = StyleSheet.create({
     borderRightColor: theme.lineSoft,
   },
   header: {
-    paddingHorizontal: 14,
-    paddingTop: 12,
-    paddingBottom: 10,
+    paddingHorizontal: 10,
+    paddingTop: 8,
+    paddingBottom: 6,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
     borderBottomWidth: 1,
     borderBottomColor: theme.lineSoft,
   },
   mark: { color: theme.accent, fontSize: 16, fontFamily: theme.fontMono },
   title: { color: theme.text, fontSize: 18, fontFamily: `${theme.fontSans}-600` },
   host: { color: theme.textFaint, fontSize: 11, fontFamily: theme.fontMono, marginLeft: 'auto', flexShrink: 1 },
-  newBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: theme.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  newBtnText: { color: theme.ink, fontSize: 16, fontFamily: `${theme.fontSans}-600` },
+  newBtn: { backgroundColor: theme.accent, borderRadius: 22 },
   searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 10,
-    paddingVertical: 8,
-    gap: 6,
+    paddingVertical: 4,
+    gap: 2,
     borderBottomWidth: 1,
     borderBottomColor: theme.lineSoft,
   },
@@ -177,13 +245,12 @@ const styles = StyleSheet.create({
     borderColor: theme.line,
     borderRadius: theme.radiusSm,
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 8,
     color: theme.text,
     fontSize: 13,
     fontFamily: theme.fontSans,
+    minHeight: 40,
   },
-  searchClear: { width: 22, height: 22, alignItems: 'center', justifyContent: 'center' },
-  searchClearText: { color: theme.textFaint, fontSize: 12 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   row: {
     flexDirection: 'row',
@@ -193,12 +260,33 @@ const styles = StyleSheet.create({
     gap: 8,
     minHeight: 48,
   },
+  chatRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingLeft: 28,
+    paddingVertical: 8,
+    gap: 8,
+    minHeight: 44,
+  },
   rowPressed: { backgroundColor: theme.surface1 },
   dot: { width: 6, height: 6, borderRadius: 3 },
-  rowText: { flex: 1, gap: 1 },
-  rowTitle: { color: theme.text, fontSize: 13, fontFamily: theme.fontSans },
+  rowText: { flex: 1, gap: 1, minWidth: 0 },
+  rowTitle: { color: theme.text, fontSize: 13, fontFamily: `${theme.fontSans}-500` },
+  chatTitle: { color: theme.text, fontSize: 12, fontFamily: theme.fontSans },
   rowSub: { color: theme.textFaint, fontSize: 11, fontFamily: theme.fontMono },
-  costBadge: { color: theme.textFaint, fontSize: 10, fontFamily: theme.fontMono },
+  count: {
+    color: theme.textFaint,
+    fontSize: 11,
+    fontFamily: theme.fontMono,
+    borderWidth: 1,
+    borderColor: theme.line,
+    borderRadius: 8,
+    minWidth: 18,
+    paddingHorizontal: 5,
+    textAlign: 'center',
+  },
+  chevron: { color: theme.textFaint, fontSize: 11, fontFamily: theme.fontMono, width: 12 },
   unreadBadge: {
     backgroundColor: theme.accent,
     borderRadius: 8,
@@ -208,16 +296,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   unreadText: { color: theme.ink, fontSize: 10, fontFamily: `${theme.fontSans}-600` },
-  agentBadge: {
-    color: theme.textDim,
-    fontSize: 9,
-    fontFamily: theme.fontMono,
-    borderWidth: 1,
-    borderColor: theme.line,
-    borderRadius: theme.radiusSm,
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-  },
   sep: { height: 1, backgroundColor: theme.lineSoft, marginLeft: 30 },
   empty: { alignItems: 'center', paddingVertical: 20 },
   emptyText: { color: theme.textDim, fontSize: 12, fontFamily: theme.fontSans },
@@ -231,8 +309,10 @@ const styles = StyleSheet.create({
   },
   footerBtn: {
     paddingHorizontal: 8,
-    paddingVertical: 6,
+    paddingVertical: 10,
+    minHeight: 44,
     borderRadius: theme.radiusSm,
+    justifyContent: 'center',
   },
-  footerBtnText: { color: theme.textDim, fontSize: 12, fontFamily: theme.fontSans },
+  footerBtnText: { color: theme.textDim, fontSize: 13, fontFamily: theme.fontSans },
 })

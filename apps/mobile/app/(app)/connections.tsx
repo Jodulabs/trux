@@ -7,6 +7,7 @@ import { authApi } from '@trux/client/auth'
 import { api } from '@trux/client/api'
 import { theme } from '../../src/theme'
 import { haptic } from '../../src/haptics'
+import { confirmAsync } from '../../src/confirm'
 
 export default function ConnectionsScreen(): React.ReactElement {
   const router = useRouter()
@@ -47,7 +48,14 @@ export default function ConnectionsScreen(): React.ReactElement {
   }, [active, device])
 
   const connect = async (id: string): Promise<void> => {
-    if (status[id] === 'connected' && !confirmReauth()) return
+    if (status[id] === 'connected') {
+      const ok = await confirmAsync(
+        'Re-authenticate?',
+        `Reconnect ${id}? This replaces the current session on the box.`,
+        'Reconnect',
+      )
+      if (!ok) return
+    }
     haptic('medium')
     setBusy(true); setError(null); setActive(id)
     try {
@@ -175,9 +183,6 @@ export default function ConnectionsScreen(): React.ReactElement {
   )
 }
 
-// Native confirm is async; for the lean cut, allow re-auth (the CLI clears the
-// old session anyway). Replace with a real Alert.alert confirm if desired.
-function confirmReauth(): boolean { return true }
 
 const styles = StyleSheet.create({
   shell: { flex: 1, backgroundColor: theme.ink },

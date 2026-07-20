@@ -14,7 +14,7 @@ interface Props {
 }
 
 export function DesktopDock({ conversationId, previewPort, hasRepo }: Props): React.ReactElement {
-  const [active, setActive] = useState<Tab | null>('git')
+  const [active, setActive] = useState<Tab | null>(null)
 
   const tabs: { key: Tab; label: string; enabled: boolean }[] = [
     { key: 'git', label: 'Git', enabled: hasRepo },

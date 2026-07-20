@@ -45,12 +45,15 @@ pnpm build && pnpm start
 
 **Connect the phone:**
 
-1. On start, the terminal prints a **QR code**. On your phone (on the tailnet), scan it with the
-   camera → trux opens **already signed in** (the token rides the URL fragment).
+1. Run `trux pair` — prints a compact QR and a short `https://<host>/p/<code>` link.
+   On your phone (on the tailnet), scan it → trux opens **already signed in**.
 2. **Install the PWA:** browser share menu → *Add to Home Screen*.
 3. Drive: new conversation → **claude** + a repo → prompt → approve tools → **Open preview**.
 
-You can also pair later from inside the app: **Sidebar → 📱 Pair phone** shows the same QR.
+On the desk box, `trux open` starts the service if needed, waits for health, and launches the
+browser already signed in.
+
+For a pasteable link only (no QR): `trux pair --link`.
 
 ---
 
@@ -77,4 +80,4 @@ TRUX_TAILSCALE_HOST=yourbox.tailXXXX.ts.net
 | Reload on a sub-page errors | Should be fixed (SPA fallback). If not, rebuild + restart. |
 | Phone can't reach the URL | `tailscale serve status`; phone must be on the same tailnet. |
 | Token prompt / 401 | Re-scan the QR, or paste `TRUX_SECRET` into the token gate. |
-| QR not printed on start | Set `TRUX_TAILSCALE_HOST` and `TRUX_SECRET` in `~/.trux/.env`. |
+| QR not printed on start | Expected — run `trux pair` for the QR. Startup only prints a compact banner. |

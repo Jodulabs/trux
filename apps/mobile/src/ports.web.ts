@@ -68,3 +68,22 @@ export function parsePairQr(payload: string): { host: string; token: string } | 
     return null
   }
 }
+
+/** Resolve either a `#token=` URL or a short `/p/<code>` redirect from `trux pair`. */
+export async function resolvePairPayload(
+  payload: string,
+): Promise<{ host: string; token: string } | null> {
+  const direct = parsePairQr(payload)
+  if (direct) return direct
+  try {
+    const u = new URL(payload.trim())
+    if (!/^\/p\/[^/]+\/?$/.test(u.pathname)) return null
+    const res = await fetch(u.toString(), { redirect: 'manual' })
+    const loc = res.headers.get('Location') ?? res.headers.get('location')
+    if (!loc) return null
+    return parsePairQr(new URL(loc, u).toString())
+  } catch {
+    return null
+  }
+}
+

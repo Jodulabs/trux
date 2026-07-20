@@ -1,4 +1,4 @@
-import { parsePairQr } from '../src/ports'
+import { parsePairQr, resolvePairPayload } from '../src/ports'
 import { theme } from '../src/theme'
 
 describe('parsePairQr', () => {
@@ -14,10 +14,34 @@ describe('parsePairQr', () => {
 
   it('returns null when there is no token fragment', () => {
     expect(parsePairQr('https://box.ts.net/')).toBeNull()
+    expect(parsePairQr('https://box.ts.net/p/ABCD1234')).toBeNull()
   })
 
   it('returns null for a non-URL payload', () => {
     expect(parsePairQr('not a url')).toBeNull()
+  })
+})
+
+describe('resolvePairPayload', () => {
+  it('returns fragment pairs without fetching', async () => {
+    const r = await resolvePairPayload('https://box.tail123.ts.net/#token=abc123')
+    expect(r).toEqual({ host: 'box.tail123.ts.net', token: 'abc123' })
+  })
+
+  it('follows a /p/<code> redirect Location to extract the token', async () => {
+    const prevFetch = global.fetch
+    const fetchMock = jest.fn().mockResolvedValue({
+      headers: { get: (k: string) => (k.toLowerCase() === 'location' ? '/#token=secret' : null) },
+    })
+    // @ts-expect-error test double
+    global.fetch = fetchMock
+    try {
+      const r = await resolvePairPayload('https://box.ts.net/p/ABCD1234')
+      expect(fetchMock).toHaveBeenCalled()
+      expect(r).toEqual({ host: 'box.ts.net', token: 'secret' })
+    } finally {
+      global.fetch = prevFetch
+    }
   })
 })
 

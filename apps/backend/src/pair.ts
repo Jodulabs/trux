@@ -1,12 +1,4 @@
-// `pnpm pair` — print the pairing QR + access URLs, then exit. Show this any
-// time without holding a terminal; the trux server runs separately (systemd).
-import { loadEnvFiles, printAccessBanner, printAccessLink } from './banner'
-import { loadConfig } from './config'
+// Thin alias kept for `pnpm pair` / older docs — prefer `trux pair` / `tsx src/cli.ts pair`.
+import { runCli } from './cli'
 
-loadEnvFiles()
-const config = loadConfig()
-if (process.argv.includes('--link')) {
-  printAccessLink(config)
-} else {
-  printAccessBanner(config)
-}
+runCli(['pair', ...process.argv.slice(2)]).then((code) => process.exit(code))

@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { theme } from '../src/theme'
 import { QrScanner } from '../src/components/QrScanner'
-import { savePair, parsePairQr, getStoredHost, getStoredToken } from '../src/ports'
+import { savePair, parsePairQr, resolvePairPayload, getStoredHost, getStoredToken } from '../src/ports'
 
 type Mode = 'scan' | 'paste'
 
@@ -29,21 +29,36 @@ export default function PairScreen(): React.ReactElement {
   }
 
   const onScanned = (payload: string): void => {
-    const parsed = parsePairQr(payload)
-    if (!parsed) {
-      setScanReject('That QR isn’t a trux pair URL. Scan the QR from `trux pair`.')
+    const sync = parsePairQr(payload)
+    if (sync) {
+      finish(sync.host, sync.token)
       return
     }
-    finish(parsed.host, parsed.token)
+    void (async () => {
+      const parsed = await resolvePairPayload(payload)
+      if (!parsed) {
+        setScanReject('That QR isn’t a trux pair URL. Scan the QR from `trux pair`.')
+        return
+      }
+      finish(parsed.host, parsed.token)
+    })()
   }
 
   const submitPaste = (): void => {
-    const parsed = parsePairQr(pasteValue.trim())
-    if (!parsed) {
-      setError('Paste the URL from `trux pair` (looks like https://<host>.ts.net/#token=…)')
+    const raw = pasteValue.trim()
+    const sync = parsePairQr(raw)
+    if (sync) {
+      finish(sync.host, sync.token)
       return
     }
-    finish(parsed.host, parsed.token)
+    void (async () => {
+      const parsed = await resolvePairPayload(raw)
+      if (!parsed) {
+        setError('Paste the URL from `trux pair` (https://<host>/p/… or …/#token=…)')
+        return
+      }
+      finish(parsed.host, parsed.token)
+    })()
   }
 
   const alreadyPaired = Boolean(getStoredHost() && getStoredToken())

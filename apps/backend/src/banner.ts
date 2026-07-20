@@ -2,59 +2,78 @@ import { config as loadDotenv } from 'dotenv'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
-import qrcode from 'qrcode-terminal'
 import type { Config } from './config'
+import { writePairCode, pairUrl } from './pair-code'
+import { renderBrailleQr } from './qr-braille'
 
 // Load env: repo-local .env first (dev), then ~/.trux/.env (the deployed box).
 // dotenv never overrides an already-set var, so the first load wins per key.
 export function loadEnvFiles(): void {
-  loadDotenv()
+  loadDotenv({ quiet: true })
   const userEnv = join(homedir(), '.trux', '.env')
-  if (existsSync(userEnv)) loadDotenv({ path: userEnv })
+  if (existsSync(userEnv)) loadDotenv({ path: userEnv, quiet: true })
 }
 
-// Compact banner for `pnpm start` — how to reach trux, no QR (the QR floods the
-// terminal on every start; `pnpm pair` is the QR path). One glanceable block.
+export function publicHostname(config: Config): string | null {
+  return config.publicHost ?? config.tailscaleHost ?? null
+}
+
+export function buildPairUrl(config: Config, home: string = homedir()): string | null {
+  const host = publicHostname(config)
+  if (!host || !config.secret) return null
+  const { code } = writePairCode({ home })
+  return pairUrl(host, code)
+}
+
+export function buildOpenUrl(config: Config): string {
+  const base = `http://localhost:${config.port}/`
+  if (config.secret) return `${base}#token=${encodeURIComponent(config.secret)}`
+  return base
+}
+
+export function buildAccessUrl(config: Config): string {
+  const host = publicHostname(config)
+  if (host) return `https://${host}/`
+  return `http://localhost:${config.port}/`
+}
+
+// Compact banner for `pnpm start` — how to reach trux, no QR.
 export function printStartBanner(config: Config): void {
-  const host = config.publicHost ?? config.tailscaleHost
+  const host = publicHostname(config)
   console.log(`\n   local:  http://localhost:${config.port}/`)
   if (host) {
     console.log(`   phone:  https://${host}/`)
-    if (config.secret) console.log('   pair:   run `pnpm pair` to show the QR for one-scan phone setup')
+    if (config.secret) console.log('   pair:   run `trux pair` to show the QR for one-scan phone setup')
     else console.log('   (auth disabled)')
   }
   if (config.secret) console.log('   open:   run `trux open` to launch on this box already signed in')
   console.log('')
 }
 
-// Full pairing banner for `pnpm pair`. With a tailnet host + secret, show a QR
-// that pairs a phone in one scan (URL + token in the fragment — see frontend pairing).
-export function printAccessBanner(config: Config): void {
-  const host = config.publicHost ?? config.tailscaleHost
-  if (host) {
-    const base = `https://${host}/`
-    if (config.secret) {
-      console.log('\n📱 Pair your phone — scan this:\n')
-      qrcode.generate(`${base}#token=${encodeURIComponent(config.secret)}`, { small: true })
-      console.log(`\n   …or open ${base} and paste your token`)
-    } else {
-      console.log(`\n📱 Phone: open ${base} (auth disabled)`)
-    }
+// Full pairing banner for `trux pair`. Short /p/<code> URL + braille QR.
+export function printAccessBanner(config: Config, home: string = homedir()): void {
+  const url = buildPairUrl(config, home)
+  if (url) {
+    console.log('\nPair your phone — scan this:\n')
+    console.log(renderBrailleQr(url))
+    console.log(`\n   ${url}`)
+    console.log('   …or open the URL above in a browser on the tailnet')
+  } else {
+    const host = publicHostname(config)
+    if (host) console.log(`\nPhone: open https://${host}/ (auth disabled or no secret)`)
+    else console.log('\nNo public host configured (set TRUX_PUBLIC_HOST or TRUX_TAILSCALE_HOST)')
   }
   console.log(`\n   local: http://localhost:${config.port}/\n`)
 }
 
 // Print just the pairing URL (for `trux pair --link`).
-export function printAccessLink(config: Config): void {
-  const host = config.publicHost ?? config.tailscaleHost
-  if (host) {
-    const base = `https://${host}/`
-    if (config.secret) {
-      console.log(`${base}#token=${encodeURIComponent(config.secret)}`)
-    } else {
-      console.log(`${base} (auth disabled)`)
-    }
-  } else {
-    console.log(`http://localhost:${config.port}/`)
+export function printAccessLink(config: Config, home: string = homedir()): void {
+  const url = buildPairUrl(config, home)
+  if (url) {
+    console.log(url)
+    return
   }
+  const host = publicHostname(config)
+  if (host) console.log(`https://${host}/ (auth disabled)`)
+  else console.log(`http://localhost:${config.port}/`)
 }

@@ -1,4 +1,4 @@
-import { render, fireEvent, screen } from '@testing-library/react-native'
+import { render, fireEvent, screen, waitFor } from '@testing-library/react-native'
 
 // Mock expo-router's useRouter (no real navigation in jest).
 jest.mock('expo-router', () => ({
@@ -57,7 +57,9 @@ describe('PairScreen', () => {
     await render(<PairScreen />)
     await fireEvent.press(screen.getByText('Paste URL'))
     const input = screen.getByPlaceholderText('https://box.ts.net/#token=…')
-    await fireEvent.changeText(input, 'https://box.tail123.ts.net/#token=abc123')
+    const url = 'https://box.tail123.ts.net/#token=abc123'
+    await fireEvent.changeText(input, url)
+    await waitFor(() => expect(input.props.value).toBe(url))
     await fireEvent.press(screen.getByText('Save & connect'))
     expect(savePair).toHaveBeenCalledWith('box.tail123.ts.net', 'abc123')
   })
@@ -65,12 +67,13 @@ describe('PairScreen', () => {
   it('shows an error for a non-trux URL in paste mode and does not save', async () => {
     await render(<PairScreen />)
     await fireEvent.press(screen.getByText('Paste URL'))
-    await fireEvent.changeText(
-      screen.getByPlaceholderText('https://box.ts.net/#token=…'),
-      'https://example.com/',
-    )
+    const input = screen.getByPlaceholderText('https://box.ts.net/#token=…')
+    await fireEvent.changeText(input, 'https://example.com/')
+    await waitFor(() => expect(input.props.value).toBe('https://example.com/'))
     await fireEvent.press(screen.getByText('Save & connect'))
-    expect(screen.getByText(/Paste the URL from `trux pair`/)).toBeTruthy()
+    await waitFor(() => {
+      expect(screen.getByText(/Paste the URL from `trux pair`/)).toBeTruthy()
+    })
     expect(savePair).not.toHaveBeenCalled()
   })
 })

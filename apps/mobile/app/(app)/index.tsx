@@ -7,6 +7,7 @@ import { useStore } from '@trux/client/store'
 import { theme, STATUS_COLORS } from '../../src/theme'
 import { getStoredHost } from '../../src/ports'
 import { IconButton } from '../../src/icons'
+import { OverflowMenu } from '../../src/components/OverflowMenu'
 
 export default function ProjectsScreen(): React.ReactElement {
   const router = useRouter()
@@ -17,6 +18,7 @@ export default function ProjectsScreen(): React.ReactElement {
   const loadConversations = useStore((s) => s.loadConversations)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   const host = getStoredHost()
 
   const reload = async (): Promise<void> => {
@@ -60,8 +62,11 @@ export default function ProjectsScreen(): React.ReactElement {
         <Text style={styles.mark} accessibilityLabel="trux">✳</Text>
         <Text style={styles.title}>trux</Text>
         {host ? <Text style={styles.host} numberOfLines={1}>{host}</Text> : null}
-        <IconButton name="key-outline" accessibilityLabel="Providers" onPress={() => router.push('/providers')} />
-        <IconButton name="settings-outline" accessibilityLabel="Settings" onPress={() => router.push('/settings')} />
+        <IconButton
+          name="ellipsis-horizontal"
+          accessibilityLabel="More"
+          onPress={() => setMenuOpen(true)}
+        />
         <IconButton
           name="add"
           accessibilityLabel="New project"
@@ -70,6 +75,15 @@ export default function ProjectsScreen(): React.ReactElement {
           style={styles.newBtn}
         />
       </View>
+
+      <OverflowMenu
+        visible={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        actions={[
+          { label: 'Providers', onPress: () => router.push('/providers') },
+          { label: 'Settings', onPress: () => router.push('/settings') },
+        ]}
+      />
 
       <FlatList
         data={projects}

@@ -35,6 +35,12 @@ async function json<T>(res: Response): Promise<T> {
 
 export const api = {
   listWorkspaces: () => fetch(url('/workspaces'), { headers: authHeaders() }).then(json<Workspace[]>),
+  listDirs: (path?: string) => {
+    const qs = path ? `?path=${encodeURIComponent(path)}` : ''
+    return fetch(url(`/fs/dirs${qs}`), { headers: authHeaders() }).then(
+      json<{ path: string; parent: string | null; entries: { name: string; path: string }[] }>,
+    )
+  },
   getCatalog: () => fetch(url('/catalog'), { headers: authHeaders() }).then(json<AgentCatalogResponse>),
   listConversations: () =>
     fetch(url('/conversations'), { headers: authHeaders() }).then(json<Conversation[]>),

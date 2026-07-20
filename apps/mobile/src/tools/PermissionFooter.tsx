@@ -115,7 +115,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.line,
     backgroundColor: theme.surface2,
-    minHeight: 36,
+    minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },

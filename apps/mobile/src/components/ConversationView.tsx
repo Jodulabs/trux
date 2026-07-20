@@ -8,8 +8,9 @@ import { openConnection, setActiveHandlers, clearActiveHandlers, getConnection, 
 import { newMessageId, dequeue } from '@trux/client/outbox'
 import { theme } from '../theme'
 import { haptic } from '../haptics'
-import { Transcript } from './Transcript'
+import { Transcript, findLatestPendingApproval } from './Transcript'
 import { Composer } from './Composer'
+import { ApprovalCard } from './ApprovalCard'
 
 interface Props {
   id: string
@@ -22,11 +23,6 @@ const CONN_LABEL: Record<string, string> = {
   offline: 'Offline — will retry',
 }
 
-// Phase C: opens a persistent WS connection for `id` via the shared
-// connectionManager, routes streamed events into the shared store, and renders
-// the Transcript (with happy tool-view cards) + Composer with the
-// connection-state banner. Approvals route through respondApproval via the WS.
-// ControlPicker (model/effort) is wired when the agent exposes controls.
 export function ConversationView({ id }: Props): React.ReactElement {
   const transcript = useStore((s) => s.transcript)
   const status = useStore((s) => s.status)
@@ -45,13 +41,11 @@ export function ConversationView({ id }: Props): React.ReactElement {
   const [config, setConfig] = useState<TurnConfig>({ model: null, options: {} })
   const [commands, setCommands] = useState<AgentCommand[]>([])
 
-  // Seed config from the conversation's sticky selection (model/options/trust).
   useEffect(() => {
     if (!conv) return
     setConfig({ model: conv.model, options: { ...conv.options }, trust: conv.trust ?? undefined })
   }, [conv?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fetch agent capabilities for the ControlPicker.
   useEffect(() => {
     if (!conv?.agent) return
     void api.getCatalog().then((r) => {
@@ -60,8 +54,6 @@ export function ConversationView({ id }: Props): React.ReactElement {
     }).catch(() => {})
   }, [conv?.agent])
 
-  // Discover the agent's slash commands for the CommandPalette (per-project,
-  // keyed on agent + cwd). Best-effort — no commands just hides the palette.
   useEffect(() => {
     if (!conv?.agent || !conv?.cwd) return
     void api.discoverCommands(conv.agent, conv.cwd)
@@ -106,11 +98,12 @@ export function ConversationView({ id }: Props): React.ReactElement {
   }
 
   const connNote = connState !== 'connected' ? CONN_LABEL[connState] : null
+  const pendingApproval = findLatestPendingApproval(transcript, approvalDecisions)
 
   return (
     <KeyboardAvoidingView style={styles.shell} behavior="padding">
       {connNote ? (
-        <View style={styles.connBanner}>
+        <View style={styles.connBanner} accessibilityLiveRegion="polite">
           <Text style={styles.connText}>{connNote}</Text>
         </View>
       ) : null}
@@ -120,7 +113,11 @@ export function ConversationView({ id }: Props): React.ReactElement {
         approvalDecisions={approvalDecisions}
         onRespond={onRespond}
         sessionId={id}
+        hidePendingApprovals
       />
+      {pendingApproval ? (
+        <ApprovalCard approval={pendingApproval} onRespond={onRespond} pinned />
+      ) : null}
       <Composer
         busy={status === 'thinking' || status === 'awaiting_approval'}
         onSend={onSend}

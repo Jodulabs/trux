@@ -93,7 +93,13 @@ export function Composer({ busy, onSend, onInterrupt, caps, config, onConfigChan
           onKeyPress={handleKeyPress}
         />
         {busy ? (
-          <Pressable style={styles.interruptBtn} onPress={() => { onInterrupt(); haptic('medium') }} hitSlop={8}>
+          <Pressable
+            style={styles.interruptBtn}
+            onPress={() => { onInterrupt(); haptic('medium') }}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Stop agent"
+          >
             <Text style={styles.interruptText}>■</Text>
           </Pressable>
         ) : (
@@ -102,6 +108,8 @@ export function Composer({ busy, onSend, onInterrupt, caps, config, onConfigChan
             onPress={submit}
             disabled={!text.trim()}
             hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Send message"
           >
             <Text style={styles.sendMark}>↑</Text>
           </Pressable>

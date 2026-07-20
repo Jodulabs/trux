@@ -6,11 +6,8 @@ import type { Conversation, Project } from '@trux/protocol'
 import { useStore } from '@trux/client/store'
 import { theme, STATUS_COLORS } from '../../src/theme'
 import { getStoredHost } from '../../src/ports'
+import { IconButton } from '../../src/icons'
 
-// Projects home: cards grouped by codebase (cwd). Each card shows the project
-// name, path, provider chips used across its chats, open chat count, and an
-// aggregate status dot (red if any chat is awaiting approval). Tap → project
-// detail (chats inside). FAB → new project.
 export default function ProjectsScreen(): React.ReactElement {
   const router = useRouter()
   const projects = useStore((s) => s.projects)
@@ -60,18 +57,18 @@ export default function ProjectsScreen(): React.ReactElement {
   return (
     <SafeAreaView style={styles.shell} edges={['top', 'bottom']}>
       <View style={styles.header}>
-        <Text style={styles.mark}>✳</Text>
+        <Text style={styles.mark} accessibilityLabel="trux">✳</Text>
         <Text style={styles.title}>trux</Text>
         {host ? <Text style={styles.host} numberOfLines={1}>{host}</Text> : null}
-        <Pressable hitSlop={12} onPress={() => router.push('/providers')} style={styles.headerBtn}>
-          <Text style={styles.headerBtnText}>🔑</Text>
-        </Pressable>
-        <Pressable hitSlop={12} onPress={() => router.push('/settings')} style={styles.headerBtn}>
-          <Text style={styles.headerBtnText}>⚙</Text>
-        </Pressable>
-        <Pressable hitSlop={12} onPress={() => router.push('/new-project')} style={styles.newBtn}>
-          <Text style={styles.newBtnText}>+</Text>
-        </Pressable>
+        <IconButton name="key-outline" accessibilityLabel="Providers" onPress={() => router.push('/providers')} />
+        <IconButton name="settings-outline" accessibilityLabel="Settings" onPress={() => router.push('/settings')} />
+        <IconButton
+          name="add"
+          accessibilityLabel="New project"
+          onPress={() => router.push('/new-project')}
+          color={theme.ink}
+          style={styles.newBtn}
+        />
       </View>
 
       <FlatList
@@ -93,8 +90,14 @@ export default function ProjectsScreen(): React.ReactElement {
             return s === 'thinking' || s === 'awaiting_approval'
           })
           const statusColor = anyApproval ? STATUS_COLORS.awaiting_approval : anyActive ? STATUS_COLORS.thinking : STATUS_COLORS.idle
+          const statusLabel = anyApproval ? 'Needs approval' : anyActive ? 'Working' : 'Idle'
           return (
-            <Pressable style={({ pressed }) => [styles.card, pressed && styles.cardPressed]} onPress={() => open(p)}>
+            <Pressable
+              style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+              onPress={() => open(p)}
+              accessibilityRole="button"
+              accessibilityLabel={`Project ${p.name}, ${chats.length} chats, ${statusLabel}`}
+            >
               <View style={styles.cardHead}>
                 <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
                 <Text style={styles.cardName} numberOfLines={1}>{p.name}</Text>
@@ -118,7 +121,12 @@ export default function ProjectsScreen(): React.ReactElement {
             <Text style={styles.emptyMark}>✳</Text>
             <Text style={styles.emptyTitle}>What should we build?</Text>
             <Text style={styles.emptySub}>Create a project to group your chats by codebase.</Text>
-            <Pressable style={styles.emptyNewBtn} onPress={() => router.push('/new-project')}>
+            <Pressable
+              style={styles.emptyNewBtn}
+              onPress={() => router.push('/new-project')}
+              accessibilityRole="button"
+              accessibilityLabel="New project"
+            >
               <Text style={styles.emptyNewBtnText}>+ New project</Text>
             </Pressable>
           </View>
@@ -133,39 +141,25 @@ const styles = StyleSheet.create({
   shell: { flex: 1, backgroundColor: theme.ink },
   centering: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   header: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 14,
+    paddingHorizontal: 12,
+    paddingTop: 4,
+    paddingBottom: 6,
     borderBottomWidth: 1,
     borderBottomColor: theme.lineSoft,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 2,
   },
-  mark: { color: theme.accent, fontSize: 18, fontFamily: theme.fontMono },
+  mark: { color: theme.accent, fontSize: 18, fontFamily: theme.fontMono, paddingHorizontal: 8 },
   title: { color: theme.text, fontSize: 20, fontFamily: `${theme.fontSans}-600` },
   host: { color: theme.textFaint, fontSize: 12, fontFamily: theme.fontMono, marginLeft: 'auto', flexShrink: 1 },
-  headerBtn: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerBtnText: { color: theme.textDim, fontSize: 18 },
-  newBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: theme.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  newBtnText: { color: theme.ink, fontSize: 20, fontFamily: `${theme.fontSans}-600` },
+  newBtn: { backgroundColor: theme.accent, borderRadius: 22 },
   sep: { height: 1, backgroundColor: theme.lineSoft, marginHorizontal: 16 },
   card: {
     paddingHorizontal: 20,
     paddingVertical: 16,
     gap: 8,
+    minHeight: 64,
   },
   cardPressed: { backgroundColor: theme.surface1 },
   cardHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
@@ -205,6 +199,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 14,
     marginTop: 8,
+    minHeight: 48,
   },
   emptyNewBtnText: { color: theme.ink, fontSize: 15, fontFamily: `${theme.fontSans}-600` },
 })

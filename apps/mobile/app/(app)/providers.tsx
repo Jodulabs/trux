@@ -7,6 +7,7 @@ import { authApi } from '@trux/client/auth'
 import { api } from '@trux/client/api'
 import { theme } from '../../src/theme'
 import { haptic } from '../../src/haptics'
+import { confirmAsync } from '../../src/confirm'
 
 // Providers tab: the agent catalog, reframed. Each provider card shows
 // installed/connected, account kind (subscription vs apikey vs native), model
@@ -49,7 +50,14 @@ export default function ProvidersScreen(): React.ReactElement {
   }, [active, device])
 
   const connect = async (id: string): Promise<void> => {
-    if (status[id] === 'connected' && !confirmReauth()) return
+    if (status[id] === 'connected') {
+      const ok = await confirmAsync(
+        'Re-authenticate?',
+        `Reconnect ${id}? This replaces the current session on the box.`,
+        'Reconnect',
+      )
+      if (!ok) return
+    }
     haptic('medium')
     setBusy(true); setError(null); setActive(id)
     try {
@@ -87,7 +95,7 @@ export default function ProvidersScreen(): React.ReactElement {
   return (
     <SafeAreaView style={styles.shell} edges={['top', 'bottom']}>
       <View style={styles.header}>
-        <Pressable hitSlop={12} onPress={() => router.back()}>
+        <Pressable hitSlop={12} onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Back">
           <Text style={styles.back}>‹</Text>
         </Pressable>
         <Text style={styles.title}>Providers</Text>
@@ -191,7 +199,6 @@ export default function ProvidersScreen(): React.ReactElement {
   )
 }
 
-function confirmReauth(): boolean { return true }
 
 const styles = StyleSheet.create({
   shell: { flex: 1, backgroundColor: theme.ink },

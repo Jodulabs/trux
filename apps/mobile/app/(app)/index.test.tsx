@@ -58,6 +58,13 @@ describe('ProjectsScreen', () => {
     expect(screen.getByText('What should we build?')).toBeTruthy()
   })
 
+  it('shows More in the header instead of Providers/Settings icons', async () => {
+    await render(<ProjectsScreen />)
+    expect(screen.getByLabelText('More')).toBeTruthy()
+    expect(screen.queryByLabelText('Providers')).toBeNull()
+    expect(screen.queryByLabelText('Settings')).toBeNull()
+  })
+
   it('shows provider chips for agents used in the project', async () => {
     const p1 = project('p1', 'trux-app', '/x')
     const c1 = conv('c1', 'p1', 'claude')

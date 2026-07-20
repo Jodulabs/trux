@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { View, Text, TextInput, Pressable, FlatList, ActivityIndicator, StyleSheet } from 'react-native'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { View, Text, TextInput, Pressable, FlatList, ActivityIndicator, StyleSheet, ScrollView } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import type { AgentCatalogEntry, AgentName, Workspace } from '@trux/protocol'
@@ -13,6 +13,8 @@ function basename(path: string): string {
   return p || path
 }
 
+type PathMode = 'browse' | 'search' | 'manual'
+
 interface PathEntry {
   label: string
   path: string
@@ -20,37 +22,65 @@ interface PathEntry {
   source: 'workspace' | 'recent'
 }
 
-// New project flow: smart path search + name + default provider. The path
-// picker searches workspace roots and recently-used cwds (recent first); a
-// "paste manually" toggle lets the user type an arbitrary path. Creating a
-// project persists it and routes to the project detail.
 export default function NewProjectScreen(): React.ReactElement {
   const router = useRouter()
   const conversations = useStore((s) => s.conversations)
   const loadProjects = useStore((s) => s.loadProjects)
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [catalog, setCatalog] = useState<AgentCatalogEntry[]>([])
+  const [mode, setMode] = useState<PathMode>('browse')
   const [query, setQuery] = useState('')
-  const [manualMode, setManualMode] = useState(false)
   const [manualPath, setManualPath] = useState('')
   const [name, setName] = useState('')
   const [defaultAgent, setDefaultAgent] = useState<AgentName | ''>('')
   const [cwd, setCwd] = useState('')
+  const [browsePath, setBrowsePath] = useState<string | null>(null)
+  const [browseParent, setBrowseParent] = useState<string | null>(null)
+  const [browseEntries, setBrowseEntries] = useState<{ name: string; path: string }[]>([])
+  const [crumbs, setCrumbs] = useState<{ name: string; path: string }[]>([])
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [browseLoading, setBrowseLoading] = useState(false)
+
+  const loadBrowse = useCallback(async (path?: string): Promise<void> => {
+    setBrowseLoading(true)
+    setError(null)
+    try {
+      const listing = await api.listDirs(path)
+      setBrowsePath(listing.path)
+      setBrowseParent(listing.parent)
+      setBrowseEntries(listing.entries)
+      // Build crumbs from listing.path segments relative to first segment
+      const parts = listing.path.replace(/\/$/, '').split('/').filter(Boolean)
+      const segs: { name: string; path: string }[] = []
+      let acc = listing.path.startsWith('/') ? '' : ''
+      for (let i = 0; i < parts.length; i++) {
+        acc += '/' + parts[i]
+        segs.push({ name: parts[i]!, path: acc })
+      }
+      // Keep last ~4 crumbs visible
+      setCrumbs(segs)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBrowseLoading(false)
+      setLoading(false)
+    }
+  }, [])
 
   useEffect(() => {
+    void loadBrowse()
     void Promise.all([
-      api.listWorkspaces().then((w) => { setWorkspaces(w); setLoading(false) }),
+      api.listWorkspaces().then(setWorkspaces).catch(() => {}),
       api.getCatalog().then((r) => {
         const list = r.catalog ?? []
         setCatalog(list)
         const first = list.find((e) => e.runnable) ?? list[0]
         if (first) setDefaultAgent(first.agent)
-      }),
-    ]).catch(() => setLoading(false))
-  }, [])
+      }).catch(() => {}),
+    ])
+  }, [loadBrowse])
 
   const entries = useMemo<PathEntry[]>(() => {
     const recent: PathEntry[] = []
@@ -69,9 +99,7 @@ export default function NewProjectScreen(): React.ReactElement {
         source: 'workspace' as const,
       })),
     )
-    // Recents first, then workspaces, dedup by path.
-    const merged = [...recent, ...ws.filter((w) => !seen.has(w.path))]
-    return merged
+    return [...recent, ...ws.filter((w) => !seen.has(w.path))]
   }, [conversations, workspaces])
 
   const filtered = useMemo(() => {
@@ -82,19 +110,18 @@ export default function NewProjectScreen(): React.ReactElement {
     )
   }, [entries, query])
 
-  // When a path is selected, default the name to its basename if the user hasn't typed one.
   useEffect(() => {
     if (cwd && !name) setName(basename(cwd))
   }, [cwd]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const select = (e: PathEntry): void => {
-    setCwd(e.path)
-    setQuery(e.label)
+  const useFolder = (path: string): void => {
+    setCwd(path)
+    if (!name) setName(basename(path))
     haptic('light')
   }
 
   const create = async (): Promise<void> => {
-    const finalCwd = manualMode ? manualPath.trim() : cwd
+    const finalCwd = mode === 'manual' ? manualPath.trim() : cwd
     if (!finalCwd) { setError('Pick or paste a path.'); return }
     if (!name.trim()) { setError('Name is required.'); return }
     setCreating(true); setError(null)
@@ -115,6 +142,7 @@ export default function NewProjectScreen(): React.ReactElement {
   }
 
   const runnableCatalog = catalog.filter((e) => e.runnable)
+  const canCreate = Boolean(name.trim() && (mode === 'manual' ? manualPath.trim() : cwd) && !creating)
 
   return (
     <SafeAreaView style={styles.shell} edges={['top', 'bottom']}>
@@ -137,11 +165,20 @@ export default function NewProjectScreen(): React.ReactElement {
 
         <View style={styles.pathHeader}>
           <Text style={styles.label}>Path</Text>
-          <Pressable hitSlop={8} onPress={() => { setManualMode(!manualMode); setCwd(''); setManualPath('') }}>
-            <Text style={styles.toggleText}>{manualMode ? 'pick from list' : 'paste manually'}</Text>
-          </Pressable>
+          <View style={styles.modeRow}>
+            {([
+              ['browse', 'Browse'],
+              ['search', 'Search'],
+              ['manual', 'Paste'],
+            ] as const).map(([id, label]) => (
+              <Pressable key={id} hitSlop={6} onPress={() => setMode(id)}>
+                <Text style={[styles.toggleText, mode === id && styles.toggleActive]}>{label}</Text>
+              </Pressable>
+            ))}
+          </View>
         </View>
-        {manualMode ? (
+
+        {mode === 'manual' ? (
           <TextInput
             style={[styles.input, { fontFamily: theme.fontMono }]}
             value={manualPath}
@@ -151,7 +188,9 @@ export default function NewProjectScreen(): React.ReactElement {
             autoCapitalize="none"
             autoCorrect={false}
           />
-        ) : (
+        ) : null}
+
+        {mode === 'search' ? (
           <>
             <TextInput
               style={styles.search}
@@ -162,12 +201,6 @@ export default function NewProjectScreen(): React.ReactElement {
               autoCapitalize="none"
               autoCorrect={false}
             />
-            {cwd ? (
-              <View style={styles.selectedPath}>
-                <Text style={styles.selectedPathLabel}>Selected:</Text>
-                <Text style={styles.selectedPathValue} numberOfLines={1}>{cwd}</Text>
-              </View>
-            ) : null}
             <FlatList
               data={filtered}
               keyExtractor={(e) => e.path}
@@ -175,7 +208,7 @@ export default function NewProjectScreen(): React.ReactElement {
               renderItem={({ item: e }) => (
                 <Pressable
                   style={({ pressed }) => [styles.row, cwd === e.path && styles.rowSelected, pressed && cwd !== e.path && styles.rowPressed]}
-                  onPress={() => select(e)}
+                  onPress={() => { setCwd(e.path); setQuery(e.label); haptic('light') }}
                 >
                   <View style={styles.rowText}>
                     <Text style={styles.rowLabel} numberOfLines={1}>{e.label}</Text>
@@ -185,17 +218,64 @@ export default function NewProjectScreen(): React.ReactElement {
                 </Pressable>
               )}
               ListEmptyComponent={
-                loading ? (
-                  <View style={styles.emptyList}><ActivityIndicator color={theme.accent} /></View>
-                ) : (
-                  <View style={styles.emptyList}>
-                    <Text style={styles.emptyText}>{query ? 'No matches.' : 'No projects configured. Add TRUX_WORKSPACES or paste a path manually.'}</Text>
-                  </View>
-                )
+                <View style={styles.emptyList}>
+                  <Text style={styles.emptyText}>{query ? 'No matches.' : 'No recent or workspace paths yet.'}</Text>
+                </View>
               }
             />
           </>
-        )}
+        ) : null}
+
+        {mode === 'browse' ? (
+          <View style={styles.browse}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.crumbRow}>
+              {browseParent ? (
+                <Pressable onPress={() => void loadBrowse(browseParent)} style={styles.crumbBtn}>
+                  <Text style={styles.crumbText}>↑ Up</Text>
+                </Pressable>
+              ) : null}
+              {crumbs.slice(-4).map((c) => (
+                <Pressable key={c.path} onPress={() => void loadBrowse(c.path)} style={styles.crumbBtn}>
+                  <Text style={styles.crumbText} numberOfLines={1}>{c.name}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+            {browsePath ? (
+              <View style={styles.selectedPath}>
+                <Text style={styles.selectedPathLabel} numberOfLines={1}>{browsePath}</Text>
+                <Pressable style={styles.useBtn} onPress={() => useFolder(browsePath)}>
+                  <Text style={styles.useBtnText}>Use this folder</Text>
+                </Pressable>
+              </View>
+            ) : null}
+            {cwd ? (
+              <Text style={styles.selectedNote}>Selected: {cwd}</Text>
+            ) : null}
+            {browseLoading || loading ? (
+              <ActivityIndicator color={theme.accent} style={{ marginTop: 16 }} />
+            ) : (
+              <FlatList
+                data={browseEntries}
+                keyExtractor={(e) => e.path}
+                style={styles.list}
+                renderItem={({ item }) => (
+                  <Pressable
+                    style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+                    onPress={() => void loadBrowse(item.path)}
+                  >
+                    <Text style={styles.folderMark}>▸</Text>
+                    <Text style={styles.rowLabel} numberOfLines={1}>{item.name}</Text>
+                  </Pressable>
+                )}
+                ListEmptyComponent={
+                  <View style={styles.emptyList}>
+                    <Text style={styles.emptyText}>No subfolders here. Use this folder, or go up.</Text>
+                  </View>
+                }
+              />
+            )}
+          </View>
+        ) : null}
 
         {runnableCatalog.length > 0 ? (
           <View style={styles.pickerWrap}>
@@ -225,8 +305,8 @@ export default function NewProjectScreen(): React.ReactElement {
 
       <View style={styles.footer}>
         <Pressable
-          style={({ pressed }) => [styles.createBtn, (!name.trim() || (!cwd && !manualPath.trim()) || creating) && styles.createBtnDisabled, pressed && styles.createBtnPressed]}
-          disabled={!name.trim() || (!cwd && !manualPath.trim()) || creating}
+          style={({ pressed }) => [styles.createBtn, !canCreate && styles.createBtnDisabled, pressed && styles.createBtnPressed]}
+          disabled={!canCreate}
           onPress={() => void create()}
         >
           {creating ? (
@@ -259,7 +339,9 @@ const styles = StyleSheet.create({
     color: theme.text, fontSize: 15, fontFamily: theme.fontSans,
   },
   pathHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  toggleText: { color: theme.accent, fontSize: 12, fontFamily: theme.fontSans },
+  modeRow: { flexDirection: 'row', gap: 12 },
+  toggleText: { color: theme.textDim, fontSize: 12, fontFamily: theme.fontSans },
+  toggleActive: { color: theme.accentBright },
   search: {
     backgroundColor: theme.surface1,
     borderWidth: 1, borderColor: theme.line,
@@ -267,19 +349,38 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 12,
     color: theme.text, fontSize: 15, fontFamily: theme.fontSans,
   },
-  selectedPath: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 4 },
+  browse: { flex: 1, gap: 8, minHeight: 180 },
+  crumbRow: { flexDirection: 'row', gap: 6, alignItems: 'center', paddingVertical: 4 },
+  crumbBtn: {
+    backgroundColor: theme.surface2,
+    borderWidth: 1, borderColor: theme.line,
+    borderRadius: theme.radiusSm,
+    paddingHorizontal: 10, paddingVertical: 6,
+    maxWidth: 120,
+  },
+  crumbText: { color: theme.textDim, fontSize: 12, fontFamily: theme.fontMono },
+  selectedPath: { gap: 8 },
   selectedPathLabel: { color: theme.textFaint, fontSize: 11, fontFamily: theme.fontMono },
-  selectedPathValue: { color: theme.accentBright, fontSize: 12, fontFamily: theme.fontMono, flex: 1, minWidth: 0 },
+  selectedNote: { color: theme.accentBright, fontSize: 12, fontFamily: theme.fontMono },
+  useBtn: {
+    alignSelf: 'flex-start',
+    backgroundColor: theme.accentBright,
+    borderRadius: theme.radiusSm,
+    paddingHorizontal: 12, paddingVertical: 8,
+  },
+  useBtnText: { color: theme.ink, fontSize: 13, fontFamily: `${theme.fontSans}-600` },
   list: { flex: 1 },
   row: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingHorizontal: 14, paddingVertical: 12,
-    borderRadius: theme.radiusSm, gap: 2,
+    borderRadius: theme.radiusSm,
   },
   rowSelected: { backgroundColor: theme.accentSoft, borderWidth: 1, borderColor: theme.accent },
   rowPressed: { backgroundColor: theme.surface1 },
-  rowText: { gap: 2 },
-  rowLabel: { color: theme.text, fontSize: 15, fontFamily: theme.fontSans },
+  rowText: { gap: 2, flex: 1, minWidth: 0 },
+  rowLabel: { color: theme.text, fontSize: 15, fontFamily: theme.fontSans, flex: 1 },
   rowPath: { color: theme.textFaint, fontSize: 12, fontFamily: theme.fontMono },
+  folderMark: { fontSize: 14 },
   recentTag: {
     color: theme.textFaint, fontSize: 10, fontFamily: theme.fontMono,
     borderWidth: 1, borderColor: theme.line, borderRadius: theme.radiusSm,
@@ -301,10 +402,10 @@ const styles = StyleSheet.create({
   error: { color: theme.error, fontSize: 13, fontFamily: theme.fontMono },
   footer: { paddingHorizontal: 16, paddingVertical: 14, paddingBottom: 20 },
   createBtn: {
-    backgroundColor: theme.accent, borderRadius: theme.radius,
+    backgroundColor: theme.accentBright, borderRadius: theme.radius,
     paddingVertical: 16, alignItems: 'center', justifyContent: 'center', minHeight: 50,
   },
-  createBtnPressed: { backgroundColor: theme.accentBright },
+  createBtnPressed: { backgroundColor: theme.accent },
   createBtnDisabled: { backgroundColor: theme.surface3 },
   createBtnText: { color: theme.ink, fontSize: 16, fontFamily: `${theme.fontSans}-600` },
 })

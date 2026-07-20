@@ -111,7 +111,7 @@ export function Composer({ busy, onSend, onInterrupt, caps, config, onConfigChan
             accessibilityRole="button"
             accessibilityLabel="Send message"
           >
-            <Text style={styles.sendMark}>↑</Text>
+            <Text style={[styles.sendMark, !text.trim() && styles.sendMarkDisabled]}>↑</Text>
           </Pressable>
         )}
       </View>
@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
   shell: {
     borderTopWidth: 1,
     borderTopColor: theme.lineSoft,
-    backgroundColor: theme.ink,
+    backgroundColor: theme.surface1,
   },
   inputRow: {
     flexDirection: 'row',
@@ -143,7 +143,7 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    backgroundColor: theme.surface1,
+    backgroundColor: theme.ink,
     borderWidth: 1,
     borderColor: theme.line,
     borderRadius: theme.radius,
@@ -159,18 +159,24 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: theme.radius,
-    backgroundColor: theme.accent,
+    backgroundColor: theme.accentBright,
+    borderWidth: 1,
+    borderColor: theme.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sendBtnPressed: { backgroundColor: theme.accentBright },
-  sendBtnDisabled: { backgroundColor: theme.surface3 },
+  sendBtnPressed: { backgroundColor: theme.accent },
+  sendBtnDisabled: {
+    backgroundColor: theme.surface1,
+    borderColor: theme.line,
+  },
   sendMark: { color: theme.ink, fontSize: 18, fontFamily: `${theme.fontSans}-600` },
+  sendMarkDisabled: { color: theme.textDim },
   interruptBtn: {
     width: 44,
     height: 44,
     borderRadius: theme.radius,
-    backgroundColor: theme.surface3,
+    backgroundColor: theme.surface2,
     borderWidth: 1,
     borderColor: theme.line,
     alignItems: 'center',

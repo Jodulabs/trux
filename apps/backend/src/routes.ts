@@ -7,6 +7,7 @@ import type { Config } from './config'
 import type { SqliteRegistry } from './registry'
 import { buildCatalog, type CatalogDeps } from './catalog'
 import { listWorkspaces } from './workspaces'
+import { listDirs } from './fs-browse'
 import { tokenAccepted } from './auth'
 import { gitCommit, gitDiff, gitStage, gitStatus, gitUnstage } from './git'
 import { discoverClaudeCommands } from './commands'
@@ -120,6 +121,17 @@ export function registerRoutes(
   })
 
   app.get('/workspaces', async () => listWorkspaces(config.workspaceRoots))
+
+  // Host directory browser for new-project — scoped to $HOME + TRUX_WORKSPACES.
+  app.get('/fs/dirs', async (req, reply) => {
+    const { path } = req.query as { path?: string }
+    try {
+      return listDirs(path, config.workspaceRoots)
+    } catch (err) {
+      const e = err as Error & { statusCode?: number }
+      return reply.code(e.statusCode ?? 500).send({ error: e.message })
+    }
+  })
 
   // The Agent catalog: one mobile-facing snapshot of installed agents,
   // connection states, accounts, and capabilities. Composes adapters +

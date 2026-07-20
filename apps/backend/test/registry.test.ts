@@ -183,3 +183,51 @@ describe('registry account_id persistence', () => {
     expect(conv.account_id).toBeNull()
   })
 })
+
+describe('registry projects', () => {
+  it('creates, lists, and fetches a project', () => {
+    const p = registry.createProject({ name: 'trux', cwd: '/home/gp/trux' })
+    expect(p.id).toMatch(/^prj_/)
+    expect(p.archived).toBe(false)
+    expect(p.default_agent).toBeNull()
+    expect(registry.listProjects().map((x) => x.id)).toEqual([p.id])
+    expect(registry.getProject(p.id)?.id).toBe(p.id)
+    expect(registry.getProjectByCwd('/home/gp/trux')?.id).toBe(p.id)
+  })
+
+  it('patches a project (rename + defaults + archive)', () => {
+    const p = registry.createProject({ name: 'trux', cwd: '/x' })
+    const updated = registry.patchProject(p.id, {
+      name: 'trux2',
+      default_agent: 'pi',
+      default_trust: 'allow_all',
+      default_model: 'opencode-go/glm-5.2',
+      archived: true,
+    })
+    expect(updated?.name).toBe('trux2')
+    expect(updated?.default_agent).toBe('pi')
+    expect(updated?.default_trust).toBe('allow_all')
+    expect(updated?.default_model).toBe('opencode-go/glm-5.2')
+    expect(updated?.archived).toBe(true)
+    // Archived projects are excluded from listProjects.
+    expect(registry.listProjects()).toEqual([])
+  })
+
+  it('lists conversations by project and counts them', () => {
+    const p = registry.createProject({ name: 'trux', cwd: '/x' })
+    registry.createConversation({ agent: 'claude', cwd: '/x', project_id: p.id })
+    registry.createConversation({ agent: 'pi', cwd: '/x', project_id: p.id })
+    registry.createConversation({ agent: 'claude', cwd: '/x' }) // no project
+    const agents = registry.listConversationsByProject(p.id).map((c) => c.agent).sort()
+    expect(agents).toEqual(['claude', 'pi'])
+    const counts = registry.projectConversationCounts()
+    expect(counts[p.id]).toBe(2)
+  })
+
+  it('createConversation stamps project_id and reads it back', () => {
+    const p = registry.createProject({ name: 'trux', cwd: '/x' })
+    const conv = registry.createConversation({ agent: 'claude', cwd: '/x', project_id: p.id })
+    expect(conv.project_id).toBe(p.id)
+    expect(registry.getConversation(conv.id)?.project_id).toBe(p.id)
+  })
+})

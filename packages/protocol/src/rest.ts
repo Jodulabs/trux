@@ -74,12 +74,49 @@ export interface Conversation {
   options: Record<string, string>
   trust: TurnTrust | null // null = 'ask' (native default); sticky per-conversation
   account_id: string | null // null = agent-native/default account; sticky per-conversation
+  project_id: string | null // null = orphaned/legacy; backfilled by migration
 }
 
 // One persisted transcript row: a server event with its per-conversation sequence number.
 export interface StoredEvent {
   seq: number
   event: ServerEvent
+}
+
+// A project groups conversations that share a working directory (a codebase).
+// One project = one cwd. Conversations inherit the project's defaults when
+// created; each conversation keeps its own agent (harness) fixed for life.
+export interface Project {
+  id: string
+  name: string
+  cwd: string
+  default_agent: AgentName | null
+  default_trust: TurnTrust | null
+  default_model: string | null
+  archived: boolean
+  created_at: number
+  updated_at: number
+}
+
+export interface CreateProjectRequest {
+  name: string
+  cwd: string
+  default_agent?: AgentName | null
+  default_trust?: TurnTrust
+  default_model?: string | null
+}
+
+export interface PatchProjectRequest {
+  name?: string
+  default_agent?: AgentName | null
+  default_trust?: TurnTrust | null
+  default_model?: string | null
+  archived?: boolean
+}
+
+export interface ProjectDetail {
+  project: Project
+  conversations: Conversation[]
 }
 
 export interface CreateConversationRequest {
@@ -91,6 +128,7 @@ export interface CreateConversationRequest {
   options?: Record<string, string>
   trust?: TurnTrust
   account_id?: string | null
+  project_id?: string | null
 }
 
 export interface DiscoveredSession {

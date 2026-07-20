@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { View, Text, TextInput, Pressable, FlatList, ActivityIndicator, StyleSheet } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { useRouter } from 'expo-router'
-import type { AgentCatalogEntry, AgentName, DiscoveredSession, Workspace } from '@trux/protocol'
+import { useLocalSearchParams, useRouter } from 'expo-router'
+import type { AgentCatalogEntry, AgentName, DiscoveredSession, Project, Workspace } from '@trux/protocol'
 import { api } from '@trux/client/api'
 import { useStore } from '@trux/client/store'
 import { theme } from '../../src/theme'
@@ -21,13 +21,20 @@ interface FolderEntry {
   multi: boolean
 }
 
+// New chat flow. Two modes:
+// - With ?projectId=N: inherit cwd + defaults from the project, skip the
+//   folder picker, show provider chips + model picker only.
+// - Without: legacy mode — pick a folder from workspaces/recents, then choose
+//   a provider. The project is auto-derived server-side from the cwd.
 export default function NewConversationScreen(): React.ReactElement {
   const router = useRouter()
+  const { projectId } = useLocalSearchParams<{ projectId?: string }>()
   const conversations = useStore((s) => s.conversations)
   const loadConversations = useStore((s) => s.loadConversations)
   const selectConversation = useStore((s) => s.selectConversation)
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [catalog, setCatalog] = useState<AgentCatalogEntry[]>([])
+  const [project, setProject] = useState<Project | null>(null)
   const [agent, setAgent] = useState<AgentName>('claude')
   const [cwd, setCwd] = useState('')
   const [query, setQuery] = useState('')
@@ -42,12 +49,16 @@ export default function NewConversationScreen(): React.ReactElement {
       api.getCatalog().then((r) => {
         const list = r.catalog ?? []
         setCatalog(list)
-        // Default to the first runnable agent; fall back to the first entry.
         const first = list.find((e) => e.runnable) ?? list[0]
         if (first) setAgent(first.agent)
       }),
+      projectId ? api.getProject(projectId).then((r) => {
+        setProject(r.project)
+        setCwd(r.project.cwd)
+        if (r.project.default_agent) setAgent(r.project.default_agent)
+      }).catch(() => {}) : Promise.resolve(),
     ]).catch(() => setLoadingFolders(false))
-  }, [])
+  }, [projectId])
 
   const folders = useMemo<FolderEntry[]>(
     () =>
@@ -146,7 +157,8 @@ export default function NewConversationScreen(): React.ReactElement {
         native_session_id: sessionId || undefined,
         model: null,
         options: {},
-        trust: 'allow_all',
+        trust: project?.default_trust ?? 'allow_all',
+        project_id: projectId ?? null,
       })
       await loadConversations()
       await selectConversation(conv.id)

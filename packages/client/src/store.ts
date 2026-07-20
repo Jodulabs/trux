@@ -3,6 +3,7 @@ import type {
   ApprovalDecision,
   ApprovalRequestEvent,
   Conversation,
+  Project,
   ServerEvent,
   TextEvent,
   ToolCallEvent,
@@ -78,6 +79,7 @@ export function foldEvent(items: TranscriptItem[], event: ServerEvent): Transcri
 
 interface TruxState {
   conversations: Conversation[]
+  projects: Project[]
   currentId: string | null
   transcript: TranscriptItem[]
   status: string
@@ -91,6 +93,7 @@ interface TruxState {
   // Per-conversation lightweight state for background connections.
   convMeta: Record<string, ConvMeta>
   loadConversations: () => Promise<void>
+  loadProjects: () => Promise<void>
   loadRemoteConfig: () => Promise<void>
   selectConversation: (id: string) => Promise<void>
   applyEvent: (event: ServerEvent) => void
@@ -106,6 +109,7 @@ interface TruxState {
 
 export const useStore = create<TruxState>((set, get) => ({
   conversations: [],
+  projects: [],
   currentId: null,
   transcript: [],
   status: 'idle',
@@ -119,6 +123,9 @@ export const useStore = create<TruxState>((set, get) => ({
   convMeta: {},
   async loadConversations() {
     set({ conversations: await api.listConversations() })
+  },
+  async loadProjects() {
+    set({ projects: await api.listProjects() })
   },
   async loadRemoteConfig() {
     const cfg = await api.getRemoteConfig()

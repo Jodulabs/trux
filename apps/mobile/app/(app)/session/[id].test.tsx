@@ -48,6 +48,7 @@ const conv = (overrides: Partial<Conversation> = {}): Conversation => ({
   options: {},
   trust: null,
   account_id: null,
+  project_id: null,
   ...overrides,
 })
 

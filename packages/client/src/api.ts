@@ -5,8 +5,12 @@ import type {
   Conversation,
   ConversationDetail,
   CreateConversationRequest,
+  CreateProjectRequest,
   DiscoveredSession,
   GitStatusResult,
+  PatchProjectRequest,
+  Project,
+  ProjectDetail,
   Workspace,
 } from '@trux/protocol'
 import { getServerConfig, getStorage } from './ports'
@@ -48,6 +52,25 @@ export const api = {
       headers: { 'content-type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ title }),
     }).then(json<Conversation>),
+  // --- Projects ---
+  listProjects: () =>
+    fetch(url('/projects'), { headers: authHeaders() }).then(json<Project[]>),
+  createProject: (body: CreateProjectRequest) =>
+    fetch(url('/projects'), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...authHeaders() },
+      body: JSON.stringify(body),
+    }).then(json<Project>),
+  getProject: (id: string) =>
+    fetch(url(`/projects/${id}`), { headers: authHeaders() }).then(json<ProjectDetail>),
+  patchProject: (id: string, patch: PatchProjectRequest) =>
+    fetch(url(`/projects/${id}`), {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json', ...authHeaders() },
+      body: JSON.stringify(patch),
+    }).then(json<Project>),
+  deleteProject: (id: string) =>
+    fetch(url(`/projects/${id}`), { method: 'DELETE', headers: authHeaders() }).then(json<{ ok: boolean }>),
   getRemoteConfig: () =>
     fetch(url('/config')).then(json<{ tailscaleHost: string | null; vapidPublicKey: string | null; cwd: string }>),
   subscribePush: (sub: PushSubscriptionJSON) =>

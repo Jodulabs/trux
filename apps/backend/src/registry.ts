@@ -4,6 +4,9 @@ import type {
   Conversation,
   ConversationStatus,
   CreateConversationRequest,
+  CreateProjectRequest,
+  PatchProjectRequest,
+  Project,
   ServerEvent,
   StoredEvent,
   TurnConfig,
@@ -25,13 +28,29 @@ interface ConversationRow {
   options: string // JSON; '{}' default
   trust: string | null // 'ask' | 'allow_all' | null (null = ask)
   account_id: string | null // null = agent-native/default account
+  project_id: string | null // null = orphaned/legacy
 }
 
-// Normalize the persisted trust column to the protocol union. null/missing →
-// null (the caller treats null as 'ask', the native per-tool default).
+interface ProjectRow {
+  id: string
+  name: string
+  cwd: string
+  default_agent: string | null
+  default_trust: string | null
+  default_model: string | null
+  archived: number
+  created_at: number
+  updated_at: number
+}
+
 function toTrust(raw: string | null): TurnTrust | null {
   return raw === 'allow_all' ? 'allow_all' : raw === 'ask' ? 'ask' : null
-}function toConversation(row: ConversationRow): Conversation {
+}
+function toAgentName(raw: string | null): AgentName | null {
+  if (raw === 'claude' || raw === 'codex' || raw === 'opencode' || raw === 'pi') return raw
+  return null
+}
+function toConversation(row: ConversationRow): Conversation {
   return {
     id: row.id,
     agent: row.agent as AgentName,
@@ -46,6 +65,20 @@ function toTrust(raw: string | null): TurnTrust | null {
     options: row.options ? (JSON.parse(row.options) as Record<string, string>) : {},
     trust: toTrust(row.trust),
     account_id: row.account_id ?? null,
+    project_id: row.project_id ?? null,
+  }
+}
+function toProject(row: ProjectRow): Project {
+  return {
+    id: row.id,
+    name: row.name,
+    cwd: row.cwd,
+    default_agent: toAgentName(row.default_agent),
+    default_trust: toTrust(row.default_trust),
+    default_model: row.default_model,
+    archived: row.archived === 1,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
   }
 }
 
@@ -78,12 +111,13 @@ export class SqliteRegistry {
       options: JSON.stringify(input.options ?? {}),
       trust: input.trust ?? null,
       account_id: input.account_id ?? null,
+      project_id: input.project_id ?? null,
     }
     this.db
       .prepare(
         `INSERT INTO conversations
-         (id, agent, cwd, title, status, native_session_id, archived, created_at, updated_at, model, options, trust, account_id)
-         VALUES (@id, @agent, @cwd, @title, @status, @native_session_id, @archived, @created_at, @updated_at, @model, @options, @trust, @account_id)`,
+         (id, agent, cwd, title, status, native_session_id, archived, created_at, updated_at, model, options, trust, account_id, project_id)
+         VALUES (@id, @agent, @cwd, @title, @status, @native_session_id, @archived, @created_at, @updated_at, @model, @options, @trust, @account_id, @project_id)`,
       )
       .run(row)
     return toConversation(row)
@@ -143,6 +177,99 @@ export class SqliteRegistry {
     this.db
       .prepare('UPDATE conversations SET title = ?, updated_at = ? WHERE id = ?')
       .run(title, Date.now(), id)
+  }
+
+  // --- Projects ---
+  // One project per cwd. Conversations reference a project via project_id;
+  // legacy conversations are backfilled by the db migration.
+
+  createProject(input: CreateProjectRequest): Project {
+    const now = Date.now()
+    const row: ProjectRow = {
+      id: `prj_${randomUUID()}`,
+      name: input.name,
+      cwd: input.cwd,
+      default_agent: input.default_agent ?? null,
+      default_trust: input.default_trust ?? null,
+      default_model: input.default_model ?? null,
+      archived: 0,
+      created_at: now,
+      updated_at: now,
+    }
+    this.db
+      .prepare(
+        `INSERT INTO projects (id, name, cwd, default_agent, default_trust, default_model, archived, created_at, updated_at)
+         VALUES (@id, @name, @cwd, @default_agent, @default_trust, @default_model, @archived, @created_at, @updated_at)`,
+      )
+      .run(row)
+    return toProject(row)
+  }
+
+  listProjects(): Project[] {
+    return (
+      this.db
+        .prepare('SELECT * FROM projects WHERE archived = 0 ORDER BY updated_at DESC')
+        .all() as ProjectRow[]
+    ).map(toProject)
+  }
+
+  getProject(id: string): Project | null {
+    const row = this.db.prepare('SELECT * FROM projects WHERE id = ?').get(id) as ProjectRow | undefined
+    return row ? toProject(row) : null
+  }
+
+  getProjectByCwd(cwd: string): Project | null {
+    const row = this.db.prepare('SELECT * FROM projects WHERE cwd = ?').get(cwd) as ProjectRow | undefined
+    return row ? toProject(row) : null
+  }
+
+  patchProject(id: string, patch: PatchProjectRequest): Project | null {
+    const sets: string[] = []
+    const vals: Record<string, unknown> = { id }
+    if (typeof patch.name === 'string' && patch.name.length > 0) {
+      sets.push('name = @name')
+      vals.name = patch.name
+    }
+    if (patch.default_agent !== undefined) {
+      sets.push('default_agent = @default_agent')
+      vals.default_agent = patch.default_agent
+    }
+    if (patch.default_trust !== undefined) {
+      sets.push('default_trust = @default_trust')
+      vals.default_trust = patch.default_trust
+    }
+    if (patch.default_model !== undefined) {
+      sets.push('default_model = @default_model')
+      vals.default_model = patch.default_model
+    }
+    if (patch.archived !== undefined) {
+      sets.push('archived = @archived')
+      vals.archived = patch.archived ? 1 : 0
+    }
+    if (sets.length === 0) return this.getProject(id)
+    sets.push('updated_at = @now')
+    vals.now = Date.now()
+    this.db.prepare(`UPDATE projects SET ${sets.join(', ')} WHERE id = @id`).run(vals)
+    return this.getProject(id)
+  }
+
+  listConversationsByProject(projectId: string): Conversation[] {
+    return (
+      this.db
+        .prepare('SELECT * FROM conversations WHERE project_id = ? AND archived = 0 ORDER BY updated_at DESC')
+        .all(projectId) as ConversationRow[]
+    ).map(toConversation)
+  }
+
+  // Counts non-archived conversations per project — used for the project card's
+  // "open chats" badge. One query, grouped.
+  projectConversationCounts(): Record<string, number> {
+    const rows = this.db
+      .prepare('SELECT project_id, COUNT(*) AS n FROM conversations WHERE archived = 0 AND project_id IS NOT NULL GROUP BY project_id')
+      .all() as Array<{ project_id: string; n: number }>
+    const out: Record<string, number> = {}
+    for (const r of rows) out[r.project_id] = r.n
+    return out
   }
 
   appendEvent(convId: string, event: ServerEvent): StoredEvent {

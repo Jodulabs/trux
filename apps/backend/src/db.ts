@@ -1,5 +1,6 @@
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
+import { randomUUID } from 'node:crypto'
 import Database from 'better-sqlite3'
 
 export type TruxDatabase = Database.Database
@@ -54,6 +55,21 @@ CREATE TABLE IF NOT EXISTS expo_push_tokens (
   token       TEXT PRIMARY KEY,
   created_at  INTEGER NOT NULL
 );
+
+-- Projects: groups conversations that share a working directory. One project
+-- = one cwd (UNIQUE). Conversations reference a project via project_id; legacy
+-- conversations get backfilled by the adoption migration below.
+CREATE TABLE IF NOT EXISTS projects (
+  id              TEXT PRIMARY KEY,
+  name            TEXT NOT NULL,
+  cwd             TEXT NOT NULL UNIQUE,
+  default_agent   TEXT,
+  default_trust   TEXT,
+  default_model   TEXT,
+  archived        INTEGER NOT NULL DEFAULT 0,
+  created_at      INTEGER NOT NULL,
+  updated_at      INTEGER NOT NULL
+);
 `
 
 // Forward-only column adds. SQLite has no portable ADD COLUMN IF NOT EXISTS, so
@@ -71,6 +87,44 @@ function migrate(db: TruxDatabase): void {
   // Optional account selection per conversation (Phase 3 Agent catalog). Null =
   // agent-native/default account. Forward-only; no data migration needed.
   if (!cols.has('account_id')) db.exec('ALTER TABLE conversations ADD COLUMN account_id TEXT')
+  // Projects grouping (Phase 2 IA). Null = orphaned/legacy; the adoption pass
+  // below backfills every existing conversation with a project derived from cwd.
+  if (!cols.has('project_id')) db.exec('ALTER TABLE conversations ADD COLUMN project_id TEXT REFERENCES projects(id)')
+
+  // One-time adoption: for every conversation with no project_id, find-or-create
+  // a project by cwd and stamp it. Idempotent — a second run is a no-op because
+  // every adopted row has project_id set after the first pass.
+  adoptConversationsIntoProjects(db)
+}
+
+function basename(path: string): string {
+  const p = path.replace(/\/$/, '').split('/').pop()
+  return p || path
+}
+
+function adoptConversationsIntoProjects(db: TruxDatabase): void {
+  const orphans = db
+    .prepare('SELECT id, cwd FROM conversations WHERE project_id IS NULL')
+    .all() as Array<{ id: string; cwd: string }>
+  if (orphans.length === 0) return
+  const findProject = db.prepare('SELECT id FROM projects WHERE cwd = ?')
+  const insertProject = db.prepare(
+    'INSERT INTO projects (id, name, cwd, default_agent, default_trust, default_model, archived, created_at, updated_at) VALUES (?, ?, ?, NULL, NULL, NULL, 0, ?, ?)',
+  )
+  const stampConversation = db.prepare('UPDATE conversations SET project_id = ? WHERE id = ?')
+  const now = Date.now()
+  const tx = db.transaction(() => {
+    for (const o of orphans) {
+      let project = findProject.get(o.cwd) as { id: string } | undefined
+      if (!project) {
+        const id = `prj_${randomUUID()}`
+        insertProject.run(id, basename(o.cwd), o.cwd, now, now)
+        project = { id }
+      }
+      stampConversation.run(project.id, o.id)
+    }
+  })
+  tx()
 }
 
 export function openDb(path: string): TruxDatabase {

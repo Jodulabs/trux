@@ -17,7 +17,7 @@ describe('rest dtos', () => {
     const conv: Conversation = {
       id: 'c1', agent: 'claude', cwd: '/repo', title: null, status: 'idle',
       native_session_id: null, archived: false, created_at: 1, updated_at: 1,
-      model: null, options: {}, trust: null, account_id: null,
+      model: null, options: {}, trust: null, account_id: null, project_id: null,
     }
     expect(ws.worktrees[0]?.branch).toBe('main')
     expect(conv.agent).toBe('claude')
@@ -72,7 +72,7 @@ describe('capability manifest + selection contracts', () => {
     const conv: Conversation = {
       id: 'c1', agent: 'claude', cwd: '/x', title: null, status: 'idle',
       native_session_id: null, archived: false, created_at: 0, updated_at: 0,
-      model: 'claude-opus-4-8', options: { effort: 'high' }, trust: 'allow_all', account_id: null,
+      model: 'claude-opus-4-8', options: { effort: 'high' }, trust: 'allow_all', account_id: null, project_id: null,
     }
     expect(req.options).toEqual({})
     expect(req.trust).toBe('allow_all')

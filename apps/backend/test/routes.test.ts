@@ -349,6 +349,123 @@ describe('WS turn engine', () => {
   })
 })
 
+describe('project routes', () => {
+  it('creates a project, lists it, and fetches detail with conversations', async () => {
+    const { port, registry } = await start()
+    const created = (await (
+      await fetch(`http://127.0.0.1:${port}/projects`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'trux', cwd: '/home/gp/trux', default_agent: 'claude' }),
+      })
+    ).json()) as { id: string; name: string; cwd: string; default_agent: string | null }
+    expect(created.name).toBe('trux')
+    expect(created.default_agent).toBe('claude')
+
+    const list = (await (await fetch(`http://127.0.0.1:${port}/projects`)).json()) as { id: string }[]
+    expect(list.map((p) => p.id)).toContain(created.id)
+
+    // Create a conversation in this project's cwd — should auto-attach.
+    registry.createConversation({ agent: 'claude', cwd: '/home/gp/trux' })
+    const conv = (await (
+      await fetch(`http://127.0.0.1:${port}/conversations`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ agent: 'claude', cwd: '/home/gp/trux' }),
+      })
+    ).json()) as Conversation
+    expect(conv.project_id).toBe(created.id)
+
+    const detail = (await (
+      await fetch(`http://127.0.0.1:${port}/projects/${created.id}`)
+    ).json()) as { project: { id: string }; conversations: Conversation[] }
+    expect(detail.project.id).toBe(created.id)
+    expect(detail.conversations.map((c) => c.id)).toContain(conv.id)
+  })
+
+  it('rejects duplicate project cwd with 409', async () => {
+    const { port } = await start()
+    await fetch(`http://127.0.0.1:${port}/projects`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'a', cwd: '/repo/dup' }),
+    })
+    const res = await fetch(`http://127.0.0.1:${port}/projects`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'b', cwd: '/repo/dup' }),
+    })
+    expect(res.status).toBe(409)
+  })
+
+  it('rejects missing cwd/name with 400', async () => {
+    const { port } = await start()
+    const res = await fetch(`http://127.0.0.1:${port}/projects`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'x' }),
+    })
+    expect(res.status).toBe(400)
+  })
+
+  it('patches a project (rename + defaults + archive)', async () => {
+    const { port } = await start()
+    const created = (await (
+      await fetch(`http://127.0.0.1:${port}/projects`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'trux', cwd: '/x' }),
+      })
+    ).json()) as { id: string }
+    const patched = (await (
+      await fetch(`http://127.0.0.1:${port}/projects/${created.id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'trux2', default_agent: 'pi', default_trust: 'allow_all', archived: true }),
+      })
+    ).json()) as { name: string; default_agent: string | null; default_trust: string | null; archived: boolean }
+    expect(patched.name).toBe('trux2')
+    expect(patched.default_agent).toBe('pi')
+    expect(patched.default_trust).toBe('allow_all')
+    expect(patched.archived).toBe(true)
+  })
+
+  it('deletes (archives) an empty project', async () => {
+    const { port } = await start()
+    const created = (await (
+      await fetch(`http://127.0.0.1:${port}/projects`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'trux', cwd: '/x' }),
+      })
+    ).json()) as { id: string }
+    const res = await fetch(`http://127.0.0.1:${port}/projects/${created.id}`, { method: 'DELETE' })
+    expect(res.status).toBe(200)
+    const list = (await (await fetch(`http://127.0.0.1:${port}/projects`)).json()) as { id: string }[]
+    expect(list.map((p) => p.id)).not.toContain(created.id)
+  })
+
+  it('refuses to delete a project with open conversations (409)', async () => {
+    const { port, registry } = await start()
+    const created = (await (
+      await fetch(`http://127.0.0.1:${port}/projects`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'trux', cwd: '/x' }),
+      })
+    ).json()) as { id: string }
+    registry.createConversation({ agent: 'claude', cwd: '/x', project_id: created.id })
+    const res = await fetch(`http://127.0.0.1:${port}/projects/${created.id}`, { method: 'DELETE' })
+    expect(res.status).toBe(409)
+  })
+
+  it('404 for unknown project', async () => {
+    const { port } = await start()
+    const res = await fetch(`http://127.0.0.1:${port}/projects/does-not-exist`)
+    expect(res.status).toBe(404)
+  })
+})
+
 describe('git routes', () => {
   const repos: string[] = []
   afterEach(() => {

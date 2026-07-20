@@ -36,6 +36,7 @@ describe('filterConversations', () => {
       options: {},
       trust: null,
       account_id: null,
+      project_id: null,
     },
     {
       id: 'c2',
@@ -51,6 +52,7 @@ describe('filterConversations', () => {
       options: {},
       trust: null,
       account_id: null,
+      project_id: null,
     },
     {
       id: 'c3',
@@ -66,6 +68,7 @@ describe('filterConversations', () => {
       options: {},
       trust: null,
       account_id: null,
+      project_id: null,
     },
   ]
 

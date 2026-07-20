@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs'
-import type { AgentCapabilities, ConversationDetail, CreateConversationRequest, DiscoveredSession } from '@trux/protocol'
+import type { AgentCapabilities, ConversationDetail, CreateConversationRequest, CreateProjectRequest, DiscoveredSession, PatchProjectRequest } from '@trux/protocol'
 import type { Config } from './config'
 import type { SqliteRegistry } from './registry'
 import { buildCatalog, type CatalogDeps } from './catalog'
@@ -157,6 +157,62 @@ export function registerRoutes(
     return registry.searchConversations(q.trim())
   })
 
+  // --- Projects: group conversations by codebase (cwd). One project = one cwd.
+  // Conversations inherit the project's defaults at creation; each conversation
+  // keeps its own agent (harness) fixed for life.
+  app.get('/projects', async () => registry.listProjects())
+
+  app.post('/projects', async (req, reply) => {
+    const body = (req.body ?? {}) as CreateProjectRequest
+    if (!body || typeof body.cwd !== 'string' || body.cwd.length === 0) {
+      return reply.code(400).send({ error: 'cwd is required' })
+    }
+    if (typeof body.name !== 'string' || body.name.length === 0) {
+      return reply.code(400).send({ error: 'name is required' })
+    }
+    // One project per cwd — reject duplicates.
+    if (registry.getProjectByCwd(body.cwd)) {
+      return reply.code(409).send({ error: 'a project for this cwd already exists' })
+    }
+    return registry.createProject({
+      name: body.name,
+      cwd: body.cwd,
+      default_agent: body.default_agent,
+      default_trust: body.default_trust,
+      default_model: body.default_model,
+    })
+  })
+
+  app.get('/projects/:id', async (req, reply) => {
+    const { id } = req.params as { id: string }
+    const project = registry.getProject(id)
+    if (!project) return reply.code(404).send({ error: 'not found' })
+    return { project, conversations: registry.listConversationsByProject(id) }
+  })
+
+  app.patch('/projects/:id', async (req, reply) => {
+    const { id } = req.params as { id: string }
+    const body = (req.body ?? {}) as PatchProjectRequest
+    const updated = registry.patchProject(id, body)
+    if (!updated) return reply.code(404).send({ error: 'not found' })
+    return updated
+  })
+
+  app.delete('/projects/:id', async (req, reply) => {
+    const { id } = req.params as { id: string }
+    const project = registry.getProject(id)
+    if (!project) return reply.code(404).send({ error: 'not found' })
+    // Refuse to delete a project that still has non-archived conversations —
+    // the user would lose their grouping. Archive conversations first, or
+    // archive the project instead.
+    const open = registry.listConversationsByProject(id)
+    if (open.length > 0) {
+      return reply.code(409).send({ error: 'project has open conversations', count: open.length })
+    }
+    registry.patchProject(id, { archived: true })
+    return { ok: true }
+  })
+
   app.post('/conversations', async (req, reply) => {
     const body = req.body as CreateConversationRequest
     if (!body || typeof body.cwd !== 'string' || body.cwd.length === 0) {
@@ -164,6 +220,13 @@ export function registerRoutes(
     }
     if (!getAgents().some((a) => a.agent === body.agent)) {
       return reply.code(400).send({ error: `unknown agent: ${body.agent}` })
+    }
+    // Auto-attach to a project by cwd if the caller didn't provide one. Lets
+    // the new-chat flow skip the project_id field and still group correctly.
+    let project_id = body.project_id ?? null
+    if (!project_id) {
+      const p = registry.getProjectByCwd(body.cwd)
+      if (p) project_id = p.id
     }
     return registry.createConversation({
       agent: body.agent,
@@ -173,6 +236,7 @@ export function registerRoutes(
       model: body.model ?? null,
       options: body.options ?? {},
       trust: body.trust,
+      project_id,
     })
   })
 

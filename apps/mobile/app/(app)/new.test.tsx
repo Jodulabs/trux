@@ -7,6 +7,7 @@ const mockReplace = jest.fn()
 const mockBack = jest.fn()
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: mockPush, replace: mockReplace, back: mockBack }),
+  useLocalSearchParams: () => ({}),
   Redirect: () => null,
   Stack: ({ children }: { children: React.ReactNode }) => children,
 }))

@@ -47,7 +47,7 @@ const bridgeJs = `
     fontSize: 13,
     convertEol: true,
     cursorBlink: true,
-    theme: { background: '#0c0d10', foreground: '#e7e4dd', cursor: '#e8843d' }
+    theme: { background: '#0b0c0b', foreground: '#e4e6e2', cursor: '#8fbc8f' }
   });
   var fit = new FitAddonCtor();
   term.loadAddon(fit);
@@ -102,7 +102,7 @@ const html = `<!DOCTYPE html>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <style>
 ${xtermCss}
-html, body { margin: 0; padding: 0; height: 100%; background: #0c0d10; overflow: hidden; }
+html, body { margin: 0; padding: 0; height: 100%; background: #0b0c0b; overflow: hidden; }
 #term { position: absolute; inset: 0; padding: 6px; }
 </style>
 </head>

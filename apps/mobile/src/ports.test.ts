@@ -22,9 +22,11 @@ describe('parsePairQr', () => {
 })
 
 describe('theme', () => {
-  it('carries the copper accent + ink surface from the PWA', () => {
-    expect(theme.accent).toBe('#e8843d')
-    expect(theme.ink).toBe('#0c0d10')
+  it('carries dark sumi ink + celadon accent', () => {
+    expect(theme.accent).toBe('#8fbc8f')
+    expect(theme.accentBright).toBe('#a8cfa8')
+    expect(theme.ink).toBe('#0b0c0b')
+    expect(theme.radius).toBe(8)
     expect(theme.fontSans).toBe('IBM Plex Sans')
     expect(theme.fontMono).toBe('IBM Plex Mono')
   })

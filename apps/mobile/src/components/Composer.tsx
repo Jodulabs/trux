@@ -24,7 +24,10 @@ interface Props {
 export function Composer({ busy, onSend, onInterrupt, caps, config, onConfigChange, commands }: Props): React.ReactElement {
   const [text, setText] = useState('')
   const [paletteOpen, setPaletteOpen] = useState(false)
-  const hasControls = !!(caps && config && onConfigChange && (caps.models.length > 0 || caps.controls.length > 0))
+  // ControlPicker always renders when caps is present — even agents with no
+  // models/controls (codex) show the current model + permissions. The model
+  // is the per-turn knob; it must always be visible and changeable.
+  const hasControls = !!(caps && config && onConfigChange)
   const hasCommands = !!(commands && commands.length > 0)
 
   const onChangeText = (val: string): void => {

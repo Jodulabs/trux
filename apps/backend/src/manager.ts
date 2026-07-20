@@ -106,7 +106,21 @@ export class ConversationManager {
     }
     // Persist the selection first (sticky) so ensureSession reads the latest one
     // when it creates a fresh session for this conversation.
+    const existing = this.live.get(convId)
+    const priorConfig = this.liveConfig(convId)
     if (config) this.registry.setConfig(convId, config)
+    // If the incoming config differs from the one baked into the live session,
+    // tear down + recreate so the new model/effort/thinking take effect on this
+    // turn. The native_session_id is preserved for resume (the agent's own
+    // conversation continuity), but the process/query handle is rebuilt so the
+    // SDK sees the new knobs. Only safe when the prior turn is idle.
+    if (existing && priorConfig && config && this.configsDiffer(priorConfig, config)) {
+      const conv = this.registry.getConversation(convId)
+      if (conv && conv.status === 'idle') {
+        await existing.session.close().catch(() => {})
+        this.live.delete(convId)
+      }
+    }
     const live = this.ensureSession(convId)
     if (!live) {
       this.emit(convId, {
@@ -189,6 +203,29 @@ export class ConversationManager {
     const str = (v: unknown): string => (typeof v === 'string' ? v : '')
     const raw = str(o.command) || str(o.file_path) || str(o.path) || str(o.pattern) || str(o.url) || tool
     return raw.length > 120 ? `${raw.slice(0, 117)}…` : raw
+  }
+
+  // Snapshot the config baked into the live session (if any), read from the
+  // persisted conversation BEFORE a new setConfig overwrites it. Used to detect
+  // "the user changed the model/effort/trust for this turn" so we can rebuild
+  // the session.
+  private liveConfig(convId: string): TurnConfig | null {
+    if (!this.live.has(convId)) return null
+    const conv = this.registry.getConversation(convId)
+    if (!conv) return null
+    return { model: conv.model, options: { ...conv.options }, trust: conv.trust ?? undefined }
+  }
+
+  // Does the incoming per-turn config differ from what the live session was
+  // built with? Compares the parts the adapter reads at start() time: model,
+  // opaque options, and trust. Triggers a session rebuild so new knobs apply.
+  private configsDiffer(prev: TurnConfig, incoming: TurnConfig): boolean {
+    if ((prev.model ?? null) !== (incoming.model ?? null)) return true
+    if ((prev.trust ?? null) !== (incoming.trust ?? null)) return true
+    const a = prev.options ?? {}, b = incoming.options ?? {}
+    const ak = Object.keys(a), bk = Object.keys(b)
+    if (ak.length !== bk.length) return true
+    return ak.some((k) => a[k] !== b[k])
   }
 
   private ensureSession(convId: string): LiveSession | null {

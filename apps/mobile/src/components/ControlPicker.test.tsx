@@ -68,10 +68,30 @@ describe('ControlPicker', () => {
     expect(onChange).toHaveBeenCalledWith({ model: null, options: {} })
   })
 
-  it('returns null when agent has no models or controls', async () => {
+  it('renders with free-text model input for agents with no models (codex)', async () => {
     const empty: AgentCapabilities = { agent: 'codex', models: [], defaultModel: null, controls: [] }
     await render(<ControlPicker caps={empty} value={initialConfig} onChange={() => {}} />)
-    expect(screen.toJSON()).toBeNull()
+    // The picker renders (not null) — the summary is visible.
+    expect(screen.toJSON()).not.toBeNull()
+    expect(screen.getByText(/default/)).toBeTruthy()
+  })
+
+  it('shows a free-text model input when expanded and no model chips', async () => {
+    const empty: AgentCapabilities = { agent: 'codex', models: [], defaultModel: null, controls: [] }
+    await render(<ControlPicker caps={empty} value={initialConfig} onChange={() => {}} />)
+    await fireEvent.press(screen.getByText(/default/))
+    expect(screen.getByPlaceholderText('model id…')).toBeTruthy()
+    expect(screen.getByText('Model')).toBeTruthy()
+    expect(screen.getByText('Permissions')).toBeTruthy()
+  })
+
+  it('emits model change when free-text model is typed', async () => {
+    const empty: AgentCapabilities = { agent: 'codex', models: [], defaultModel: null, controls: [] }
+    const onChange = jest.fn()
+    await render(<ControlPicker caps={empty} value={initialConfig} onChange={onChange} />)
+    await fireEvent.press(screen.getByText(/default/))
+    await fireEvent.changeText(screen.getByPlaceholderText('model id…'), 'o4-mini')
+    expect(onChange).toHaveBeenCalledWith({ model: 'o4-mini', options: {} })
   })
 
   it('emits trust change when the Allow all chip is pressed', async () => {

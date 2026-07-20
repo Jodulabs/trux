@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
 import { EventEmitter } from 'node:events'
-import type { AgentCapabilities, ApprovalDecision } from '@trux/protocol'
+import type { AgentCapabilities, ApprovalDecision, TurnConfig } from '@trux/protocol'
 import type { AgentAdapter, AgentSession, AdapterEvent } from './types'
 import { PushQueue } from './queue'
 import { mapCodexLine, type CodexMapState, type CodexEvent } from './codex-map'
@@ -26,7 +26,7 @@ export class CodexAdapter implements AgentAdapter {
 
   constructor(private readonly spawnFn: SpawnFn = defaultSpawn) {}
 
-  start(opts: { cwd: string; resume?: string }): AgentSession {
+  start(opts: { cwd: string; resume?: string; config?: TurnConfig }): AgentSession {
     return new CodexSession(this.spawnFn, opts.cwd, opts.resume ?? null)
   }
 }
@@ -44,10 +44,11 @@ class CodexSession implements AgentSession {
     this.mapState = { threadId: resume }
   }
 
-  send(text: string, _attachments?: unknown): void {
+  send(text: string, _attachments?: unknown, config?: TurnConfig): void {
+    const model = config?.model
     const args = this.mapState.threadId
-      ? ['exec', 'resume', '--json', this.mapState.threadId, text]
-      : ['exec', '--json', '-C', this.cwd, '-s', 'workspace-write', text]
+      ? ['exec', 'resume', '--json', this.mapState.threadId, ...(model ? ['-m', model] : []), text]
+      : ['exec', '--json', '-C', this.cwd, '-s', 'workspace-write', ...(model ? ['-m', model] : []), text]
 
     const proc = this.spawnFn(args, { cwd: this.cwd })
     this.activeProc = proc

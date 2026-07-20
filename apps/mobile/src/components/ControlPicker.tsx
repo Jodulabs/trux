@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { View, Text, Pressable, StyleSheet } from 'react-native'
+import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native'
 import type { AgentCapabilities, TurnConfig, TurnTrust } from '@trux/protocol'
 import { theme } from '../theme'
 import { haptic } from '../haptics'
@@ -13,7 +13,10 @@ interface Props {
 // Native control picker: model + opaque controls rendered as chip rows.
 // A leading "default" chip means "no override" — trux does not pick.
 // Mirrors the PWA's ControlPicker but uses chip selectors instead of <select>
-// dropdowns, which are awkward on native.
+// dropdowns, which are awkward on native. When an agent exposes no models
+// (e.g. codex, which accepts a free string via -m), a free-text input lets
+// the user type any model id alongside the "default" chip. The picker always
+// renders when there's a conversation so the current model is always visible.
 export function ControlPicker({ caps, value, onChange }: Props) {
   const [expanded, setExpanded] = useState(false)
 
@@ -35,17 +38,15 @@ export function ControlPicker({ caps, value, onChange }: Props) {
     haptic('light')
   }
 
-  const hasModel = caps.models.length > 0
-  const hasControls = caps.controls.length > 0
-  // Empty manifest → no picker. Trust is still set at creation time (new.tsx)
-  // and applied by the adapter, but agents with no model/controls don't get a
-  // composer row — keeps the composer clean for agents like codex/pi.
-  if (!hasModel && !hasControls) return null
+  const hasModels = caps.models.length > 0
 
   const allowAll = value.trust === 'allow_all'
 
-  // Summary line when collapsed
-  const modelLabel = value.model ? caps.models.find((m) => m.value === value.model)?.label ?? value.model : 'default'
+  // Summary line when collapsed — always shows the model so the user can see
+  // what's driving this conversation, even when it's "default".
+  const modelLabel = value.model
+    ? (hasModels ? caps.models.find((m) => m.value === value.model)?.label ?? value.model : value.model)
+    : 'default'
   const controlLabels = caps.controls.filter((c) => value.options[c.key]).map((c) => `${c.label}: ${value.options[c.key]}`)
   const permLabel = allowAll ? 'allow all' : 'ask'
   const summary = [modelLabel, ...controlLabels, permLabel].join(' · ')
@@ -58,17 +59,31 @@ export function ControlPicker({ caps, value, onChange }: Props) {
       </Pressable>
       {expanded ? (
         <View style={styles.pickerBody}>
-          {hasModel ? (
-            <View style={styles.pickerSection}>
-              <Text style={styles.pickerLabel}>Model</Text>
+          <View style={styles.pickerSection}>
+            <Text style={styles.pickerLabel}>Model</Text>
+            {hasModels ? (
               <View style={styles.chipRow}>
                 <Chip label="default" selected={!value.model} onPress={() => setModel('')} />
                 {caps.models.map((m) => (
                   <Chip key={m.value} label={m.label} selected={value.model === m.value} onPress={() => setModel(m.value)} />
                 ))}
               </View>
-            </View>
-          ) : null}
+            ) : (
+              <View style={styles.freeTextRow}>
+                <Chip label="default" selected={!value.model} onPress={() => setModel('')} />
+                <TextInput
+                  style={styles.freeTextInput}
+                  value={value.model ?? ''}
+                  onChangeText={setModel}
+                  placeholder="model id…"
+                  placeholderTextColor={theme.textFaint}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  accessibilityLabel="Model id"
+                />
+              </View>
+            )}
+          </View>
           {caps.controls.map((c) => (
             <View key={c.key} style={styles.pickerSection}>
               <Text style={styles.pickerLabel}>{c.label}</Text>
@@ -131,4 +146,18 @@ const styles = StyleSheet.create({
   chipPressed: { backgroundColor: theme.surface3 },
   chipText: { color: theme.text, fontSize: 12, fontFamily: theme.fontSans },
   chipTextSelected: { color: theme.ink, fontWeight: '600' },
+  freeTextRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+  freeTextInput: {
+    flex: 1,
+    minWidth: 120,
+    backgroundColor: theme.surface2,
+    borderWidth: 1,
+    borderColor: theme.line,
+    borderRadius: theme.radiusSm,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    color: theme.text,
+    fontSize: 12,
+    fontFamily: theme.fontMono,
+  },
 })

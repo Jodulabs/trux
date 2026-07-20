@@ -13,14 +13,19 @@ class FakeAdapter implements AgentAdapter {
     return { agent: 'claude' as const, models: [], defaultModel: null, controls: [] }
   }
   last!: FakeSession
+  starts = 0
+  lastStartConfig: TurnConfig | undefined
   constructor(private readonly script: AdapterEvent[]) {}
-  start(): AgentSession {
+  start(opts?: { config?: TurnConfig }): AgentSession {
+    this.starts++
+    this.lastStartConfig = opts?.config
     this.last = new FakeSession(this.script)
     return this.last
   }
 }
 class FakeSession implements AgentSession {
   interrupted = false
+  closed = false
   respondedWith: string[] = []
   private outbox = new PushQueue<AdapterEvent>()
   constructor(private readonly script: AdapterEvent[]) {}
@@ -34,7 +39,9 @@ class FakeSession implements AgentSession {
   async interrupt(): Promise<void> {
     this.interrupted = true
   }
-  async close(): Promise<void> {}
+  async close(): Promise<void> {
+    this.closed = true
+  }
   nativeSessionId(): string | null {
     return 'sess_fake'
   }
@@ -408,5 +415,83 @@ describe('manager capabilities + config threading', () => {
     })
     await settle()
     expect(registry.getConversation(conv.id)?.trust).toBe('allow_all')
+  })
+
+  it('rebuilds the live session when the per-turn config changes', async () => {
+    const adapter = new ConfigRecordingAdapter()
+    const mgr = new ConversationManager(registry, new Map([['claude', adapter]]))
+    const conv = registry.createConversation({ agent: 'claude', cwd: '/x' })
+    mgr.attach(conv.id, () => {})
+    // First turn with model 'm1' — bakes m1 into the live session.
+    await mgr.handleUserMessage(conv.id, 'hi', undefined, undefined, {
+      model: 'm1',
+      options: {},
+    })
+    await settle()
+    expect(adapter.startConfigs).toHaveLength(1)
+    expect(adapter.startConfigs[0]).toMatchObject({ model: 'm1' })
+    // Second turn with a different model — must rebuild the session so the
+    // new model reaches adapter.start(). Without the recreate, ensureSession
+    // would return the stale live session and the new model would be dropped.
+    await mgr.handleUserMessage(conv.id, 'again', undefined, undefined, {
+      model: 'm2',
+      options: {},
+    })
+    await settle()
+    expect(adapter.startConfigs).toHaveLength(2)
+    expect(adapter.startConfigs[1]).toMatchObject({ model: 'm2' })
+  })
+
+  it('does NOT rebuild the live session when the config is unchanged', async () => {
+    const adapter = new ConfigRecordingAdapter()
+    const mgr = new ConversationManager(registry, new Map([['claude', adapter]]))
+    const conv = registry.createConversation({ agent: 'claude', cwd: '/x' })
+    mgr.attach(conv.id, () => {})
+    await mgr.handleUserMessage(conv.id, 'hi', undefined, undefined, {
+      model: 'm1',
+      options: {},
+    })
+    await settle()
+    // Same config on the second turn — no rebuild (cheaper, no churn).
+    await mgr.handleUserMessage(conv.id, 'again', undefined, undefined, {
+      model: 'm1',
+      options: {},
+    })
+    await settle()
+    expect(adapter.startConfigs).toHaveLength(1)
+  })
+
+  it('does NOT rebuild mid-turn (status !== idle) — busy guard still applies', async () => {
+    // A slow adapter whose turn never completes in this test window.
+    class SlowAdapter implements AgentAdapter {
+      readonly name = 'claude' as const
+      starts = 0
+      capabilities(): AgentCapabilities {
+        return { agent: 'claude', models: [], defaultModel: null, controls: [] }
+      }
+      start(): AgentSession {
+        this.starts++
+        const outbox = new PushQueue<AdapterEvent>()
+        return {
+          send: () => { outbox.push({ type: 'text', text: 'working' }) /* no turn_complete */ },
+          events: () => outbox.iterable(),
+          interrupt: async () => {},
+          close: async () => {},
+          nativeSessionId: () => 's',
+          respondApproval: () => {},
+        }
+      }
+    }
+    const adapter = new SlowAdapter()
+    const mgr = new ConversationManager(registry, new Map([['claude', adapter]]))
+    const conv = registry.createConversation({ agent: 'claude', cwd: '/x' })
+    mgr.attach(conv.id, () => {})
+    await mgr.handleUserMessage(conv.id, 'hi', undefined, undefined, { model: 'm1', options: {} })
+    await settle()
+    // Second turn with a different model while the first is still busy — must
+    // be rejected by the single-driver guard, NOT rebuild the session.
+    await mgr.handleUserMessage(conv.id, 'again', undefined, undefined, { model: 'm2', options: {} })
+    await settle()
+    expect(adapter.starts).toBe(1)
   })
 })

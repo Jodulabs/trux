@@ -47,6 +47,38 @@ describe('CodexAdapter', () => {
     expect(spawnedArgs[0]).toEqual(['exec', '--json', '-C', '/repo', '-s', 'workspace-write', 'list files'])
   })
 
+  it('passes config.model to codex via -m flag', async () => {
+    const { fn } = fakeSpawn()
+    const spawnedArgs: string[][] = []
+    const trackingFn: SpawnFn = (args, opts) => { spawnedArgs.push(args); return fn(args, opts) }
+    const adapter = new CodexAdapter(trackingFn)
+    const session = adapter.start({ cwd: '/repo' })
+
+    session.send('list files', undefined, { model: 'o4-mini', options: {} })
+    await tick()
+
+    expect(spawnedArgs[0]).toEqual(['exec', '--json', '-C', '/repo', '-s', 'workspace-write', '-m', 'o4-mini', 'list files'])
+  })
+
+  it('passes config.model on resume turns too', async () => {
+    const { fn, procs } = fakeSpawn()
+    const spawnedArgs: string[][] = []
+    const trackingFn: SpawnFn = (args, opts) => { spawnedArgs.push(args); return fn(args, opts) }
+    const adapter = new CodexAdapter(trackingFn)
+    const session = adapter.start({ cwd: '/repo' })
+
+    session.send('first')
+    await tick()
+    procs[0].writeLine(JSON.stringify({ type: 'thread.started', thread_id: 'tid-abc' }))
+    procs[0].writeLine(JSON.stringify({ type: 'turn.completed', usage: { input_tokens: 10, cached_input_tokens: 0, output_tokens: 5, reasoning_output_tokens: 0 } }))
+    procs[0].close(0)
+    await tick()
+
+    session.send('second', undefined, { model: 'gpt-5', options: {} })
+    await tick()
+    expect(spawnedArgs[1]).toEqual(['exec', 'resume', '--json', 'tid-abc', '-m', 'gpt-5', 'second'])
+  })
+
   it('subsequent send uses exec resume with thread_id', async () => {
     const { fn, procs } = fakeSpawn()
     const spawnedArgs: string[][] = []

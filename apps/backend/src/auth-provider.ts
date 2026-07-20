@@ -1,13 +1,18 @@
+import type { AccountKind, AuthStatus as ProtocolAuthStatus } from '@trux/protocol'
+
 // The phone-facing auth contract. One adapter per provider, surfaced as the
 // "Connections" screen. Mirrors the AgentAdapter registry pattern.
 export type AuthMode =
   | { mode: 'device'; verifyUrl: string; userCode: string | null; needsCode?: boolean } // needsCode: after signing in, paste the returned code back (Claude setup-token)
   | { mode: 'apikey'; label: string } // secondary: paste a key, box stores via the CLI/file
-export type AuthStatus = 'disconnected' | 'pending' | 'connected' | 'expired'
+// Re-export the protocol's AuthStatus so backend consumers use the same type
+// the Agent catalog surfaces to mobile.
+export type AuthStatus = ProtocolAuthStatus
 
 export interface Authenticator {
   readonly id: string // 'codex' | 'claude' | 'opencode' | 'fly' | …
   readonly plane: 'model' | 'machine' // decides where the credential lands
+  readonly accountKind: AccountKind // surfaced in the Agent catalog
   begin(): Promise<AuthMode>
   poll(): Promise<AuthStatus> // device flow: box watches the CLI's progress
   status(): Promise<AuthStatus>

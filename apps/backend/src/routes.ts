@@ -5,6 +5,7 @@ import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs'
 import type { AgentCapabilities, ConversationDetail, CreateConversationRequest, DiscoveredSession } from '@trux/protocol'
 import type { Config } from './config'
 import type { SqliteRegistry } from './registry'
+import { buildCatalog, type CatalogDeps } from './catalog'
 import { listWorkspaces } from './workspaces'
 import { tokenAccepted } from './auth'
 import { gitCommit, gitDiff, gitStage, gitStatus, gitUnstage } from './git'
@@ -106,6 +107,7 @@ export function registerRoutes(
   config: Config,
   registry: SqliteRegistry,
   getAgents: () => AgentCapabilities[],
+  catalogDeps?: CatalogDeps,
 ): void {
   // Bearer gate for REST (no-op locally when authRequired is false). Scoped to
   // this plugin so it never runs for /health or the WS upgrade (registered elsewhere).
@@ -119,7 +121,13 @@ export function registerRoutes(
 
   app.get('/workspaces', async () => listWorkspaces(config.workspaceRoots))
 
-  app.get('/agents', async () => ({ agents: getAgents() }))
+  // The Agent catalog: one mobile-facing snapshot of installed agents,
+  // connection states, accounts, and capabilities. Composes adapters +
+  // authenticators + binary probes internally. Read-only — the login flow
+  // still goes through /auth/:provider/*.
+  if (catalogDeps) {
+    app.get('/catalog', async () => ({ catalog: await buildCatalog(catalogDeps) }))
+  }
 
   app.get('/sessions/discover', async (req, reply) => {
     const { agent, cwd } = req.query as { agent?: string; cwd?: string }

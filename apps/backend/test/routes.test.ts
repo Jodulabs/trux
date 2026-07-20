@@ -190,12 +190,33 @@ describe('REST', () => {
     expect(res.status).toBe(400)
   })
 
-  it('lists agent capability manifests', async () => {
-    const { port } = await start()
-    const res = await (await fetch(`http://127.0.0.1:${port}/agents`)).json()
-    expect(res).toEqual({
-      agents: [{ agent: 'claude', models: [], defaultModel: null, controls: [] }],
-    })
+  it('GET /catalog composes adapters + authenticators + install probe', async () => {
+    // buildServer with catalog deps (adapters + authenticators) so /catalog registers.
+    const localDb = openDb(':memory:')
+    const localRegistry = new SqliteRegistry(localDb)
+    const fakeAuth = {
+      id: 'claude',
+      plane: 'model' as const,
+      accountKind: 'subscription' as const,
+      begin: () => Promise.resolve({ mode: 'device' as const, verifyUrl: 'https://x', userCode: null }),
+      poll: () => Promise.resolve('pending' as const),
+      status: () => Promise.resolve('connected' as const),
+      disconnect: () => Promise.resolve(),
+    }
+    const localApp = await buildServer(baseConfig, localDb, localRegistry,
+      new ConversationManager(localRegistry, new Map([['claude', new FakeAdapter()]])),
+      { authenticators: new Map([['claude', fakeAuth]]), adapters: new Map([['claude', new FakeAdapter()]]) },
+    )
+    const res = await localApp.inject({ method: 'GET', url: '/catalog' })
+    expect(res.statusCode).toBe(200)
+    const body = (res.json()) as { catalog: Array<{ agent: string; installed: boolean; runnable: boolean; accounts: Array<{ status: string; kind: string }> }> }
+    expect(body.catalog).toHaveLength(1)
+    expect(body.catalog[0].agent).toBe('claude')
+    // installed/runnable depend on whether `claude` is on PATH in the test env.
+    expect(body.catalog[0].accounts[0].kind).toBe('subscription')
+    expect(body.catalog[0].accounts[0].status).toBe('connected')
+    await localApp.close()
+    localDb.close()
   })
 
   it('stores and removes a push subscription', async () => {

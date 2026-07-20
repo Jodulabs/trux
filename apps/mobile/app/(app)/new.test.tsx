@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react-native'
 import { useStore } from '@trux/client/store'
-import type { AgentCapabilities, Workspace } from '@trux/protocol'
+import type { AgentCatalogEntry, AgentCapabilities, Workspace } from '@trux/protocol'
 
 const mockPush = jest.fn()
 const mockReplace = jest.fn()
@@ -26,6 +26,10 @@ const agents: AgentCapabilities[] = [
   { agent: 'claude', models: [], defaultModel: null, controls: [] },
 ]
 
+const catalog: AgentCatalogEntry[] = [
+  { agent: 'claude', installed: true, runnable: true, accounts: [], capabilities: agents[0] },
+]
+
 // Mock the api module. The jest.fn()s are created INSIDE the factory so they
 // exist at factory-eval time — which, after babel hoists `import './new'`
 // above this file's `const` initializers, happens before any module-scope
@@ -34,7 +38,7 @@ const agents: AgentCapabilities[] = [
 jest.mock('@trux/client/api', () => ({
   api: {
     listWorkspaces: jest.fn(),
-    listAgents: jest.fn(),
+    getCatalog: jest.fn(),
     discoverSessions: jest.fn(),
     createConversation: jest.fn(),
   },
@@ -45,7 +49,7 @@ import NewConversationScreen from './new'
 
 const mockApi = api as unknown as {
   listWorkspaces: jest.Mock
-  listAgents: jest.Mock
+  getCatalog: jest.Mock
   discoverSessions: jest.Mock
   createConversation: jest.Mock
 }
@@ -54,7 +58,7 @@ describe('NewConversationScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     mockApi.listWorkspaces.mockResolvedValue(workspaces)
-    mockApi.listAgents.mockResolvedValue({ agents })
+    mockApi.getCatalog.mockResolvedValue({ catalog })
     mockApi.discoverSessions.mockResolvedValue([])
     mockApi.createConversation.mockResolvedValue({ id: 'conv-new' })
     useStore.setState({

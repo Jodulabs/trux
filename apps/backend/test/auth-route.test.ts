@@ -9,6 +9,7 @@ const config = { authRequired: false, secret: null } as unknown as Config
 class FakeAuth implements Authenticator {
   readonly id = 'codex'
   readonly plane = 'model' as const
+  readonly accountKind = 'subscription' as const
   begun = false
   begin(): Promise<AuthMode> {
     this.begun = true

@@ -2,14 +2,16 @@ import React, { useEffect, useState } from 'react'
 import { View, Text, Pressable, TextInput, Linking, ScrollView, StyleSheet } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
-import { authApi, type AuthStatus, type ProviderInfo } from '@trux/client/auth'
+import type { AgentCatalogEntry, AuthStatus as ProtocolAuthStatus } from '@trux/protocol'
+import { authApi } from '@trux/client/auth'
+import { api } from '@trux/client/api'
 import { theme } from '../../src/theme'
 import { haptic } from '../../src/haptics'
 
 export default function ConnectionsScreen(): React.ReactElement {
   const router = useRouter()
-  const [providers, setProviders] = useState<ProviderInfo[]>([])
-  const [status, setStatus] = useState<Record<string, AuthStatus>>({})
+  const [catalog, setCatalog] = useState<AgentCatalogEntry[]>([])
+  const [status, setStatus] = useState<Record<string, ProtocolAuthStatus>>({})
   const [device, setDevice] = useState<{ verifyUrl: string; userCode: string | null; needsCode?: boolean } | null>(null)
   const [codeInput, setCodeInput] = useState('')
   const [hint, setHint] = useState<string | null>(null)
@@ -18,12 +20,16 @@ export default function ConnectionsScreen(): React.ReactElement {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Load providers + their current status on mount.
+  // Load the catalog snapshot on mount; seed per-agent status from accounts.
   useEffect(() => {
-    authApi.providers().then(async (ps) => {
-      setProviders(ps)
-      const entries = await Promise.all(ps.map(async (p) => [p.id, (await authApi.status(p.id)).status] as const))
-      setStatus(Object.fromEntries(entries))
+    api.getCatalog().then((r) => {
+      setCatalog(r.catalog ?? [])
+      const st: Record<string, ProtocolAuthStatus> = {}
+      for (const e of r.catalog ?? []) {
+        // One account per agent today; its status is the agent's connection state.
+        st[e.agent] = e.accounts[0]?.status ?? 'disconnected'
+      }
+      setStatus(st)
     }).catch((e) => setError(String(e)))
   }, [])
 
@@ -86,64 +92,70 @@ export default function ConnectionsScreen(): React.ReactElement {
       </View>
       <ScrollView contentContainerStyle={styles.body}>
         {error ? <Text style={styles.error}>{error}</Text> : null}
-        {providers.map((p) => (
-          <View key={p.id} style={styles.card}>
-            <View style={styles.row}>
-              <Text style={styles.provider}>{p.id}</Text>
-              <Text style={styles.status}>{status[p.id] ?? '…'}</Text>
-            </View>
-            <View style={styles.actionRow}>
-              <Pressable disabled={busy} onPress={() => connect(p.id)} style={styles.btn}>
-                <Text style={styles.btnText}>{status[p.id] === 'connected' ? 'Reconnect' : 'Connect'}</Text>
-              </Pressable>
-              {status[p.id] === 'connected' ? (
-                <Pressable onPress={() => disconnect(p.id)} style={styles.btnGhost}>
-                  <Text style={styles.btnGhostText}>Disconnect</Text>
+        {catalog.map((e) => {
+          // Agents without authenticators (e.g. Pi) have no accounts to connect
+          // here — they use their own native credentials. Skip them.
+          if (e.accounts.length === 0) return null
+          const id = e.agent
+          return (
+            <View key={id} style={styles.card}>
+              <View style={styles.row}>
+                <Text style={styles.provider}>{id}</Text>
+                <Text style={styles.status}>{status[id] ?? '…'}</Text>
+              </View>
+              <View style={styles.actionRow}>
+                <Pressable disabled={busy} onPress={() => connect(id)} style={styles.btn}>
+                  <Text style={styles.btnText}>{status[id] === 'connected' ? 'Reconnect' : 'Connect'}</Text>
                 </Pressable>
-              ) : null}
-            </View>
-            {active === p.id && device ? (
-              <View style={styles.device}>
-                <Text style={styles.deviceLabel}>Open this URL and sign in:</Text>
-                <Pressable onPress={() => Linking.openURL(device.verifyUrl)}>
-                  <Text style={styles.link}>{device.verifyUrl}</Text>
-                </Pressable>
-                {device.userCode ? <Text style={styles.code}>code: {device.userCode}</Text> : null}
-                {device.needsCode ? (
-                  <View style={styles.keyRow}>
-                    <TextInput
-                      style={styles.input}
-                      value={codeInput}
-                      onChangeText={setCodeInput}
-                      placeholder="paste the code shown after sign-in"
-                      placeholderTextColor={theme.textFaint}
-                      autoCapitalize="none"
-                    />
-                    <Pressable disabled={busy || !codeInput} onPress={() => submitCode(p.id)} style={styles.btn}>
-                      <Text style={styles.btnText}>Submit</Text>
-                    </Pressable>
-                  </View>
+                {status[id] === 'connected' ? (
+                  <Pressable onPress={() => disconnect(id)} style={styles.btnGhost}>
+                    <Text style={styles.btnGhostText}>Disconnect</Text>
+                  </Pressable>
                 ) : null}
               </View>
-            ) : null}
-            {active === p.id && hint ? <Text style={styles.deviceLabel}>{hint} — paste it below.</Text> : null}
-            <View style={styles.keyRow}>
-              <TextInput
-                style={styles.input}
-                value={active === p.id ? keyInput : ''}
-                onFocus={() => setActive(p.id)}
-                onChangeText={setKeyInput}
-                placeholder="…or paste an API key"
-                placeholderTextColor={theme.textFaint}
-                autoCapitalize="none"
-                secureTextEntry
-              />
-              <Pressable disabled={busy || !keyInput} onPress={() => submitKey(p.id)} style={styles.btn}>
-                <Text style={styles.btnText}>Save</Text>
-              </Pressable>
+              {active === id && device ? (
+                <View style={styles.device}>
+                  <Text style={styles.deviceLabel}>Open this URL and sign in:</Text>
+                  <Pressable onPress={() => Linking.openURL(device.verifyUrl)}>
+                    <Text style={styles.link}>{device.verifyUrl}</Text>
+                  </Pressable>
+                  {device.userCode ? <Text style={styles.code}>code: {device.userCode}</Text> : null}
+                  {device.needsCode ? (
+                    <View style={styles.keyRow}>
+                      <TextInput
+                        style={styles.input}
+                        value={codeInput}
+                        onChangeText={setCodeInput}
+                        placeholder="paste the code shown after sign-in"
+                        placeholderTextColor={theme.textFaint}
+                        autoCapitalize="none"
+                      />
+                      <Pressable disabled={busy || !codeInput} onPress={() => submitCode(id)} style={styles.btn}>
+                        <Text style={styles.btnText}>Submit</Text>
+                      </Pressable>
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
+              {active === id && hint ? <Text style={styles.deviceLabel}>{hint} — paste it below.</Text> : null}
+              <View style={styles.keyRow}>
+                <TextInput
+                  style={styles.input}
+                  value={active === id ? keyInput : ''}
+                  onFocus={() => setActive(id)}
+                  onChangeText={setKeyInput}
+                  placeholder="…or paste an API key"
+                  placeholderTextColor={theme.textFaint}
+                  autoCapitalize="none"
+                  secureTextEntry
+                />
+                <Pressable disabled={busy || !keyInput} onPress={() => submitKey(id)} style={styles.btn}>
+                  <Text style={styles.btnText}>Save</Text>
+                </Pressable>
+              </View>
             </View>
-          </View>
-        ))}
+          )
+        })}
       </ScrollView>
     </SafeAreaView>
   )

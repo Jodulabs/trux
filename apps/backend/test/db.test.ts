@@ -33,6 +33,14 @@ describe('conversations migration', () => {
     db.close()
   })
 
+  it('adds trust and account_id columns', () => {
+    const db = openDb(':memory:')
+    const cols = columns(db)
+    expect(cols).toContain('trust')
+    expect(cols).toContain('account_id')
+    db.close()
+  })
+
   it('is idempotent when columns already exist', () => {
     const db = openDb(':memory:')
     expect(() => openDb(':memory:')).not.toThrow()

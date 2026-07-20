@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { View, Text, TextInput, Pressable, FlatList, ActivityIndicator, StyleSheet } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
-import type { AgentCapabilities, AgentName, DiscoveredSession, Workspace } from '@trux/protocol'
+import type { AgentCatalogEntry, AgentName, DiscoveredSession, Workspace } from '@trux/protocol'
 import { api } from '@trux/client/api'
 import { useStore } from '@trux/client/store'
 import { theme } from '../../src/theme'
@@ -27,7 +27,7 @@ export default function NewConversationScreen(): React.ReactElement {
   const loadConversations = useStore((s) => s.loadConversations)
   const selectConversation = useStore((s) => s.selectConversation)
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
-  const [agents, setAgents] = useState<AgentCapabilities[]>([])
+  const [catalog, setCatalog] = useState<AgentCatalogEntry[]>([])
   const [agent, setAgent] = useState<AgentName>('claude')
   const [cwd, setCwd] = useState('')
   const [query, setQuery] = useState('')
@@ -39,10 +39,12 @@ export default function NewConversationScreen(): React.ReactElement {
   useEffect(() => {
     void Promise.all([
       api.listWorkspaces().then((w) => { setWorkspaces(w); setLoadingFolders(false) }),
-      api.listAgents().then((r) => {
-        const list = r.agents ?? []
-        setAgents(list)
-        if (list[0]) setAgent(list[0].agent)
+      api.getCatalog().then((r) => {
+        const list = r.catalog ?? []
+        setCatalog(list)
+        // Default to the first runnable agent; fall back to the first entry.
+        const first = list.find((e) => e.runnable) ?? list[0]
+        if (first) setAgent(first.agent)
       }),
     ]).catch(() => setLoadingFolders(false))
   }, [])
@@ -156,7 +158,7 @@ export default function NewConversationScreen(): React.ReactElement {
     }
   }
 
-  const hasControls = agents.length > 1 || sessions.length > 0
+  const hasControls = catalog.length > 1 || sessions.length > 0
 
   return (
     <SafeAreaView style={styles.shell} edges={['top', 'bottom']}>
@@ -209,17 +211,17 @@ export default function NewConversationScreen(): React.ReactElement {
 
       {hasControls ? (
         <View style={styles.controlsBar}>
-          {agents.length > 1 ? (
+          {catalog.length > 1 ? (
             <View style={styles.pickerWrap}>
               <Text style={styles.pickerLabel}>Agent</Text>
               <View style={styles.pickerRow}>
-                {agents.map((a) => (
+                {catalog.map((e) => (
                   <Pressable
-                    key={a.agent}
-                    style={[styles.pickerChip, agent === a.agent && styles.pickerChipSelected]}
-                    onPress={() => setAgent(a.agent)}
+                    key={e.agent}
+                    style={[styles.pickerChip, agent === e.agent && styles.pickerChipSelected]}
+                    onPress={() => setAgent(e.agent)}
                   >
-                    <Text style={[styles.pickerChipText, agent === a.agent && styles.pickerChipTextSelected]}>{a.agent}</Text>
+                    <Text style={[styles.pickerChipText, agent === e.agent && styles.pickerChipTextSelected]}>{e.agent}</Text>
                   </Pressable>
                 ))}
               </View>

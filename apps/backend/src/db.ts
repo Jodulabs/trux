@@ -68,6 +68,9 @@ function migrate(db: TruxDatabase): void {
   // trust is a Trux concept, not an agent native control, so it gets its own
   // column. Nullable; null = 'ask' (the native per-tool default).
   if (!cols.has('trust')) db.exec('ALTER TABLE conversations ADD COLUMN trust TEXT')
+  // Optional account selection per conversation (Phase 3 Agent catalog). Null =
+  // agent-native/default account. Forward-only; no data migration needed.
+  if (!cols.has('account_id')) db.exec('ALTER TABLE conversations ADD COLUMN account_id TEXT')
 }
 
 export function openDb(path: string): TruxDatabase {

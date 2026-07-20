@@ -58,6 +58,7 @@ async function main(): Promise<void> {
   const app = await buildServer(config, db, registry, manager, {
     vapidPublicKey: vapid?.publicKey ?? null,
     authenticators,
+    adapters,
   })
   await app.listen({ host: config.host, port: config.port })
   console.log(`trux backend listening on http://${config.host}:${config.port} (db: ${config.dbPath})`)

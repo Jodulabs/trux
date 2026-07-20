@@ -169,3 +169,17 @@ describe('registry trust persistence', () => {
     expect(again?.options).not.toHaveProperty('allow_all')
   })
 })
+
+describe('registry account_id persistence', () => {
+  it('seeds account_id on create and reads it back', () => {
+    const conv = registry.createConversation({ agent: 'claude', cwd: '/x', account_id: 'claude:default' })
+    expect(conv.account_id).toBe('claude:default')
+    const again = registry.getConversation(conv.id)
+    expect(again?.account_id).toBe('claude:default')
+  })
+
+  it('defaults to null account_id when unspecified', () => {
+    const conv = registry.createConversation({ agent: 'claude', cwd: '/x' })
+    expect(conv.account_id).toBeNull()
+  })
+})

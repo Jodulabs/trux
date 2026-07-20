@@ -1,5 +1,5 @@
 import type {
-  AgentsResponse,
+  AgentCatalogResponse,
   CommitResult,
   CommandsResponse,
   Conversation,
@@ -31,7 +31,7 @@ async function json<T>(res: Response): Promise<T> {
 
 export const api = {
   listWorkspaces: () => fetch(url('/workspaces'), { headers: authHeaders() }).then(json<Workspace[]>),
-  listAgents: () => fetch(url('/agents'), { headers: authHeaders() }).then(json<AgentsResponse>),
+  getCatalog: () => fetch(url('/catalog'), { headers: authHeaders() }).then(json<AgentCatalogResponse>),
   listConversations: () =>
     fetch(url('/conversations'), { headers: authHeaders() }).then(json<Conversation[]>),
   getConversation: (id: string) =>

@@ -4,7 +4,6 @@ export type AuthMode =
   | { mode: 'device'; verifyUrl: string; userCode: string | null; needsCode?: boolean }
   | { mode: 'apikey'; label: string }
 export type AuthStatus = 'disconnected' | 'pending' | 'connected' | 'expired'
-export interface ProviderInfo { id: string; plane: 'model' | 'machine' }
 
 function authHeaders(): Record<string, string> {
   const token = getStorage().get('trux_token')
@@ -19,7 +18,6 @@ async function json<T>(res: Response): Promise<T> {
 }
 
 export const authApi = {
-  providers: () => fetch(url('/auth/providers'), { headers: authHeaders() }).then(json<ProviderInfo[]>),
   begin: (provider: string) =>
     fetch(url(`/auth/${provider}/begin`), { method: 'POST', headers: authHeaders() }).then(json<AuthMode>),
   poll: (provider: string) =>

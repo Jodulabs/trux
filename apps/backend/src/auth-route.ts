@@ -13,10 +13,6 @@ export function registerAuth(
 ): void {
   const find = (id: string): Authenticator | undefined => authenticators.get(id)
 
-  app.get('/auth/providers', async () =>
-    [...authenticators.values()].map((a) => ({ id: a.id, plane: a.plane })),
-  )
-
   app.post('/auth/:provider/begin', async (req, reply) => {
     const a = find((req.params as { provider: string }).provider)
     if (!a) return reply.code(400).send({ error: 'unknown provider' })

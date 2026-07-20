@@ -24,6 +24,7 @@ interface ConversationRow {
   model: string | null
   options: string // JSON; '{}' default
   trust: string | null // 'ask' | 'allow_all' | null (null = ask)
+  account_id: string | null // null = agent-native/default account
 }
 
 // Normalize the persisted trust column to the protocol union. null/missing →
@@ -44,6 +45,7 @@ function toTrust(raw: string | null): TurnTrust | null {
     model: row.model,
     options: row.options ? (JSON.parse(row.options) as Record<string, string>) : {},
     trust: toTrust(row.trust),
+    account_id: row.account_id ?? null,
   }
 }
 
@@ -75,12 +77,13 @@ export class SqliteRegistry {
       model: input.model ?? null,
       options: JSON.stringify(input.options ?? {}),
       trust: input.trust ?? null,
+      account_id: input.account_id ?? null,
     }
     this.db
       .prepare(
         `INSERT INTO conversations
-         (id, agent, cwd, title, status, native_session_id, archived, created_at, updated_at, model, options, trust)
-         VALUES (@id, @agent, @cwd, @title, @status, @native_session_id, @archived, @created_at, @updated_at, @model, @options, @trust)`,
+         (id, agent, cwd, title, status, native_session_id, archived, created_at, updated_at, model, options, trust, account_id)
+         VALUES (@id, @agent, @cwd, @title, @status, @native_session_id, @archived, @created_at, @updated_at, @model, @options, @trust, @account_id)`,
       )
       .run(row)
     return toConversation(row)

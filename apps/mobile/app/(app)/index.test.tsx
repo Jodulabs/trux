@@ -24,6 +24,7 @@ const conv = (id: string, title: string | null, cwd: string): Conversation => ({
   model: null,
   options: {},
   trust: null,
+  account_id: null,
 })
 
 beforeEach(() => {

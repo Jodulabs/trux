@@ -32,6 +32,7 @@ const defaultFs: FsSeam = {
 export class OpencodeAuthenticator implements Authenticator {
   readonly id = 'opencode'
   readonly plane = 'model' as const
+  readonly accountKind = 'api_key' as const
 
   constructor(private readonly fs: FsSeam = defaultFs) {}
 

@@ -22,6 +22,7 @@ const defaultReadCreds: ReadCredsFn = () => {
 export class ClaudeAuthenticator implements Authenticator {
   readonly id = 'claude'
   readonly plane = 'model' as const
+  readonly accountKind = 'subscription' as const
 
   // The in-flight setup-token child (awaiting a pasted code) + its reached status.
   private child: AuthChild | null = null

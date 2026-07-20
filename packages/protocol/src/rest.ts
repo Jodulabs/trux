@@ -2,6 +2,11 @@ import type { ConversationStatus, ServerEvent } from './events'
 
 export type AgentName = 'claude' | 'codex' | 'opencode' | 'pi'
 
+// Connection state of an account, surfaced to mobile via the Agent catalog.
+// Mirrors the backend Authenticator's AuthStatus so the catalog is the single
+// mobile-facing source for both agent availability and connection state.
+export type AuthStatus = 'disconnected' | 'pending' | 'connected' | 'expired'
+
 // One selectable value for a model or a control. `value` is sent to the backend
 // verbatim; `label` is shown in the unified UI.
 export interface ControlOption {
@@ -68,6 +73,7 @@ export interface Conversation {
   model: string | null
   options: Record<string, string>
   trust: TurnTrust | null // null = 'ask' (native default); sticky per-conversation
+  account_id: string | null // null = agent-native/default account; sticky per-conversation
 }
 
 // One persisted transcript row: a server event with its per-conversation sequence number.
@@ -84,6 +90,7 @@ export interface CreateConversationRequest {
   model?: string | null
   options?: Record<string, string>
   trust?: TurnTrust
+  account_id?: string | null
 }
 
 export interface DiscoveredSession {
@@ -103,8 +110,44 @@ export interface ConversationDetail {
   transcript: StoredEvent[]
 }
 
-export interface AgentsResponse {
-  agents: AgentCapabilities[]
+// One connected credential/subscription usable by an agent. A user may have
+// several accounts for the same agent. The id is stable and opaque to mobile;
+// null account_id on a conversation means "agent-native default account."
+// Credential material is never exposed in the catalog or stored in trux's DB.
+export type AccountKind = 'subscription' | 'api_key' | 'environment' | 'native'
+
+export interface AgentAccount {
+  id: string
+  agent: AgentName
+  label: string
+  kind: AccountKind
+  status: AuthStatus
+  selected: boolean
+}
+
+// A diagnostic surfaced when an agent isn't runnable (not installed, no
+// connected account, etc.). Optional — only present when something needs
+// explaining to the user.
+export interface AgentDiagnostic {
+  code: 'not_installed' | 'no_account' | 'auth_error'
+  message: string
+}
+
+// One mobile-facing entry in the Agent catalog: the single source for agent
+// availability, connection state, and capability discovery. Composes existing
+// execution adapters with account/login and capability-discovery adapters
+// internally — mobile never reconstructs identity from parallel routes.
+export interface AgentCatalogEntry {
+  agent: AgentName
+  installed: boolean // the CLI binary is on the box's PATH
+  runnable: boolean // installed + (no auth needed | some account connected)
+  accounts: AgentAccount[]
+  capabilities: AgentCapabilities
+  diagnostics?: AgentDiagnostic[]
+}
+
+export interface AgentCatalogResponse {
+  catalog: AgentCatalogEntry[]
 }
 
 export interface GitFileStatus {

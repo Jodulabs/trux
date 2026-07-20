@@ -54,9 +54,9 @@ export function ConversationView({ id }: Props): React.ReactElement {
   // Fetch agent capabilities for the ControlPicker.
   useEffect(() => {
     if (!conv?.agent) return
-    void api.listAgents().then((r) => {
-      const found = r.agents.find((a) => a.agent === conv.agent)
-      setCaps(found)
+    void api.getCatalog().then((r) => {
+      const found = r.catalog.find((a) => a.agent === conv.agent)
+      setCaps(found?.capabilities)
     }).catch(() => {})
   }, [conv?.agent])
 

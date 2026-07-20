@@ -4,10 +4,12 @@ import fastifyStatic from '@fastify/static'
 import { fileURLToPath } from 'node:url'
 import { join, dirname } from 'node:path'
 import { existsSync } from 'node:fs'
+import type { AgentName } from '@trux/protocol'
 import type { Config } from './config'
 import type { TruxDatabase } from './db'
 import type { SqliteRegistry } from './registry'
 import type { ConversationManager } from './manager'
+import type { AgentAdapter } from './adapter/types'
 import { registerRoutes } from './routes'
 import { registerStream } from './stream'
 import { registerTerminal } from './terminal-route'
@@ -20,7 +22,11 @@ export async function buildServer(
   db: TruxDatabase,
   registry: SqliteRegistry,
   manager: ConversationManager,
-  opts?: { vapidPublicKey?: string | null; authenticators?: Map<string, Authenticator> },
+  opts?: {
+    vapidPublicKey?: string | null
+    authenticators?: Map<string, Authenticator>
+    adapters?: Map<AgentName, AgentAdapter>
+  },
 ): Promise<FastifyInstance> {
   const app = Fastify({ logger: false })
   await app.register(websocket)
@@ -40,7 +46,10 @@ export async function buildServer(
   // REST routes get their own encapsulated scope so the bearer preHandler hook
   // stays off /health, /config, or the WS upgrade.
   await app.register(async (scope) => {
-    registerRoutes(scope, config, registry, () => manager.capabilities())
+    const catalogDeps = opts?.adapters && opts?.authenticators
+      ? { adapters: opts.adapters, authenticators: opts.authenticators }
+      : undefined
+    registerRoutes(scope, config, registry, () => manager.capabilities(), catalogDeps)
     if (opts?.authenticators) registerAuth(scope, config, opts.authenticators)
   })
   registerStream(app, config, registry, manager)

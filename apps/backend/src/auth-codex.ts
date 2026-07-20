@@ -17,6 +17,7 @@ const defaultSpawn: SpawnFn = (cmd, args) => spawn(cmd, args) as unknown as Auth
 export class CodexAuthenticator implements Authenticator {
   readonly id = 'codex'
   readonly plane = 'model' as const
+  readonly accountKind = 'subscription' as const
 
   // The in-flight device-login child + the status it has reached. Only one login
   // runs at a time; a new begin() kills any prior child (the CLI clears auth.json

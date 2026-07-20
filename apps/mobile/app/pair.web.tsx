@@ -3,7 +3,7 @@ import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { theme } from '../src/theme'
-import { savePair, parsePairQr, getStoredToken } from '../src/ports'
+import { savePair, parsePairQr, resolvePairPayload, getStoredToken } from '../src/ports'
 
 // Web pairing fallback. There's no camera QR scan on web (expo-camera is
 // native-only), and most web users arrive via a `#token=` URL captured by
@@ -29,9 +29,15 @@ export default function PairWebScreen(): React.ReactElement {
       setError('Paste the URL from `trux pair`, or the token itself.')
       return
     }
-    // Accept either a full pair URL (https://host/#token=…) or a bare token.
-    const parsed = parsePairQr(raw)
-    finish(parsed ? parsed.token : raw)
+    const sync = parsePairQr(raw)
+    if (sync) {
+      finish(sync.token)
+      return
+    }
+    void (async () => {
+      const parsed = await resolvePairPayload(raw)
+      finish(parsed ? parsed.token : raw)
+    })()
   }
 
   const alreadyPaired = Boolean(getStoredToken())
@@ -50,7 +56,7 @@ export default function PairWebScreen(): React.ReactElement {
           style={styles.input}
           value={value}
           onChangeText={setValue}
-          placeholder="https://box.ts.net/#token=…"
+          placeholder="https://box.ts.net/p/… or #token=…"
           placeholderTextColor={theme.textFaint}
           autoCapitalize="none"
           autoCorrect={false}

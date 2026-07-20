@@ -30,7 +30,8 @@ export function filterConversations(conversations: Conversation[], query: string
   )
 }
 
-async function main(args: string[]): Promise<void> {
+/** Interactive handoff picker. Returns a process exit code. */
+export async function runResume(args: string[]): Promise<number> {
   loadEnvFiles()
   const config = loadConfig()
   const db = openDb(config.dbPath)
@@ -42,7 +43,7 @@ async function main(args: string[]): Promise<void> {
 
   if (conversations.length === 0) {
     console.log('No conversations found.')
-    process.exit(1)
+    return 1
   }
 
   conversations.forEach((c, i) => {
@@ -59,24 +60,24 @@ async function main(args: string[]): Promise<void> {
   if (Number.isNaN(idx) || idx < 0 || idx >= conversations.length) {
     console.log('Invalid selection.')
     rl.close()
-    process.exit(1)
+    return 1
   }
   const conv = conversations[idx]
   if (conv.status !== 'idle') {
     console.log(`Conversation is ${conv.status}. Handoff only allowed when idle.`)
     rl.close()
-    process.exit(1)
+    return 1
   }
   if (!conv.native_session_id) {
     console.log('Conversation has no native session id yet.')
     rl.close()
-    process.exit(1)
+    return 1
   }
   const command = buildHandoffCommand(conv.agent, conv.native_session_id)
   if (!command) {
     console.log(`Handoff not supported for agent: ${conv.agent}`)
     rl.close()
-    process.exit(1)
+    return 1
   }
   rl.close()
   console.log(`\n→ cd ${conv.cwd} && ${command.join(' ')}\n`)
@@ -85,21 +86,17 @@ async function main(args: string[]): Promise<void> {
     stdio: 'inherit',
     env: process.env as Record<string, string>,
   })
-  return new Promise<void>((resolve) => {
-    proc.on('exit', (code) => {
-      resolve()
-      process.exit(code ?? 0)
-    })
+  return new Promise<number>((resolve) => {
+    proc.on('exit', (code) => resolve(code ?? 0))
     proc.on('error', (err) => {
       console.error(`Failed to start ${command[0]}:`, err.message)
-      resolve()
-      process.exit(1)
+      resolve(1)
     })
   })
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  main(process.argv.slice(2)).catch((err) => {
+  runResume(process.argv.slice(2)).then((code) => process.exit(code)).catch((err) => {
     console.error(err)
     process.exit(1)
   })

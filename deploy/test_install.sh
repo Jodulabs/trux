@@ -17,7 +17,7 @@ test_render_service() {
   unit="$sandbox/trux.service"
   render_service "$unit"
   grep -q "^WorkingDirectory=/opt/example/trux$" "$unit" || fail "WorkingDirectory not substituted"
-  grep -q "^ExecStart=/usr/local/bin/pnpm --filter backend start$" "$unit" || fail "ExecStart not substituted"
+  grep -q "^ExecStart=/usr/local/bin/pnpm --filter @trux/backend start$" "$unit" || fail "ExecStart not substituted"
   grep -q "^Environment=PATH=/opt/node/bin:" "$unit" || fail "NODE_DIR not substituted into PATH"
   grep -q "__TRUX_DIR__\|__PNPM__\|__NODE_DIR__" "$unit" && fail "placeholder left in rendered unit"
   rm -rf "$sandbox"
@@ -45,7 +45,7 @@ test_ensure_env() {
 }
 
 test_shim_url_token() {
-  local sandbox
+  local sandbox out
   sandbox="$(mktemp -d)"
   mkdir -p "$sandbox/.trux"
   cat > "$sandbox/.trux/.env" <<EOF
@@ -53,19 +53,18 @@ TRUX_SECRET=deadbeef
 TRUX_PORT=4317
 TRUX_TAILSCALE_HOST=box.tail1234.ts.net
 EOF
-  local out
-  out="$(HOME="$sandbox" bash "$REPO/bin/trux" token)"
+  out="$(HOME="$sandbox" TRUX_INSTALL_DIR="$REPO" bash "$REPO/bin/trux" token)"
   [ "$out" = "deadbeef" ] || fail "trux token returned '$out'"
-  out="$(HOME="$sandbox" bash "$REPO/bin/trux" url)"
+  out="$(HOME="$sandbox" TRUX_INSTALL_DIR="$REPO" bash "$REPO/bin/trux" url)"
   [ "$out" = "https://box.tail1234.ts.net/" ] || fail "trux url returned '$out'"
   # TRUX_PUBLIC_HOST takes precedence over the tailnet host (Fly driver).
   echo 'TRUX_PUBLIC_HOST=myapp.fly.dev' >> "$sandbox/.trux/.env"
-  out="$(HOME="$sandbox" bash "$REPO/bin/trux" url)"
+  out="$(HOME="$sandbox" TRUX_INSTALL_DIR="$REPO" bash "$REPO/bin/trux" url)"
   [ "$out" = "https://myapp.fly.dev/" ] || fail "trux url should prefer TRUX_PUBLIC_HOST, got '$out'"
   sed -i '/TRUX_PUBLIC_HOST/d' "$sandbox/.trux/.env"
   # No tailnet host -> local URL
   sed -i '/TRUX_TAILSCALE_HOST/d' "$sandbox/.trux/.env"
-  out="$(HOME="$sandbox" bash "$REPO/bin/trux" url)"
+  out="$(HOME="$sandbox" TRUX_INSTALL_DIR="$REPO" bash "$REPO/bin/trux" url)"
   [ "$out" = "http://localhost:4317/" ] || fail "trux url (local) returned '$out'"
   rm -rf "$sandbox"
   pass "trux shim token/url read from env correctly"
@@ -120,31 +119,24 @@ test_shim_resolve_install_dir() {
 }
 
 test_shim_open() {
-  local sandbox bindir
-  sandbox="$(mktemp -d)"
-  bindir="$sandbox/bin"
-  mkdir -p "$bindir" "$sandbox/.trux"
-  open_url_file="$sandbox/opened.txt"
-  cat > "$bindir/xdg-open" <<EOF
-#!/usr/bin/env bash
-printf '%s\n' "\$1" > "$open_url_file"
-EOF
-  chmod +x "$bindir/xdg-open"
-  cat > "$sandbox/.trux/.env" <<EOF
-TRUX_SECRET=deadbeef
-TRUX_PORT=4317
-EOF
-  HOME="$sandbox" PATH="$bindir:$PATH" bash "$REPO/bin/trux" open >/dev/null
-  local out; out="$(cat "$open_url_file")"
-  [ "$out" = "http://localhost:4317/#token=deadbeef" ] \
-    || fail "trux open should xdg-open localhost URL with token in fragment, got '$out'"
-  sed -i '/TRUX_SECRET/d' "$sandbox/.trux/.env"
-  HOME="$sandbox" PATH="$bindir:$PATH" bash "$REPO/bin/trux" open >/dev/null
-  out="$(cat "$open_url_file")"
-  [ "$out" = "http://localhost:4317/" ] \
-    || fail "trux open with no secret should pass bare localhost URL, got '$out'"
-  rm -rf "$sandbox"
-  pass "trux open constructs a localhost URL with token in the fragment"
+  # URL construction + health/open flow is covered in apps/backend/test/cli.test.ts.
+  # Here we only assert the shim routes `open` to the Node access CLI.
+  grep -q 'open|pair|url|token|resume)' "$REPO/bin/trux" \
+    || fail "shim should dispatch open/pair/url/token/resume to the access CLI"
+  grep -q 'filter @trux/backend exec tsx src/cli.ts' "$REPO/bin/trux" \
+    || fail "shim should invoke @trux/backend cli.ts"
+  grep -q 'filter @trux/mobile build:web' "$REPO/bin/trux" \
+    || fail "shim update should build @trux/mobile web"
+  pass "trux shim dispatches access commands and builds @trux/mobile on update"
+}
+
+test_shim_help() {
+  local out
+  out="$(bash "$REPO/bin/trux" help)"
+  echo "$out" | grep -q 'Service:' || fail "help missing Service group"
+  echo "$out" | grep -q 'Access:' || fail "help missing Access group"
+  echo "$out" | grep -q 'pair \[--link\]' || fail "help missing pair --link"
+  pass "trux help lists grouped commands"
 }
 
 test_ensure_flyctl_skip() {
@@ -166,5 +158,6 @@ test_shim_url_token
 test_uninstall_files
 test_shim_resolve_install_dir
 test_shim_open
+test_shim_help
 test_ensure_flyctl_skip
 echo "ALL TESTS PASSED"

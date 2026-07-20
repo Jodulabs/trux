@@ -162,16 +162,14 @@ export function getStoredToken(): string | null {
   return nativeStorage.get(TOKEN_KEY)
 }
 
-// Parse a `trux pair` QR payload: `https://<host>.ts.net/#token=<bearer>`.
-// Returns null if the payload is not a trux pairing URL (no host or no token).
+// Parse a `trux pair` QR payload: `https://<host>/#token=<bearer>`.
+// Returns null if the payload is not a fragment-style pairing URL.
 export function parsePairQr(payload: string): { host: string; token: string } | null {
   try {
     const u = new URL(payload)
     const m = /[#&]token=([^&]+)/.exec(u.hash)
     if (!m) return null
     const token = decodeURIComponent(m[1])
-    // Drop any explicit port the QR carries — trux's backend serves REST + WS
-    // on one port. Keep the host (and port if present) as the connection target.
     const host = u.host
     if (!host || !token) return null
     return { host, token }
@@ -179,3 +177,22 @@ export function parsePairQr(payload: string): { host: string; token: string } | 
     return null
   }
 }
+
+/** Resolve either a `#token=` URL or a short `/p/<code>` redirect from `trux pair`. */
+export async function resolvePairPayload(
+  payload: string,
+): Promise<{ host: string; token: string } | null> {
+  const direct = parsePairQr(payload)
+  if (direct) return direct
+  try {
+    const u = new URL(payload.trim())
+    if (!/^\/p\/[^/]+\/?$/.test(u.pathname)) return null
+    const res = await fetch(u.toString(), { redirect: 'manual' })
+    const loc = res.headers.get('Location') ?? res.headers.get('location')
+    if (!loc) return null
+    return parsePairQr(new URL(loc, u).toString())
+  } catch {
+    return null
+  }
+}
+

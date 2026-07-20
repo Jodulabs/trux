@@ -15,16 +15,48 @@ resolve_install_dir() {
   printf '%s\n' "${XDG_DATA_HOME:-$HOME/.local/share}/trux"
 }
 
-# Print the value of an env key, or empty string if absent. The `|| true` keeps a
-# missing key (e.g. TRUX_TAILSCALE_HOST on a local-only install) from tripping set -e.
-envval() { grep -E "^$1=" "$HOME/.trux/.env" 2>/dev/null | head -1 | cut -d= -f2- || true; }
+access_cli() {
+  local install_dir="$1"; shift
+  pnpm -C "$install_dir" --filter @trux/backend exec tsx src/cli.ts "$@"
+}
+
+print_help() {
+  cat <<'EOF'
+usage: trux <command>
+
+Service:
+  status | start | stop | restart | logs | update
+
+Access:
+  open              launch the web UI on this box (signed in)
+  pair [--link]     show phone-pairing QR + link (or link only)
+  url               print the access URL
+  token             print the auth token
+
+Sessions:
+  resume [query]    hand a conversation to the native CLI
+
+Cloud:
+  fly <app>         provision on Fly.io
+
+Remove:
+  uninstall [--purge]
+
+Bare `trux` shows service status.
+EOF
+}
 
 main() {
   local cmd="${1:-status}"
-  local install_dir host
+  local install_dir
   install_dir="$(resolve_install_dir)"
   case "$cmd" in
-    status)  systemctl --user status trux.service --no-pager ;;
+    help|-h|--help) print_help ;;
+    status)
+      systemctl --user status trux.service --no-pager || true
+      echo ""
+      echo "trux: open · pair · resume · help"
+      ;;
     start)   systemctl --user start trux.service ;;
     stop)    systemctl --user stop trux.service ;;
     restart) systemctl --user restart trux.service && echo "trux: restarted" ;;
@@ -32,35 +64,15 @@ main() {
     update)
       git -C "$install_dir" pull --ff-only
       pnpm -C "$install_dir" install --frozen-lockfile
-      pnpm -C "$install_dir" --filter frontend build
+      pnpm -C "$install_dir" --filter @trux/mobile build:web
       systemctl --user restart trux.service
       echo "trux: updated and restarted" ;;
-    token)   envval TRUX_SECRET ;;
-    url)
-      host="$(envval TRUX_PUBLIC_HOST)"
-      [[ -z "$host" ]] && host="$(envval TRUX_TAILSCALE_HOST)"
-      if [[ -n "$host" ]]; then echo "https://$host/"; else echo "http://localhost:$(envval TRUX_PORT)/"; fi ;;
-    open)
-      secret="$(envval TRUX_SECRET)"
-      port="$(envval TRUX_PORT)"; port="${port:-4317}"
-      open_url="http://localhost:${port}/"
-      [[ -n "$secret" ]] && open_url="${open_url}#token=${secret}"
-      if command -v xdg-open &>/dev/null; then
-        if xdg-open "$open_url" >/dev/null 2>&1; then
-          echo "trux: opening ${open_url}"
-        else
-          echo "trux: xdg-open failed — open this URL manually:" >&2
-          echo "$open_url"
-        fi
-      else
-        echo "$open_url"
-      fi ;;
-    pair)    pnpm -C "$install_dir" --filter backend pair -- "${@:2}" ;;
-    resume)  pnpm -C "$install_dir" --filter backend resume -- "${@:2}" ;;
+    open|pair|url|token|resume)
+      access_cli "$install_dir" "$cmd" "${@:2}" ;;
     fly)     exec bash "$install_dir/deploy/fly/provision-fly.sh" "${@:2}" ;;
     uninstall) exec bash "$install_dir/deploy/uninstall.sh" "${@:2}" ;;
     *)
-      echo "usage: trux {status|start|stop|restart|logs|update|token|url|open|pair|resume [query]|fly <app>|uninstall [--purge]}" >&2
+      print_help >&2
       exit 1 ;;
   esac
 }

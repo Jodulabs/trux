@@ -21,19 +21,22 @@ and configures `tailscale serve`. It prints your URL and token at the end.
 - **`claude` CLI** installed and logged in on this box (the default agent uses it)
 
 ## Connect your phone
-1. Run `trux pair` to print a QR code, scan it (phone on the tailnet) — trux opens already signed in.
+1. Run `trux pair` to print a compact QR + link, scan it (phone on the tailnet) — trux opens already signed in.
 2. Browser menu → **Add to Home Screen** to install the PWA.
 
 ## Manage
 ```sh
-trux status      # service status
-trux logs        # follow logs
-trux restart     # restart the backend
-trux update      # pull latest, rebuild, restart
-trux token       # print your auth token
-trux url         # print your access URL
-trux open        # launch on this box already signed in (token in URL fragment)
-trux pair        # show the phone-pairing QR
+trux              # service status (+ hint)
+trux help         # grouped command list
+trux open         # launch the web UI on this box (signed in)
+trux pair         # phone-pairing QR + pasteable link
+trux pair --link  # print only the short pairing URL
+trux url          # print the access URL
+trux token        # print your auth token
+trux resume       # hand a conversation to the native CLI
+trux logs         # follow logs
+trux restart      # restart the backend
+trux update       # pull latest, rebuild web, restart
 ```
 
 ## Update

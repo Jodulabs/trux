@@ -104,7 +104,7 @@ print_banner() {
   [[ -n "${TRUX_TAILSCALE_HOST:-}" ]] && echo "     phone:  https://${TRUX_TAILSCALE_HOST}/"
   echo "     token:  ${TRUX_SECRET:-<see ~/.trux/.env>}"
   echo ""
-  echo "  Manage:  trux status | trux logs | trux restart | trux update"
+  echo "  Manage:  trux status | trux open | trux pair | trux logs | trux help"
   echo "  Pair a phone (QR):  trux pair"
   echo ""
 }

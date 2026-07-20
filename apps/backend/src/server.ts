@@ -16,6 +16,7 @@ import { registerTerminal } from './terminal-route'
 import { registerPreview } from './preview'
 import { registerAuth } from './auth-route'
 import type { Authenticator } from './auth-provider'
+import { validatePairCode } from './pair-code'
 
 export async function buildServer(
   config: Config,
@@ -34,6 +35,17 @@ export async function buildServer(
   app.get('/health', async () => {
     const { n } = db.prepare('SELECT count(*) AS n FROM conversations').get() as { n: number }
     return { ok: true, conversations: n }
+  })
+
+  // Short pair redirect: `trux pair` writes ~/.trux/pair-code; phone scans
+  // https://<host>/p/<code> → 302 to /#token=<secret> (fragment stays client-side).
+  app.get<{ Params: { code: string } }>('/p/:code', async (req, reply) => {
+    const record = validatePairCode(req.params.code)
+    if (!record || !config.secret) {
+      return reply.code(404).send({ error: 'pair code unknown or expired' })
+    }
+    const dest = `/#token=${encodeURIComponent(config.secret)}`
+    return reply.redirect(dest)
   })
 
   app.get('/config', async () => ({

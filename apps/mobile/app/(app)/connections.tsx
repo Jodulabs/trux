@@ -93,66 +93,80 @@ export default function ConnectionsScreen(): React.ReactElement {
       <ScrollView contentContainerStyle={styles.body}>
         {error ? <Text style={styles.error}>{error}</Text> : null}
         {catalog.map((e) => {
-          // Agents without authenticators (e.g. Pi) have no accounts to connect
-          // here — they use their own native credentials. Skip them.
+          // Agents without authenticators (e.g. Pi in Track A) have no accounts
+          // to connect here — they use their own native credentials. Skip them.
           if (e.accounts.length === 0) return null
           const id = e.agent
+          // 'native' accounts (Pi) are set up in the agent's own console on the
+          // desktop; Trux only reports their status. Don't render Connect/
+          // Disconnect/Key controls — there's no login flow to relay.
+          const isNative = e.accounts[0]?.kind === 'native'
           return (
             <View key={id} style={styles.card}>
               <View style={styles.row}>
                 <Text style={styles.provider}>{id}</Text>
                 <Text style={styles.status}>{status[id] ?? '…'}</Text>
               </View>
-              <View style={styles.actionRow}>
-                <Pressable disabled={busy} onPress={() => connect(id)} style={styles.btn}>
-                  <Text style={styles.btnText}>{status[id] === 'connected' ? 'Reconnect' : 'Connect'}</Text>
-                </Pressable>
-                {status[id] === 'connected' ? (
-                  <Pressable onPress={() => disconnect(id)} style={styles.btnGhost}>
-                    <Text style={styles.btnGhostText}>Disconnect</Text>
-                  </Pressable>
-                ) : null}
-              </View>
-              {active === id && device ? (
-                <View style={styles.device}>
-                  <Text style={styles.deviceLabel}>Open this URL and sign in:</Text>
-                  <Pressable onPress={() => Linking.openURL(device.verifyUrl)}>
-                    <Text style={styles.link}>{device.verifyUrl}</Text>
-                  </Pressable>
-                  {device.userCode ? <Text style={styles.code}>code: {device.userCode}</Text> : null}
-                  {device.needsCode ? (
-                    <View style={styles.keyRow}>
-                      <TextInput
-                        style={styles.input}
-                        value={codeInput}
-                        onChangeText={setCodeInput}
-                        placeholder="paste the code shown after sign-in"
-                        placeholderTextColor={theme.textFaint}
-                        autoCapitalize="none"
-                      />
-                      <Pressable disabled={busy || !codeInput} onPress={() => submitCode(id)} style={styles.btn}>
-                        <Text style={styles.btnText}>Submit</Text>
+              {isNative ? (
+                <Text style={styles.deviceLabel}>
+                  {status[id] === 'connected'
+                    ? 'Authenticated on the box — ready to use.'
+                    : 'Set up credentials in the Pi console on the desktop (the /login command), or via env vars.'}
+                </Text>
+              ) : (
+                <>
+                  <View style={styles.actionRow}>
+                    <Pressable disabled={busy} onPress={() => connect(id)} style={styles.btn}>
+                      <Text style={styles.btnText}>{status[id] === 'connected' ? 'Reconnect' : 'Connect'}</Text>
+                    </Pressable>
+                    {status[id] === 'connected' ? (
+                      <Pressable onPress={() => disconnect(id)} style={styles.btnGhost}>
+                        <Text style={styles.btnGhostText}>Disconnect</Text>
                       </Pressable>
+                    ) : null}
+                  </View>
+                  {active === id && device ? (
+                    <View style={styles.device}>
+                      <Text style={styles.deviceLabel}>Open this URL and sign in:</Text>
+                      <Pressable onPress={() => Linking.openURL(device.verifyUrl)}>
+                        <Text style={styles.link}>{device.verifyUrl}</Text>
+                      </Pressable>
+                      {device.userCode ? <Text style={styles.code}>code: {device.userCode}</Text> : null}
+                      {device.needsCode ? (
+                        <View style={styles.keyRow}>
+                          <TextInput
+                            style={styles.input}
+                            value={codeInput}
+                            onChangeText={setCodeInput}
+                            placeholder="paste the code shown after sign-in"
+                            placeholderTextColor={theme.textFaint}
+                            autoCapitalize="none"
+                          />
+                          <Pressable disabled={busy || !codeInput} onPress={() => submitCode(id)} style={styles.btn}>
+                            <Text style={styles.btnText}>Submit</Text>
+                          </Pressable>
+                        </View>
+                      ) : null}
                     </View>
                   ) : null}
-                </View>
-              ) : null}
-              {active === id && hint ? <Text style={styles.deviceLabel}>{hint} — paste it below.</Text> : null}
-              <View style={styles.keyRow}>
-                <TextInput
-                  style={styles.input}
-                  value={active === id ? keyInput : ''}
-                  onFocus={() => setActive(id)}
-                  onChangeText={setKeyInput}
-                  placeholder="…or paste an API key"
-                  placeholderTextColor={theme.textFaint}
-                  autoCapitalize="none"
-                  secureTextEntry
-                />
-                <Pressable disabled={busy || !keyInput} onPress={() => submitKey(id)} style={styles.btn}>
-                  <Text style={styles.btnText}>Save</Text>
-                </Pressable>
-              </View>
+                  {active === id && hint ? <Text style={styles.deviceLabel}>{hint} — paste it below.</Text> : null}
+                  <View style={styles.keyRow}>
+                    <TextInput
+                      style={styles.input}
+                      value={active === id ? keyInput : ''}
+                      onFocus={() => setActive(id)}
+                      onChangeText={setKeyInput}
+                      placeholder="…or paste an API key"
+                      placeholderTextColor={theme.textFaint}
+                      autoCapitalize="none"
+                      secureTextEntry
+                    />
+                    <Pressable disabled={busy || !keyInput} onPress={() => submitKey(id)} style={styles.btn}>
+                      <Text style={styles.btnText}>Save</Text>
+                    </Pressable>
+                  </View>
+                </>
+              )}
             </View>
           )
         })}

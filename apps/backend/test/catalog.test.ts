@@ -183,4 +183,37 @@ describe('buildCatalog', () => {
     expect(catalog[2].accounts).toEqual([])
     expect(catalog[2].runnable).toBe(true)
   })
+
+  it('Pi with a native authenticator is runnable when status=connected', async () => {
+    // Phase 4: Pi has a status-only authenticator (accountKind='native').
+    // The credentials are set up in Pi's desktop console; Trux only reports
+    // whether they exist. Connected → runnable, like any agent.
+    const adapters = new Map<AgentName, AgentAdapter>([['pi', fakeAdapter('pi')]])
+    const authenticators = new Map<string, Authenticator>([
+      ['pi', fakeAuth({ id: 'pi', accountKind: 'native', status: () => Promise.resolve('connected') })],
+    ])
+    const probe: ProbeFn = () => true
+
+    const catalog = await buildCatalog({ adapters, authenticators }, probe)
+
+    expect(catalog[0].agent).toBe('pi')
+    expect(catalog[0].installed).toBe(true)
+    expect(catalog[0].runnable).toBe(true)
+    expect(catalog[0].accounts[0].kind).toBe('native')
+    expect(catalog[0].accounts[0].status).toBe('connected')
+  })
+
+  it('Pi with a native authenticator is not runnable when status=disconnected', async () => {
+    const adapters = new Map<AgentName, AgentAdapter>([['pi', fakeAdapter('pi')]])
+    const authenticators = new Map<string, Authenticator>([
+      ['pi', fakeAuth({ id: 'pi', accountKind: 'native', status: () => Promise.resolve('disconnected') })],
+    ])
+    const probe: ProbeFn = () => true
+
+    const catalog = await buildCatalog({ adapters, authenticators }, probe)
+
+    expect(catalog[0].runnable).toBe(false)
+    expect(catalog[0].accounts[0].status).toBe('disconnected')
+    expect(catalog[0].diagnostics).toContainEqual({ code: 'no_account', message: 'No connected account for pi' })
+  })
 })

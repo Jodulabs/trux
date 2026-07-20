@@ -72,3 +72,22 @@ export function parseClaudeStatus(out: string): AuthStatus {
     return /logged in|loggedIn.*true/i.test(out) && !/not logged in/i.test(out) ? 'connected' : 'disconnected'
   }
 }
+
+// `opencode providers login --provider openai --method "ChatGPT Pro/Plus (headless)"`
+// prints a verification URL and a one-time code, then waits for authorization:
+//   Go to: https://auth.openai.com/codex/device
+//   Enter code: GV2N-IXK77
+//   Waiting for authorization…
+// Scrape both from a chunk of stdout/stderr. Returns null until the URL has
+// appeared. The output is ANSI-escaped (TUI), so strip first.
+export function parseOpencodeLoginOutput(buf: string): { verifyUrl: string; userCode: string | null } | null {
+  const clean = stripAnsi(buf)
+  const urlMatch = /(https?:\/\/[^\s]+)/.exec(clean)
+  if (!urlMatch) return null
+  const verifyUrl = urlMatch[1].replace(/[).,]+$/, '')
+  // The code is a dash-joined run of uppercase letters/digits (same shape as
+  // Codex's device code, since OpenAI shares the same device-auth endpoint).
+  const codeMatch = /\b([A-Z0-9]{4,}-[A-Z0-9]{4,})\b/.exec(clean)
+  return { verifyUrl, userCode: codeMatch ? codeMatch[1] : null }
+}
+

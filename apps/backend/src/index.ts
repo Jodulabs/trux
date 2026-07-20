@@ -13,6 +13,7 @@ import { buildServer } from './server'
 import { CodexAuthenticator } from './auth-codex'
 import { ClaudeAuthenticator } from './auth-claude'
 import { OpencodeAuthenticator } from './auth-opencode'
+import { PiAuthenticator } from './auth-pi'
 import type { Authenticator } from './auth-provider'
 import { loadOrCreateVapid, WebPushNotifier, ExpoPushNotifier, CompositeNotifier } from './push'
 import type { Notifier } from './manager'
@@ -34,11 +35,14 @@ async function main(): Promise<void> {
     ['pi', new PiAdapter()],
   ])
   // Model-plane authenticators (display order = screen order). Codex shipped in
-  // Phase 1; claude + opencode added in Phase 2a. Machine providers follow later.
+  // Phase 1; claude + opencode added in Phase 2a. Pi (Phase 4) is status-only —
+  // it surfaces whether Pi is authenticated on the box, but Trux doesn't relay
+  // a login flow (Pi's /login lives in the desktop console; mobile reuses it).
   const authenticators = new Map<string, Authenticator>([
     ['claude', new ClaudeAuthenticator()],
     ['codex', new CodexAuthenticator()],
     ['opencode', new OpencodeAuthenticator()],
+    ['pi', new PiAuthenticator()],
   ])
   // Notifications fan out to every transport a device might use. Web-push needs
   // VAPID (env, persisted file, or freshly generated); if keys can't be set up,

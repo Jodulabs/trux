@@ -79,7 +79,26 @@ pnpm build                                   # = expo export -p web → apps/mob
 when you build an APK and `distribute` it — every single time. Three steps, and
 the version bump is mandatory:
 
-1. **Bump `versionCode`** in `apps/mobile/android/app/build.gradle` (line ~95).
+0. **Ensure single-arch config (`android/` is gitignored!).** Verify
+   `apps/mobile/android/app/build.gradle` has the `splits { abi { … } }` block
+   right after `namespace`. If it was wiped by `expo prebuild`, re-add it:
+   ```gradle
+   // In android { … } block of apps/mobile/android/app/build.gradle,
+   // right after `namespace 'com.trux.mobile'`:
+   splits {
+       abi {
+           reset()
+           include "arm64-v8a"
+           universalApk false
+       }
+   }
+   ```
+   This cuts the APK from ~136 MB (4 ABIs) to ~35 MB and build time from
+   ~45 min to ~15 min. arm64-v8a covers every device since 2017; x86 and
+   armeabi-v7a are dead on modern phones. Both `android/` and the splits
+   config are **not tracked in git** — never assume they're present.
+
+1. **Bump `versionCode`** in `apps/mobile/android/app/build.gradle` (line ~106).
    App Distribution rejects an upload whose `versionCode` matches an existing
    release. Increment it (and `versionName` if it's a user-facing version).
 
@@ -113,14 +132,19 @@ App Tester** app on the device.
 - Firebase app id: `1:674532113962:android:f6c6187edccaf193f44d53` (project `trux-ceeed`)
 - Default tester: `guruprasad.hegde@jodulabs.com`
 - Backend port: `4317`; DB: `~/.trux/trux.db`
+- Release APK is **arm64-v8a only** (`splits.abi` in build.gradle), ~35 MB.
 - Release APK is currently **debug-keystore signed** — fine for App Distribution,
   but a real release keystore is needed before Play Store, and the *same* key must
   be reused forever for `com.trux.mobile`.
 
 ## Don't
 
-- Don't rebuild/redistribute an APK for a backend-only change — wasted ~45 min,
+- Don't rebuild/redistribute an APK for a backend-only change — wasted ~15 min,
   and the installed app already gets it on restart.
 - Don't forget the `versionCode` bump before a real new APK — the upload fails.
+- Don't build a universal APK (you removed the `splits` block?) — it wastes
+  build time (4 ABIs) and produces a 136 MB APK. Keep the arm64-v8a splits block.
 - Don't assume Firebase pulls from git/CI — it has only what you last uploaded.
 - Don't plain-`pnpm restart` a running backend — use the helper so the token holds.
+- Don't assume `android/` files are present after `git pull` or `expo prebuild` —
+  check the `splits` block and `versionCode` before every APK build.

@@ -164,6 +164,7 @@ export function registerRoutes(
       native_session_id: body.native_session_id,
       model: body.model ?? null,
       options: body.options ?? {},
+      trust: body.trust,
     })
   })
 

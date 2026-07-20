@@ -34,6 +34,7 @@ describe('filterConversations', () => {
       updated_at: 3,
       model: null,
       options: {},
+      trust: null,
     },
     {
       id: 'c2',
@@ -47,6 +48,7 @@ describe('filterConversations', () => {
       updated_at: 2,
       model: null,
       options: {},
+      trust: null,
     },
     {
       id: 'c3',
@@ -60,6 +62,7 @@ describe('filterConversations', () => {
       updated_at: 1,
       model: null,
       options: {},
+      trust: null,
     },
   ]
 

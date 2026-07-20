@@ -18,7 +18,7 @@ describe('rest dtos', () => {
     const conv: Conversation = {
       id: 'c1', agent: 'claude', cwd: '/repo', title: null, status: 'idle',
       native_session_id: null, archived: false, created_at: 1, updated_at: 1,
-      model: null, options: {},
+      model: null, options: {}, trust: null,
     }
     expect(ws.worktrees[0]?.branch).toBe('main')
     expect(conv.agent).toBe('claude')
@@ -62,20 +62,23 @@ describe('capability manifest + selection contracts', () => {
     expect(resp.agents[0]?.defaultModel).toBeNull()
   })
 
-  it('TurnConfig has a first-class model and an opaque options bag', () => {
-    const cfg: TurnConfig = { model: 'claude-opus-4-8', options: { effort: 'high' } }
+  it('TurnConfig has a first-class model, an opaque options bag, and a separate trust field', () => {
+    const cfg: TurnConfig = { model: 'claude-opus-4-8', options: { effort: 'high' }, trust: 'allow_all' }
     expect(cfg.model).toBe('claude-opus-4-8')
     expect(cfg.options.effort).toBe('high')
+    expect(cfg.trust).toBe('allow_all')
   })
 
   it('create request and conversation carry the selection', () => {
-    const req: CreateConversationRequest = { agent: 'claude', cwd: '/x', model: null, options: {} }
+    const req: CreateConversationRequest = { agent: 'claude', cwd: '/x', model: null, options: {}, trust: 'allow_all' }
     const conv: Conversation = {
       id: 'c1', agent: 'claude', cwd: '/x', title: null, status: 'idle',
       native_session_id: null, archived: false, created_at: 0, updated_at: 0,
-      model: 'claude-opus-4-8', options: { effort: 'high' },
+      model: 'claude-opus-4-8', options: { effort: 'high' }, trust: 'allow_all',
     }
     expect(req.options).toEqual({})
+    expect(req.trust).toBe('allow_all')
     expect(conv.model).toBe('claude-opus-4-8')
+    expect(conv.trust).toBe('allow_all')
   })
 })

@@ -73,4 +73,18 @@ describe('ControlPicker', () => {
     await render(<ControlPicker caps={empty} value={initialConfig} onChange={() => {}} />)
     expect(screen.toJSON()).toBeNull()
   })
+
+  it('emits trust change when the Allow all chip is pressed', async () => {
+    const onChange = jest.fn()
+    await render(<ControlPicker caps={caps} value={initialConfig} onChange={onChange} />)
+    await fireEvent.press(screen.getByText(/default/))
+    await fireEvent.press(screen.getByText('Allow all'))
+    expect(onChange).toHaveBeenCalledWith({ model: null, options: {}, trust: 'allow_all' })
+  })
+
+  it('reflects trust=allow_all in the summary label', async () => {
+    const withTrust: TurnConfig = { model: null, options: {}, trust: 'allow_all' }
+    await render(<ControlPicker caps={caps} value={withTrust} onChange={() => {}} />)
+    expect(screen.getByText(/allow all/)).toBeTruthy()
+  })
 })

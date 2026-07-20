@@ -129,6 +129,19 @@ describe('REST', () => {
     expect(registry.getConversation(created.id)?.native_session_id).toBe('sess-xyz')
   })
 
+  it('creates a conversation with trust=allow_all', async () => {
+    const { port, registry } = await start()
+    const created = (await (
+      await fetch(`http://127.0.0.1:${port}/conversations`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ agent: 'claude', cwd: '/repo', trust: 'allow_all' }),
+      })
+    ).json()) as Conversation
+    expect(created.trust).toBe('allow_all')
+    expect(registry.getConversation(created.id)?.trust).toBe('allow_all')
+  })
+
   it('renames a conversation via PATCH', async () => {
     const { port, registry } = await start()
     const conv = registry.createConversation({ agent: 'claude', cwd: '/repo' })

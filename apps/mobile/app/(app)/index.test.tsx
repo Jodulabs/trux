@@ -23,6 +23,7 @@ const conv = (id: string, title: string | null, cwd: string): Conversation => ({
   updated_at: 1,
   model: null,
   options: {},
+  trust: null,
 })
 
 beforeEach(() => {

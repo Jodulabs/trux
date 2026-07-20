@@ -45,10 +45,10 @@ export function ConversationView({ id }: Props): React.ReactElement {
   const [config, setConfig] = useState<TurnConfig>({ model: null, options: {} })
   const [commands, setCommands] = useState<AgentCommand[]>([])
 
-  // Seed config from the conversation's sticky selection (model/options).
+  // Seed config from the conversation's sticky selection (model/options/trust).
   useEffect(() => {
     if (!conv) return
-    setConfig({ model: conv.model, options: { ...conv.options } })
+    setConfig({ model: conv.model, options: { ...conv.options }, trust: conv.trust ?? undefined })
   }, [conv?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch agent capabilities for the ControlPicker.

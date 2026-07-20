@@ -64,6 +64,10 @@ function migrate(db: TruxDatabase): void {
   )
   if (!cols.has('model')) db.exec('ALTER TABLE conversations ADD COLUMN model TEXT')
   if (!cols.has('options')) db.exec("ALTER TABLE conversations ADD COLUMN options TEXT NOT NULL DEFAULT '{}'")
+  // Trust extracted from opaque options (Phase 2 of the unified-controls plan):
+  // trust is a Trux concept, not an agent native control, so it gets its own
+  // column. Nullable; null = 'ask' (the native per-tool default).
+  if (!cols.has('trust')) db.exec('ALTER TABLE conversations ADD COLUMN trust TEXT')
 }
 
 export function openDb(path: string): TruxDatabase {

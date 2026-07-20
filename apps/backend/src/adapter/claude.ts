@@ -129,7 +129,7 @@ class ClaudeSession implements AgentSession {
   private readonly q: QueryHandle
   // Session-scoped graduated-trust state.
   // allAllowed: broadest scope — every tool auto-approved (CLI --dangerously-skip-permissions).
-  //             Set on construction via options.allow_all='1', or live via allow_all decision.
+  //             Set on construction via config.trust='allow_all', or live via allow_all decision.
   // editsAllowed: Edit/Write/MultiEdit/NotebookEdit auto-approved.
   // allowedCommands: exact Bash commands previously approved.
   private allAllowed: boolean
@@ -340,8 +340,9 @@ export class ClaudeAdapter implements AgentAdapter {
     // Map the opaque selection onto the SDK's native knobs. Empty/absent = omit
     // (let the backend default apply) — trux imposes no model policy.
     const effort = config?.options?.effort
-    // options.allow_all='1' starts the session in full-trust mode (no prompts).
-    const initialAllAllowed = config?.options?.allow_all === '1'
+    // trust='allow_all' starts the session in full-trust mode (no prompts).
+    // Trust is a Trux concept, separate from opaque agent options.
+    const initialAllAllowed = config?.trust === 'allow_all'
     const startQuery = (canUseTool: CanUseTool): QueryHandle =>
       this.queryFn({
         prompt: inbox.iterable() as never,

@@ -7,6 +7,7 @@ import type {
   ServerEvent,
   StoredEvent,
   TurnConfig,
+  TurnTrust,
 } from '@trux/protocol'
 import type { TruxDatabase } from './db'
 
@@ -22,9 +23,14 @@ interface ConversationRow {
   updated_at: number
   model: string | null
   options: string // JSON; '{}' default
+  trust: string | null // 'ask' | 'allow_all' | null (null = ask)
 }
 
-function toConversation(row: ConversationRow): Conversation {
+// Normalize the persisted trust column to the protocol union. null/missing →
+// null (the caller treats null as 'ask', the native per-tool default).
+function toTrust(raw: string | null): TurnTrust | null {
+  return raw === 'allow_all' ? 'allow_all' : raw === 'ask' ? 'ask' : null
+}function toConversation(row: ConversationRow): Conversation {
   return {
     id: row.id,
     agent: row.agent as AgentName,
@@ -37,6 +43,7 @@ function toConversation(row: ConversationRow): Conversation {
     updated_at: row.updated_at,
     model: row.model,
     options: row.options ? (JSON.parse(row.options) as Record<string, string>) : {},
+    trust: toTrust(row.trust),
   }
 }
 
@@ -67,12 +74,13 @@ export class SqliteRegistry {
       updated_at: now,
       model: input.model ?? null,
       options: JSON.stringify(input.options ?? {}),
+      trust: input.trust ?? null,
     }
     this.db
       .prepare(
         `INSERT INTO conversations
-         (id, agent, cwd, title, status, native_session_id, archived, created_at, updated_at, model, options)
-         VALUES (@id, @agent, @cwd, @title, @status, @native_session_id, @archived, @created_at, @updated_at, @model, @options)`,
+         (id, agent, cwd, title, status, native_session_id, archived, created_at, updated_at, model, options, trust)
+         VALUES (@id, @agent, @cwd, @title, @status, @native_session_id, @archived, @created_at, @updated_at, @model, @options, @trust)`,
       )
       .run(row)
     return toConversation(row)
@@ -106,11 +114,20 @@ export class SqliteRegistry {
   }
 
   // Sticky last-used selection for a conversation. Pure UI memory — trux's own,
-  // not a model-behavior decision.
+  // not a model-behavior decision. Trust is persisted alongside model/options
+  // but as its own column (it's a Trux concept, not an agent native control).
   setConfig(id: string, config: TurnConfig): void {
     this.db
-      .prepare('UPDATE conversations SET model = @model, options = @options, updated_at = @now WHERE id = @id')
-      .run({ id, model: config.model ?? null, options: JSON.stringify(config.options ?? {}), now: Date.now() })
+      .prepare(
+        'UPDATE conversations SET model = @model, options = @options, trust = @trust, updated_at = @now WHERE id = @id',
+      )
+      .run({
+        id,
+        model: config.model ?? null,
+        options: JSON.stringify(config.options ?? {}),
+        trust: config.trust ?? null,
+        now: Date.now(),
+      })
   }
 
   archiveConversation(id: string): void {

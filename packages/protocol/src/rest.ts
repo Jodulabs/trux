@@ -27,10 +27,19 @@ export interface AgentCapabilities {
   controls: AgentControl[]
 }
 
-// Per-turn / per-conversation selection. `options` is keyed by AgentControl.key.
+// Trux-side trust selection, separate from opaque native controls. Interpreted
+// by Trux (the manager/adapter), never by the agent's native option map. `ask`
+// is the default per-tool prompt behavior; `allow_all` skips every tool prompt
+// for the session (equivalent to the CLI's --dangerously-skip-permissions).
+export type TurnTrust = 'ask' | 'allow_all'
+
+// Per-turn / per-conversation selection. `options` is keyed by AgentControl.key
+// and is opaque agent data (effort, reasoning, …) — interpreted only by the
+// selected agent adapter. Trust is a Trux concept, so it has its own field.
 export interface TurnConfig {
   model: string | null // null/'' = no override
   options: Record<string, string>
+  trust?: TurnTrust
 }
 
 export interface Worktree {
@@ -58,6 +67,7 @@ export interface Conversation {
   updated_at: number
   model: string | null
   options: Record<string, string>
+  trust: TurnTrust | null // null = 'ask' (native default); sticky per-conversation
 }
 
 // One persisted transcript row: a server event with its per-conversation sequence number.
@@ -73,6 +83,7 @@ export interface CreateConversationRequest {
   native_session_id?: string
   model?: string | null
   options?: Record<string, string>
+  trust?: TurnTrust
 }
 
 export interface DiscoveredSession {

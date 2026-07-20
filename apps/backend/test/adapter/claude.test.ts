@@ -213,4 +213,31 @@ describe('ClaudeAdapter capabilities + config routing', () => {
     expect(options.model).toBeUndefined()
     expect(options.effort).toBeUndefined()
   })
+
+  it('config.trust=allow_all auto-approves every tool without prompting', async () => {
+    const { fn, getCanUseTool } = fakeQuery([], true)
+    new ClaudeAdapter(fn).start({
+      cwd: '/x',
+      config: { model: null, options: {}, trust: 'allow_all' },
+    })
+    // canUseTool resolves immediately with behavior:allow — no approval_request
+    // is parked, so the outbox stays empty (no pending prompt to answer).
+    const result = getCanUseTool()('Bash', { command: 'rm -rf /' }, {
+      signal: new AbortController().signal, toolUseID: 'tu_1',
+    })
+    expect(await result).toEqual({ behavior: 'allow', updatedInput: { command: 'rm -rf /' } })
+  })
+
+  it('config.trust=ask (the default) still prompts via canUseTool', async () => {
+    const { fn, getCanUseTool } = fakeQuery([], true)
+    const session = new ClaudeAdapter(fn).start({
+      cwd: '/x',
+      config: { model: null, options: {}, trust: 'ask' },
+    })
+    void getCanUseTool()('Bash', { command: 'ls' }, {
+      signal: new AbortController().signal, toolUseID: 'tu_1',
+    })
+    const it = session.events()[Symbol.asyncIterator]()
+    expect((await it.next()).value).toMatchObject({ type: 'approval_request', request_id: 'tu_1' })
+  })
 })

@@ -121,6 +121,7 @@ describe('registry model/options persistence', () => {
     const conv = registry.createConversation({ agent: 'claude', cwd: '/x' })
     expect(conv.model).toBeNull()
     expect(conv.options).toEqual({})
+    expect(conv.trust).toBeNull()
   })
 
   it('setConfig updates the last-used selection (sticky)', () => {
@@ -129,5 +130,42 @@ describe('registry model/options persistence', () => {
     const again = registry.getConversation(conv.id)
     expect(again?.model).toBe('claude-sonnet-4-6')
     expect(again?.options).toEqual({ effort: 'low' })
+  })
+})
+
+describe('registry trust persistence', () => {
+  it('seeds trust on create and reads it back', () => {
+    const conv = registry.createConversation({ agent: 'claude', cwd: '/x', trust: 'allow_all' })
+    expect(conv.trust).toBe('allow_all')
+    const again = registry.getConversation(conv.id)
+    expect(again?.trust).toBe('allow_all')
+  })
+
+  it('defaults to null trust when unspecified', () => {
+    const conv = registry.createConversation({ agent: 'claude', cwd: '/x' })
+    expect(conv.trust).toBeNull()
+  })
+
+  it('setConfig persists trust alongside model/options', () => {
+    const conv = registry.createConversation({ agent: 'claude', cwd: '/x' })
+    registry.setConfig(conv.id, { model: null, options: {}, trust: 'allow_all' })
+    const again = registry.getConversation(conv.id)
+    expect(again?.trust).toBe('allow_all')
+  })
+
+  it('setConfig can clear trust back to null (ask)', () => {
+    const conv = registry.createConversation({ agent: 'claude', cwd: '/x', trust: 'allow_all' })
+    registry.setConfig(conv.id, { model: null, options: {}, trust: undefined })
+    const again = registry.getConversation(conv.id)
+    expect(again?.trust).toBeNull()
+  })
+
+  it('trust never appears in opaque options (separate column)', () => {
+    const conv = registry.createConversation({ agent: 'claude', cwd: '/x', trust: 'allow_all' })
+    expect(conv.options).not.toHaveProperty('allow_all')
+    registry.setConfig(conv.id, { model: null, options: { effort: 'high' }, trust: 'allow_all' })
+    const again = registry.getConversation(conv.id)
+    expect(again?.options).toEqual({ effort: 'high' })
+    expect(again?.options).not.toHaveProperty('allow_all')
   })
 })

@@ -201,7 +201,7 @@ export class ConversationManager {
     const session = adapter.start({
       cwd: conv.cwd,
       resume: conv.native_session_id ?? undefined,
-      config: { model: conv.model, options: conv.options },
+      config: { model: conv.model, options: conv.options, trust: conv.trust ?? undefined },
     })
     const live: LiveSession = {
       session,

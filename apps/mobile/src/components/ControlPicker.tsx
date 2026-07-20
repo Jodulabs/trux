@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { View, Text, Pressable, StyleSheet } from 'react-native'
-import type { AgentCapabilities, TurnConfig } from '@trux/protocol'
+import type { AgentCapabilities, TurnConfig, TurnTrust } from '@trux/protocol'
 import { theme } from '../theme'
 import { haptic } from '../haptics'
 
@@ -28,12 +28,21 @@ export function ControlPicker({ caps, value, onChange }: Props) {
     onChange({ ...value, options })
     haptic('light')
   }
+  // Trust is a Trux concept, separate from opaque agent options — it changes
+  // the safety contract, so it has its own chip row and its own field.
+  const setTrust = (trust: TurnTrust): void => {
+    onChange({ ...value, trust })
+    haptic('light')
+  }
 
   const hasModel = caps.models.length > 0
   const hasControls = caps.controls.length > 0
+  // Empty manifest → no picker. Trust is still set at creation time (new.tsx)
+  // and applied by the adapter, but agents with no model/controls don't get a
+  // composer row — keeps the composer clean for agents like codex/pi.
   if (!hasModel && !hasControls) return null
 
-  const allowAll = value.options.allow_all === '1'
+  const allowAll = value.trust === 'allow_all'
 
   // Summary line when collapsed
   const modelLabel = value.model ? caps.models.find((m) => m.value === value.model)?.label ?? value.model : 'default'
@@ -74,8 +83,8 @@ export function ControlPicker({ caps, value, onChange }: Props) {
           <View style={styles.pickerSection}>
             <Text style={styles.pickerLabel}>Permissions</Text>
             <View style={styles.chipRow}>
-              <Chip label="Ask per tool" selected={!allowAll} onPress={() => setOption('allow_all', '')} />
-              <Chip label="Allow all" selected={allowAll} onPress={() => setOption('allow_all', '1')} />
+              <Chip label="Ask per tool" selected={!allowAll} onPress={() => setTrust('ask')} />
+              <Chip label="Allow all" selected={allowAll} onPress={() => setTrust('allow_all')} />
             </View>
           </View>
         </View>

@@ -385,4 +385,28 @@ describe('manager capabilities + config threading', () => {
     expect(registry.getConversation(conv.id)?.model).toBe('m')
     expect(adapter.startConfigs[0]).toEqual({ model: 'm', options: { effort: 'high' } })
   })
+
+  it('passes sticky trust from the conversation into the adapter at start', async () => {
+    const adapter = new ConfigRecordingAdapter()
+    const mgr = new ConversationManager(registry, new Map([['claude', adapter]]))
+    const conv = registry.createConversation({ agent: 'claude', cwd: '/x', trust: 'allow_all' })
+    mgr.attach(conv.id, () => {})
+    await mgr.handleUserMessage(conv.id, 'hi')
+    await settle()
+    expect(adapter.startConfigs[0]).toMatchObject({ trust: 'allow_all' })
+  })
+
+  it('persists trust from a per-turn config and reads it back', async () => {
+    const adapter = new ConfigRecordingAdapter()
+    const mgr = new ConversationManager(registry, new Map([['claude', adapter]]))
+    const conv = registry.createConversation({ agent: 'claude', cwd: '/x' })
+    mgr.attach(conv.id, () => {})
+    await mgr.handleUserMessage(conv.id, 'hi', undefined, undefined, {
+      model: null,
+      options: {},
+      trust: 'allow_all',
+    })
+    await settle()
+    expect(registry.getConversation(conv.id)?.trust).toBe('allow_all')
+  })
 })

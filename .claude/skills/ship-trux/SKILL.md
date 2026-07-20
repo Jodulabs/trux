@@ -83,17 +83,19 @@ the version bump is mandatory:
    App Distribution rejects an upload whose `versionCode` matches an existing
    release. Increment it (and `versionName` if it's a user-facing version).
 
-2. **Build the release APK** (needs JDK 17; the build is ~45 min cold):
+2. **Build the release APK** (needs JDK 17; ~15 min with arm64-v8a only):
    ```bash
    cd apps/mobile/android
    JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 ./gradlew assembleRelease
-   # → app/build/outputs/apk/release/app-release.apk  (~136 MB universal APK)
+   # → app/build/outputs/apk/release/app-arm64-v8a-release.apk  (~35 MB)
    ```
+   The `splits.abi` block in `app/build.gradle` restricts to arm64-v8a only —
+   covers all devices since 2017, 4× faster than universal.
 
 3. **Distribute to testers:**
    ```bash
    firebase appdistribution:distribute \
-     apps/mobile/android/app/build/outputs/apk/release/app-release.apk \
+     apps/mobile/android/app/build/outputs/apk/release/app-arm64-v8a-release.apk \
      --app 1:674532113962:android:f6c6187edccaf193f44d53 \
      --release-notes "<what changed>" \
      --testers "guruprasad.hegde@jodulabs.com"
